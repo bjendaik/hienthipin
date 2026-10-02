@@ -16,7 +16,7 @@
     },
     {
       "name": "Màn Xe 007 60V",
-      "subtitle": "dùng cho pin 48v màn 007",
+      "subtitle": "dùng cho pin 60v màn 007",
       "ranges": "0-15% → 0.70V | 16-25% → 0.78V | 26-40% → 0.80V | 41-60% → 0.84V | 61-80% → 0.88V | 81-100% → 0.94V",
       "entries": [
         {"s": 0,  "e": 15,  "v": 0.70},
