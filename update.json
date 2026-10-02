@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/BMS/HienThiPin-v1.0.bin",
-  "notes": "v1.0 - Sửa lỗi kết nối BMS\n- Thêm OTA online\n- Cải thiện tốc độ tải preset\n- Fix bug hiển thị cell",
+  "version": "2.0",
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/BMS/HienThiPin-v2.0.bin",
+  "notes": "v2.0 - Dùng thư viện mới NimBLE\n- Fix bug",
   "date": "02/10/2026"
 }
