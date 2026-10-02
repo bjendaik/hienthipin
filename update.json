@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
+  "version": "1.0",
   "url": "https://github.com/bjendaik/hienthipin/releases/download/BMS/HienThiPin-v1.0.bin",
-  "notes": "v1.1 - Sửa lỗi kết nối BMS\n- Thêm OTA online\n- Cải thiện tốc độ tải preset\n- Fix bug hiển thị cell",
+  "notes": "v1.0 - Sửa lỗi kết nối BMS\n- Thêm OTA online\n- Cải thiện tốc độ tải preset\n- Fix bug hiển thị cell",
   "date": "02/10/2026"
 }
