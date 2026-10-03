@@ -1,6 +1,6 @@
 {
-  "version": "2.1",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/Update2.1/hienthipin-v2.1.bin",
-  "notes": "v2.1 - Thêm auto update, thêm xóa MAC, tự động kết nối vào BMS khi chỉ tìm thấy 1 BMS",
+  "version": "2.2",
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/UpdateV2.2/HienThiPin-v2.2.bin",
+  "notes": "v2.2 - Fix một số lỗi, thêm hiển thị tên BMS",
   "date": "03/10/2026"
 }
