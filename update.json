@@ -1,6 +1,6 @@
 {
-  "version": "2.3",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev2.3/hienthipin-v2.3.bin",
-  "notes": "v2.3 - Fix một số lỗi, thêm tùy chọn ACQUY và Pin LFP ko BMS",
+  "version": "3.0",
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev3.0/hienthipin-v3.0.bin",
+  "notes": "v3.0 - Fix một số lỗi, Kết nối thêm đc BMS JK và BMS MOVE",
   "date": "05/10/2026"
 }
