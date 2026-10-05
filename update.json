@@ -1,6 +1,6 @@
 {
   "version": "2.2",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/UpdateV2.2/HienThiPin-v2.2.bin",
-  "notes": "v2.2 - Fix một số lỗi, thêm hiển thị tên BMS",
-  "date": "03/10/2026"
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev2.3/hienthipin-v2.3.bin",
+  "notes": "v2.3 - Fix một số lỗi, thêm tùy chọn ACQUY và Pin LFP ko BMS",
+  "date": "05/10/2026"
 }
