@@ -1,6 +1,6 @@
 {
-  "version": "3.0",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev3.0/hienthipin-v3.0.bin",
-  "notes": "v3.0 - Fix một số lỗi, Kết nối thêm đc BMS JK và BMS MOVE",
-  "date": "05/10/2026"
+  "version": "3.1",
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev3.1/HienThiPin-v3.1.bin",
+  "notes": "v3.1 - Fix một số lỗi, Thêm chế độ ẮC QUY hoạt động ok",
+  "date": "017/10/2026"
 }
