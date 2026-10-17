@@ -44,6 +44,7 @@ int pwmRes = 10;
 #define AP_TIMEOUT_MS     60000UL
 #define AP_CHECK_INTERVAL 1000UL
 bool apActive = false;
+bool apAlwaysOn = false;   // ★ Luôn phát WiFi — không tự tắt
 unsigned long apLastClientTime = 0;
 unsigned long apStartedTime = 0;
 uint8_t apLastClientCount = 0;
@@ -419,7 +420,7 @@ void apStart() {
     apActive = true;
     apStartedTime = millis();
     apLastClientTime = 0; apLastClientCount = 0; apLastCheck = millis();
-    LOG_INFO("📡 AP bật: BMS_Config/12345678\n");
+    LOG_INFO("📡 Phát WiFi: BMS_Config/12345678\n");
     if (!dnsServerStarted) { dnsServer.start(DNS_PORT, "*", WiFi.softAPIP()); dnsServerStarted = true; }
 }
 
@@ -436,6 +437,7 @@ void apStop() {
 void apWatchdog() {
     if (!apActive) return;
     if (otaInProgress) return;
+    if (apAlwaysOn) { apLastClientTime = millis(); return; }
     if (millis() - apLastCheck < AP_CHECK_INTERVAL) return;
     apLastCheck = millis();
     uint8_t cc = WiFi.softAPgetStationNum();
@@ -1328,6 +1330,7 @@ void handleData() {
     json += "]";
     json += ",\"staEnabled\":" + String(staEnabled ? "true" : "false");
     json += ",\"staConnected\":" + String(staConnected ? "true" : "false");
+    json += ",\"apAlwaysOn\":" + String(apAlwaysOn ? "true" : "false");
     json += ",\"staSSID\":\"" + staSSID + "\"";
     json += ",\"staPass\":\"" + staPass + "\"";
     if (staConnected) {
@@ -1353,6 +1356,7 @@ void handleData() {
         long remain = (long)AP_TIMEOUT_MS - (long)(millis() - ref);
         if (cc > 0) remain = -1;
         if (!staConnected) remain = -2;
+        if (apAlwaysOn) remain = -3;
         json += ",\"apClients\":" + String(cc);
         json += ",\"apRemain\":" + String(remain / 1000);
     }
@@ -1573,6 +1577,34 @@ void handleSaveWifi() {
         if (apActive) WiFi.mode(WIFI_AP_STA); else WiFi.mode(WIFI_STA);
         staStart();
     } else staStop();
+    server.send(200, "text/plain", "OK");
+}
+
+void handleSaveApAlways() {
+    TOUCH_HTTP();
+    if (!server.hasArg("en")) { server.send(400, "text/plain", "Missing arg"); return; }
+    apAlwaysOn = (server.arg("en") == "1");
+    preferences.begin("bms_config", false);
+    preferences.putBool("ap_always", apAlwaysOn);
+    preferences.end();
+    LOG_INFO("📡 Luôn phát WiFi: %s\n", apAlwaysOn ? "BẬT" : "TẮT");
+    server.send(200, "text/plain", "OK");
+}
+
+void handleSaveSta() {
+    TOUCH_HTTP();
+    if (!server.hasArg("en")) { server.send(400, "text/plain", "Missing arg"); return; }
+    bool en = (server.arg("en") == "1");
+    staEnabled = en;
+    preferences.begin("bms_config", false);
+    preferences.putBool("sta_en", staEnabled);
+    preferences.end();
+    if (en && staSSID != "") {
+        if (apActive) WiFi.mode(WIFI_AP_STA); else WiFi.mode(WIFI_STA);
+        staStart();
+    } else if (!en) {
+        staStop();
+    }
     server.send(200, "text/plain", "OK");
 }
 
@@ -1873,17 +1905,6 @@ void handleCaptivePortal() {
     server.sendHeader("Location", "http://192.168.4.1/", true);
     server.send(302, "text/plain", "");
 }
-
-void handleForceAp() {
-    TOUCH_HTTP();
-    if (!apActive) {
-        apStart();
-        ledSetMode(LED_MODE_CONFIG_BLINK);
-        server.send(200, "text/plain", "Đã bật AP: BMS_Config/12345678");
-    } else {
-        server.send(200, "text/plain", "AP đang chạy sẵn");
-    }
-}
 // =====================================================
 // TRANG CHỦ HTML / UI
 // =====================================================
@@ -1974,6 +1995,15 @@ void handleRoot() {
         ".mode-switch-mini .sw-lbl.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}"
         ".mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}"
         ".mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}"
+        ".tgl-switch{position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0}"
+        ".tgl-switch input{opacity:0;width:0;height:0}"
+        ".tgl-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;"
+        "background:#ccc;transition:.3s;border-radius:26px}"
+        ".tgl-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;"
+        "background:white;transition:.3s;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3)}"
+        ".tgl-switch input:checked + .tgl-slider{background:#28a745}"
+        ".tgl-warn input:checked + .tgl-slider{background:#ff9800}"
+        ".tgl-switch input:checked + .tgl-slider:before{transform:translateX(22px)}"
         "@media (max-width:380px){"
         ".acc-head .title-text{font-size:13px}"
         ".mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}"
@@ -1987,7 +2017,7 @@ void handleRoot() {
         "<div class='card' style='border-top:4px solid #17a2b8'>"
         "<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v" FW_VERSION "</span></h2>"
         "<div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>"
-        "<div style='color:#6c757d;font-size:12px;margin-top:4px'>AP: <span id='scan-mode' style='font-weight:bold'>--</span></div>"
+        "<div style='color:#6c757d;font-size:12px;margin-top:4px'>Phát WiFi: <span id='scan-mode' style='font-weight:bold'>--</span></div>"
         "<div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>"
         "<div style='margin-top:10px;display:flex;align-items:center;gap:8px'>"
         "<strong>SOC:</strong><span id='soc-text' style='font-size:18px;font-weight:bold'>0%</span>"
@@ -2010,7 +2040,7 @@ void handleRoot() {
         "</div>"
         "<div class='acc-body'>"
 
-        // ==== Phần BMS (chỉ hiện khi chế độ BMS) ====
+        // ==== Phần BMS ====
         "<div id='bmsScanArea' style='margin-top:12px'>"
         "<div style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:10px 12px;border-radius:5px;"
         "font-size:12px;color:#004085;margin-bottom:10px;line-height:1.5'>"
@@ -2051,7 +2081,7 @@ void handleRoot() {
         "</div>"
         "</div>"
 
-        // ==== Phần ẮC QUY (chỉ hiện khi chế độ ẮC QUY) ====
+        // ==== Phần ẮC QUY ====
         "<div id='acquyConfigBox' style='display:none;margin-top:12px'>"
         "<div style='background:#fff3cd;border-left:3px solid #ff9800;padding:10px 12px;border-radius:5px;"
         "font-size:12px;color:#856404;margin-bottom:10px;line-height:1.5'>"
@@ -2060,7 +2090,6 @@ void handleRoot() {
         "<div id='ovpAlert' style='display:none;background:#f8d7da;color:#721c24;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;margin-bottom:8px'>"
         "⚠️ CẢNH BÁO: QUÁ ÁP!</div>"
 
-        // 2 box tinh chỉnh
         "<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px'>"
         "<div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>"
         "<div style='font-size:11px;color:#6c757d;font-weight:bold'>⚡ TỨC THỜI</div>"
@@ -2104,8 +2133,6 @@ void handleRoot() {
         "<div id='lfpOptions' style='display:none'>"
         "<div class='input-row'><label><strong>Số cell:</strong></label>"
         "<input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo()'></div>"
-        "<div style='font-size:11px;color:#6c757d;margin-top:-4px;margin-bottom:8px'>"
-        "Mặc định: 3.00V – 3.45V/cell, OVP 3.65V/cell</div>"
         "</div>"
 
         "<div id='battInfoBox' style='background:#e7f3ff;border-left:3px solid #007bff;"
@@ -2138,7 +2165,6 @@ void handleRoot() {
 
         "<button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>"
 
-        // Chân ADC
         "<div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>"
         "<div style='font-size:13px;font-weight:bold;color:#004085;margin-bottom:8px'>📌 Chân ADC đo Ắc quy</div>"
         "<div class='input-row' style='margin:0'><label><strong>GPIO:</strong></label>"
@@ -2146,12 +2172,12 @@ void handleRoot() {
         "<div style='font-size:11px;color:#6c757d;margin-top:6px'>Ưu tiên ADC1: GPIO32/33/34/35</div>"
         "</div>"
 
-        "</div>"  // end acquyConfigBox
+        "</div>"
 
         "</div></div>"
     );
 
-    // ============ CHI TIẾT BMS / ẮC QUY — IR BOX ============
+    // ============ CHI TIẾT BMS / ẮC QUY ============
     server.sendContent(
         "<div class='card accordion' id='accBms' style='border:2px solid #17a2b8'>"
         "<div class='acc-head' id='accBmsHead' style='color:#17a2b8;border-bottom:1px solid #e9ecef' onclick='toggleAcc(\"accBms\")'>"
@@ -2164,7 +2190,6 @@ void handleRoot() {
         "<span id='bms-type-badge' style='display:none;font-size:10px;font-weight:bold;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle'></span>"
         "</div>"
 
-        // IR BOX
         "<div class='ir-box' id='irBox' style='display:none'>"
         "<h4>🚗 BÙ NỘI TRỞ (IR COMPENSATION)</h4>"
         "<div class='ir-grid'>"
@@ -2369,19 +2394,46 @@ void handleRoot() {
         "</div></div>"
     );
 
-    // ============ WIFI ============
+    // ============ WIFI — CÀI ĐẶT WIFI ============
     server.sendContent(
         "<div class='card accordion' id='accWifi' style='border:2px solid #6f42c1'>"
         "<div class='acc-head' style='color:#6f42c1;border-bottom:1px solid #e9ecef' onclick='toggleAcc(\"accWifi\")'>"
-        "<span>📶 WiFi Nhà (STA)</span><span class='arrow'>▼</span>"
+        "<span>📶 Cài Đặt WiFi</span><span class='arrow'>▼</span>"
         "</div>"
         "<div class='acc-body'>"
-        "<div style='display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px 0'>"
-        "<span style='font-size:13px'>Trạng thái: <b><span id='sta-status'>--</span></b></span>"
-        "<label style='margin:0;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px'>"
-        "<input type='checkbox' id='staEn' style='width:auto;margin:0'><span>Bật</span></label>"
+
+        // ==== TOGGLE LUÔN PHÁT WIFI (TRÊN) ====
+        "<div style='display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px 0;"
+        "background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:12px'>"
+        "<div>"
+        "<div style='font-size:13px;font-weight:bold;color:#856404'>📡 Luôn Phát WiFi</div>"
+        "<div style='font-size:11px;color:#6c757d;margin-top:2px'>Không tự tắt sau 60s</div>"
         "</div>"
-        "<div id='staInfoBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:8px 10px;border-radius:5px;font-size:12px;margin-bottom:10px'>"
+        "<label class='tgl-switch tgl-warn'>"
+        "<input type='checkbox' id='apAlwaysToggle' onchange='toggleApAlways(this.checked)'>"
+        "<span class='tgl-slider'></span>"
+        "</label>"
+        "</div>"
+
+        // ==== TOGGLE KẾT NỐI WIFI (DƯỚI) ====
+        "<div style='display:flex;justify-content:space-between;align-items:center;margin:0 0 10px 0;"
+        "background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px'>"
+        "<div>"
+        "<div style='font-size:13px;font-weight:bold'>📶 Kết Nối WiFi</div>"
+        "<div style='font-size:11px;color:#6c757d;margin-top:2px'>Trạng thái: <b><span id='sta-status'>--</span></b></div>"
+        "</div>"
+        "<label class='tgl-switch'>"
+        "<input type='checkbox' id='staEn' onchange='toggleSta(this.checked)'>"
+        "<span class='tgl-slider'></span>"
+        "</label>"
+        "</div>"
+
+        // ==== PHẦN CẤU HÌNH WIFI (ẩn khi tắt Kết Nối WiFi) ====
+        "<div id='wifiCredBox' style='display:none'>"
+
+        // THÔNG TIN STA
+        "<div id='staInfoBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;"
+        "padding:8px 10px;border-radius:5px;font-size:12px;margin-bottom:10px'>"
         "IP: <b><span id='sta-ip'>--</span></b> | RSSI: <span id='sta-rssi'>--</span> dBm</div>"
 
         "<div class='input-row' style='align-items:stretch'><label><strong>SSID:</strong></label>"
@@ -2404,8 +2456,10 @@ void handleRoot() {
         "<ul id='wifiList'></ul>"
 
         "<button class='btn-success' style='margin-top:8px' onclick='saveWifi()'>💾 Lưu WiFi</button>"
-        "<button style='margin-top:6px;background:#17a2b8' onclick='forceAp()'>📡 Bật lại AP ngay</button>"
         "<div id='wifiMsg' style='font-size:12px;margin-top:6px'></div>"
+
+        "</div>"  // end wifiCredBox
+
         "</div></div>"
     );
 
@@ -2569,12 +2623,13 @@ void handleRoot() {
 
         "let sm=document.getElementById('scan-mode');"
         "if(d.configMode){"
-        "if(d.apClients>0){sm.innerText='AP: '+d.apClients+' client';sm.style.color='#28a745';}"
-        "else if(d.apRemain===-2){sm.innerText='AP: luôn mở';sm.style.color='#17a2b8';}"
-        "else if(d.apRemain>=0){sm.innerText='AP tự tắt sau: '+d.apRemain+'s';sm.style.color=d.apRemain<15?'#dc3545':'#ff9800';}"
-        "else{sm.innerText='AP đang bật';sm.style.color='#17a2b8';}"
-        "}else if(d.staConnected){sm.innerText='AP tắt (STA: '+d.staIP+')';sm.style.color='#6f42c1';}"
-        "else{sm.innerText='AP đã tắt';sm.style.color='#6c757d';}"
+        "if(d.apClients>0){sm.innerText='Đang phát: '+d.apClients+' client';sm.style.color='#28a745';}"
+        "else if(d.apRemain===-3){sm.innerText='Đang phát (luôn mở)';sm.style.color='#17a2b8';}"
+        "else if(d.apRemain===-2){sm.innerText='Đang phát (chưa có STA)';sm.style.color='#17a2b8';}"
+        "else if(d.apRemain>=0){sm.innerText='Tự tắt sau: '+d.apRemain+'s';sm.style.color=d.apRemain<15?'#dc3545':'#ff9800';}"
+        "else{sm.innerText='Đang phát WiFi';sm.style.color='#17a2b8';}"
+        "}else if(d.staConnected){sm.innerText='Đã tắt (STA: '+d.staIP+')';sm.style.color='#6f42c1';}"
+        "else{sm.innerText='Đã tắt';sm.style.color='#6c757d';}"
 
         "let lm=document.getElementById('led-mode');"
         "if(d.ledMode===0){lm.innerText='Nháy';lm.style.color='#dc3545';}"
@@ -2620,15 +2675,23 @@ void handleRoot() {
         "document.getElementById('staInfoBox').style.display='block';"
         "document.getElementById('sta-ip').innerText=d.staIP||'--';"
         "document.getElementById('sta-rssi').innerText=d.staRSSI||'--';"
-        "}else if(d.staEnabled){st.innerText='Đang kết nối... (tối đa 15s)';st.style.color='#ff9800';"
+        "}else if(d.staEnabled){st.innerText='Đang kết nối...';st.style.color='#ff9800';"
         "document.getElementById('staInfoBox').style.display='none';"
         "}else{st.innerText='Tắt';st.style.color='#6c757d';"
         "document.getElementById('staInfoBox').style.display='none';}"
+
+        // Ẩn/hiện phần SSID/Pass/Lưu WiFi theo staEnabled
+        "let credBox=document.getElementById('wifiCredBox');"
+        "if(credBox)credBox.style.display=d.staEnabled?'block':'none';"
+
         "let en=document.getElementById('staEn');"
-        "if(!en.dataset.inited){en.dataset.inited='1';"
-        "en.checked=d.staEnabled;"
+        "if(en&&!en.dataset.inited){en.dataset.inited='1';"
         "document.getElementById('staSSID').value=d.staSSID||'';"
         "document.getElementById('staPass').value=d.staPass||'';}"
+        "if(en)en.checked=d.staEnabled;"
+
+        "let apT=document.getElementById('apAlwaysToggle');"
+        "if(apT)apT.checked=d.apAlwaysOn||false;"
         "}"
 
         "let otaBox=document.getElementById('otaOnlineBox');"
@@ -2660,7 +2723,6 @@ void handleRoot() {
         "let curNameEl=document.getElementById('curBmsName');"
         "if(curNameEl){curNameEl.innerText=d.bmsName?('📛 '+d.bmsName):'';}"
 
-        // Init mode switch
         "let modeInit=document.getElementById('swBms');"
         "if(modeInit&&!modeInit.dataset.inited){"
         "modeInit.dataset.inited='1';"
@@ -2679,7 +2741,6 @@ void handleRoot() {
         "checkDivider();"
         "}"
 
-        // Update 2 box tinh chỉnh
         "if(d.acquyMode){"
         "let rv=document.getElementById('aqRawV');if(rv)rv.innerText=(d.aqRawV||0).toFixed(2)+' V';"
         "let rs=document.getElementById('aqSocRaw');if(rs)rs.innerText=(d.aqSocRaw||0)+'%';"
@@ -2761,6 +2822,38 @@ void handleRoot() {
         "function sendSim(v){document.getElementById('slider-val').innerText=v+'%';"
         "fetchTO('/sim?soc='+v+'&t='+Date.now(),3000).catch(e=>{});}"
         "function setRealSoc(){fetchTO('/sim?real=1&t='+Date.now(),3000).catch(e=>{});}"
+
+        // ===== TOGGLE STA =====
+        "function toggleSta(en){"
+        "doToggleSta(en);"
+        "}"
+
+        "function doToggleSta(en){"
+        "let msg=document.getElementById('wifiMsg');"
+        "let credBox=document.getElementById('wifiCredBox');"
+        "if(credBox)credBox.style.display=en?'block':'none';"
+        "if(msg){msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';}"
+        "fetchTO('/savesta?en='+(en?'1':'0')+'&t='+Date.now(),5000)"
+        ".then(r=>r.text()).then(t=>{"
+        "if(t==='OK'){"
+        "if(msg){msg.innerText=en?'✅ Đã bật':'✅ Đã tắt';msg.style.color='#28a745';}"
+        "updateData();"
+        "}else{if(msg){msg.innerText='❌ '+t;msg.style.color='#dc3545';}}"
+        "}).catch(e=>{if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}});"
+        "}"
+
+        // ===== TOGGLE LUÔN PHÁT WIFI =====
+        "function toggleApAlways(en){"
+        "let msg=document.getElementById('wifiMsg');"
+        "if(msg){msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';}"
+        "fetchTO('/saveapalways?en='+(en?'1':'0')+'&t='+Date.now(),5000)"
+        ".then(r=>r.text()).then(t=>{"
+        "if(t==='OK'){"
+        "if(msg){msg.innerText=en?'✅ WiFi sẽ LUÔN phát':'✅ WiFi tự tắt bình thường';msg.style.color='#28a745';}"
+        "updateData();"
+        "}else{if(msg){msg.innerText='❌ '+t;msg.style.color='#dc3545';}}"
+        "}).catch(e=>{if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}});"
+        "}"
 
         "function onBattTypeChange(){"
         "let t=parseInt(document.getElementById('battType').value);"
@@ -2975,14 +3068,13 @@ void handleRoot() {
         "function saveWifi(){"
         "let ssid=document.getElementById('staSSID').value.trim();"
         "let pass=document.getElementById('staPass').value;"
-        "let en=document.getElementById('staEn').checked;"
         "let msg=document.getElementById('wifiMsg');"
-        "if(en&&ssid.length===0){msg.innerText='❌ Nhập SSID!';msg.style.color='#dc3545';return;}"
+        "if(ssid.length===0){msg.innerText='❌ Nhập SSID!';msg.style.color='#dc3545';return;}"
         "msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';"
         "let p='ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent(pass)"
-        "+'&en='+(en?'1':'0')+'&t='+Date.now();"
+        "+'&en=1&t='+Date.now();"
         "fetchTO('/savewifi?'+p,5000).then(r=>r.text()).then(t=>{"
-        "if(t==='OK'){msg.innerText='✅ Đã lưu';msg.style.color='#28a745';}"
+        "if(t==='OK'){msg.innerText='✅ Đã lưu và đang kết nối';msg.style.color='#28a745';}"
         "else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}}).catch(e=>{msg.innerText='❌ Timeout';msg.style.color='#dc3545';});}"
 
         "function scanWifi(){"
@@ -3012,11 +3104,6 @@ void handleRoot() {
         "document.getElementById('staSSID').value=ssid;"
         "closeWifiList();"
         "document.getElementById('staPass').focus();}"
-        "function forceAp(){"
-        "fetchTO('/forceap?t='+Date.now(),5000).then(r=>r.text()).then(t=>{"
-        "let msg=document.getElementById('wifiMsg');"
-        "if(msg){msg.innerText=t;msg.style.color='#28a745';}"
-        "alert(t);}).catch(e=>alert('Timeout'));}"
 
         "function showPresetUpdated(txt){"
         "let box=document.getElementById('presetUpdatedBox');"
@@ -3352,6 +3439,7 @@ void setup() {
     staSSID    = preferences.getString("sta_ssid", "");
     staPass    = preferences.getString("sta_pass", "");
     staEnabled = preferences.getBool("sta_en", false);
+    apAlwaysOn = preferences.getBool("ap_always", false);
     fwDate  = preferences.getString("fw_date", "");
     fwNotes = preferences.getString("fw_notes", "");
     activePresetName = preferences.getString("active_preset", "");
@@ -3411,6 +3499,7 @@ void setup() {
 
     MySerial.printf("🔌 Chip: %s | DAC=%d\n", CHIP_NAME, HAS_DAC);
     MySerial.printf("📌 FW: v%s\n", FW_VERSION);
+    MySerial.printf("📡 Luôn phát WiFi: %s\n", apAlwaysOn ? "BẬT" : "TẮT");
 
     if (outMode == OUT_MODE_DAC) {
 #if HAS_DAC
@@ -3439,6 +3528,8 @@ void setup() {
     server.on("/toggleacquy", handleToggleAcquy);
     server.on("/saveacquycfg", handleSaveAcquyCfg);
     server.on("/savewifi", handleSaveWifi);
+    server.on("/saveapalways", handleSaveApAlways);
+    server.on("/savesta", handleSaveSta);
     server.on("/wifiscan", handleWifiScan);
     server.on("/fetchpresets", handleFetchPresets);
     server.on("/presets", handlePresets);
@@ -3448,7 +3539,6 @@ void setup() {
     server.on("/saveautoupdate", handleSaveAutoUpdate);
     server.on("/checkupdate", handleCheckUpdate);
     server.on("/otaonline", HTTP_GET, handleOtaOnline);
-    server.on("/forceap", handleForceAp);
     server.on("/update", HTTP_POST, []() { handleUpdateDone(); }, []() { handleUpdateUpload(); });
 
     server.on("/generate_204", handleCaptivePortal);
