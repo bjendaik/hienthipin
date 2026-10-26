@@ -1,6 +1,6 @@
 {
-  "version": "3.2",
-  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev3.2/HienThiPin-v3.2.bin",
-  "notes": "v3.2 - Fix một số lỗi, Thêm Log để dễ Debug hơn",
-  "date": "17/10/2026"
+  "version": "3.3",
+  "url": "https://github.com/bjendaik/hienthipin/releases/download/Updatev3.3/HienThiPin-v3.3.bin",
+  "notes": "v3.3 - Fix một số lỗi, Thêm bảng điện áp acquy và LFP để dùng màn acquy!",
+  "date": "26/10/2026"
 }
