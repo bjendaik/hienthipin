@@ -1,3 +1,7 @@
+// ============================================================
+// BMS & ACQUY Controller v3.2 — FIXED SOC CALCULATION
+// LFP + Lead-Acid đều dùng bảng tra OCV phi tuyến (động, từ NVS/server)
+// ============================================================
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -32,7 +36,6 @@
 
 uint16_t logModulesEnabled = LOGMOD_ALL;
 
-// ★ Log macro có lọc module
 #define LOGM(mod, fmt, ...) do { \
     if (logModulesEnabled & mod) { \
         MySerial.printf("[%s] " fmt "\n", #mod + 7, ##__VA_ARGS__); \
@@ -43,9 +46,10 @@ uint16_t logModulesEnabled = LOGMOD_ALL;
     MySerial.printf("[ERR] ❌ " fmt "\n", ##__VA_ARGS__); \
 } while(0)
 
-#define FW_VERSION      "3.1"
+#define FW_VERSION      "3.3"
 #define PRESET_URL      "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/data.json"
 #define UPDATE_JSON_URL "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/update.json"
+#define ACQUY_JSON_URL  "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/acquy.json"
 
 #define LED_PIN        2
 #define LED_PWM_FREQ   5000
@@ -186,14 +190,18 @@ volatile bool httpBusy = false;
 int batteryType = BATT_TYPE_LEAD;
 int batteryCells = 4;
 
-#define LFP_V_EMPTY   3.00f
+// ============================================================
+// NGƯỠNG ĐIỆN ÁP — DÙNG OCV RESTING (không phải V sạc/cắt)
+// ============================================================
+#define LFP_V_EMPTY   2.80f
 #define LFP_V_FULL    3.45f
 #define LFP_V_MAX     3.65f
 #define LFP_V_NOM     3.20f
-#define LEAD_V_EMPTY  10.5f
-#define LEAD_V_FULL   13.8f
-#define LEAD_V_MAX    15.0f
-#define LEAD_V_NOM    12.0f
+
+#define LEAD_V_EMPTY  11.31f
+#define LEAD_V_FULL   12.73f
+#define LEAD_V_MAX    14.40f
+#define LEAD_V_NOM    12.00f
 
 bool  acquyMode = false;
 int   acquyAdcPin = 32;
@@ -234,13 +242,18 @@ const float SAG_LIGHT       = 0.4f;
 float acquyOcvEstimated = 0.0f;
 float acquySag = 0.0f;
 
+static unsigned long acquyLastStableUpdate = 0;
+static uint8_t socFiltered = 0;
+static bool socFilteredInit = false;
+static float tempCompLogged = 0.0f;
+
 #define ACQY_ADC_ATTEN  ADC_11db
 
 #define MAX_VMAP_ENTRIES 20
 struct VMapEntry { uint8_t startPct; uint8_t endPct; float voltage; };
 VMapEntry vmap[MAX_VMAP_ENTRIES];
 uint8_t vmapCount = 0;
-bool    vmapEnabled = false;
+bool    vmapEnabled = true;   // ★ luôn bật
 
 #define MAX_REMOTE_PRESETS 30
 #define MAX_ENTRIES_PER_PRESET 20
@@ -254,6 +267,45 @@ String presetLastUpdated = "";
 bool   presetInfoLoaded = false;
 unsigned long lastPresetSync = 0;
 String activePresetName = "";
+
+// ============================================================
+// BẢNG OCV → SOC ĐỘNG (từ NVS hoặc server acquy.json)
+// ============================================================
+#define MAX_OCV_POINTS 32
+
+struct OcvPoint { float v; uint8_t soc; };
+
+OcvPoint leadOcvTable[MAX_OCV_POINTS];
+uint8_t  leadOcvN = 0;
+OcvPoint lfpOcvTable[MAX_OCV_POINTS];
+uint8_t  lfpOcvN = 0;
+
+String acquyJsonDate = "";
+
+static int interpolateOcv(const OcvPoint* table, uint8_t n, float v) {
+    if (n < 2) return 0;
+    if (v >= table[0].v)     return table[0].soc;
+    if (v <= table[n - 1].v) return table[n - 1].soc;
+    for (uint8_t i = 0; i < n - 1; i++) {
+        if (v <= table[i].v && v >= table[i + 1].v) {
+            float v1 = table[i].v,     s1 = (float)table[i].soc;
+            float v2 = table[i + 1].v, s2 = (float)table[i + 1].soc;
+            float t = (v - v2) / (v1 - v2);
+            return constrain((int)round(s2 + t * (s1 - s2)), 0, 100);
+        }
+    }
+    return 0;
+}
+
+int calcSocFromV(float vBat) {
+    if (vBat <= 0.1f) return 0;
+    if (batteryCells < 1) return 0;
+    if (batteryType == BATT_TYPE_LEAD) {
+        return interpolateOcv(leadOcvTable, leadOcvN, vBat / (float)batteryCells);
+    } else {
+        return interpolateOcv(lfpOcvTable, lfpOcvN, vBat / (float)batteryCells);
+    }
+}
 
 NimBLEClient* pClient = nullptr;
 NimBLERemoteCharacteristic* pChar = nullptr;
@@ -295,6 +347,8 @@ String parseHttpDate(const String& s);
 bool fetchPresetInfo(const String& url);
 bool fetchPresetsFromUrl(const String& url);
 bool fetchUpdateInfo();
+bool fetchAcquyJson();
+void loadOcvFromNVS();
 void bleInit();
 void bleDeinit();
 void autoUpdateTask();
@@ -323,21 +377,18 @@ float calcAdcMaxVoltage() {
     return vMaxWarn * ratio;
 }
 
-int calcSocFromV(float vBat) {
-    float vEmpty, vFull, vMaxWarn;
-    getBatteryLimits(vEmpty, vFull, vMaxWarn);
-    if (batteryType == BATT_TYPE_LEAD) {
-        int soc = (int)round(((vBat - vEmpty) / (vFull - vEmpty)) * 100.0f);
-        return constrain(soc, 0, 100);
+static float applyTempComp(float vBat) {
+    float tempC = temperatureRead();
+    if (isnan(tempC) || tempC < -20.0f || tempC > 80.0f) return vBat;
+    if (batteryCells < 1) return vBat;
+
+    float compPerCell;
+    if (batteryType == BATT_TYPE_LFP) {
+        compPerCell = (25.0f - tempC) * 0.0005f;
     } else {
-        float vMid = vEmpty + (vFull - vEmpty) * 0.55f;
-        if (vBat <= vEmpty) return 0;
-        if (vBat >= vFull)  return 100;
-        int soc;
-        if (vBat < vMid) { float t = (vBat - vEmpty) / (vMid - vEmpty); soc = (int)round(t * 50.0f); }
-        else { float t = (vBat - vMid) / (vFull - vMid); soc = 50 + (int)round(t * 50.0f); }
-        return constrain(soc, 0, 100);
+        compPerCell = (25.0f - tempC) * 0.003f;
     }
+    return vBat + compPerCell * batteryCells;
 }
 
 void ledSetup() { ledcDetach(LED_PIN); pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH); }
@@ -479,7 +530,7 @@ void apWatchdog() {
 }
 
 float getMappedVoltage(uint8_t soc) {
-    if (!vmapEnabled || vmapCount == 0) return -1.0f;
+    if (vmapCount == 0) return -1.0f;   // vmapEnabled luôn true
     for (uint8_t i = 0; i < vmapCount; i++) {
         if (soc >= vmap[i].startPct && soc <= vmap[i].endPct) return vmap[i].voltage;
     }
@@ -553,22 +604,29 @@ void processAcquyReading() {
     else acquyEmaV = acquyEmaV * (1.0f - ACQY_EMA_ALPHA) + vBatMedian * ACQY_EMA_ALPHA;
     acquyMeasuredV = acquyEmaV;
 
-    float ocvReference = (acquyLastStableV > 0.1f) ? acquyLastStableV : vBatMedian;
+    float ocvReference;
+    if (acquyLastStableV > 0.1f && acquyLastStableUpdate > 0 &&
+        (millis() - acquyLastStableUpdate) < 30000UL) {
+        ocvReference = acquyLastStableV;
+    } else {
+        ocvReference = vBatMedian;
+    }
     float sag = ocvReference - vBatMedian;
+    if (sag < 0.0f) sag = 0.0f;
     acquySag = sag;
 
     if (sag > SAG_THRESHOLD) {
-        compFactorLearned = constrain(compFactorLearned + COMP_LEARN_RATE, 0.5f, 0.95f);
+        compFactorLearned = constrain(compFactorLearned + COMP_LEARN_RATE, 0.30f, 0.95f);
     } else if (sag > 0.05f && sag < SAG_LIGHT) {
-        compFactorLearned = constrain(compFactorLearned - COMP_LEARN_RATE, 0.5f, 0.95f);
+        compFactorLearned = constrain(compFactorLearned - COMP_LEARN_RATE, 0.30f, 0.95f);
     }
 
-    float baseComp = (batteryType == BATT_TYPE_LFP) ? 0.85f : 0.65f;
+    float baseComp = (batteryType == BATT_TYPE_LFP) ? 0.35f : 0.65f;
     float finalComp = (compFactorLearned + baseComp) * 0.5f;
 
     float vOcvEst = vBatMedian + sag * finalComp;
     if (vOcvEst > ocvReference + 1.0f) vOcvEst = ocvReference + 1.0f;
-    if (vOcvEst < vBatMedian) vOcvEst = vBatMedian;
+    if (vOcvEst < vBatMedian)          vOcvEst = vBatMedian;
     acquyOcvEstimated = vOcvEst;
 
     if (sag < SAG_LIGHT) {
@@ -578,8 +636,9 @@ void processAcquyReading() {
                 bool wasStable = acquyStable;
                 acquyStable = true;
                 acquyLastStableV = vBatMedian;
+                acquyLastStableUpdate = millis();
                 if (!wasStable) {
-                    LOGM(LOGMOD_ADC, "🟢 Ổn định: OCV=%.2fV SOC=%d%%", acquyOcvEstimated, acquySocStable);
+                    LOGM(LOGMOD_ADC, "🟢 Ổn định: OCV=%.2fV", acquyOcvEstimated);
                 }
             }
         } else {
@@ -592,32 +651,53 @@ void processAcquyReading() {
     }
 
     acquyStableV = vOcvEst;
-    int socStable = calcSocFromV(vOcvEst);
-    acquySocStable = (uint8_t)socStable;
+
+    float vOcvComp = applyTempComp(vOcvEst);
+    tempCompLogged = vOcvComp;
+
+    int socNew = calcSocFromV(vOcvComp);
+
+    if (!socFilteredInit) {
+        socFiltered = (uint8_t)constrain(socNew, 0, 100);
+        socFilteredInit = true;
+    }
+    int diff = socNew - (int)socFiltered;
+    int deadband;
+    if (batteryType == BATT_TYPE_LFP) {
+        deadband = (socFiltered >= 20 && socFiltered <= 90) ? 3 : 2;
+    } else {
+        deadband = 1;
+    }
+    if (abs(diff) >= deadband) {
+        socFiltered = (uint8_t)constrain(socNew, 0, 100);
+    }
+
+    acquySocRaw    = (uint8_t)constrain(socNew, 0, 100);
+    acquySocStable = socFiltered;
+    acquySoc       = socFiltered;
 
     lockState();
-    realBmsSoc = acquySocStable;
-    acquySoc = acquySocStable;
-    bmsTotalVoltage = vOcvEst;
-    bmsHasTotalV = true;
+    realBmsSoc      = acquySocStable;
+    bmsTotalVoltage = vOcvComp;
+    bmsHasTotalV    = true;
     bmsSocTimestamp = millis();
     unlockState();
 
     if (!manualSimMode) {
-        if (abs((int)socStable - (int)currentSoc) >= ACQY_OUTPUT_HYST) {
+        if (abs((int)socFiltered - (int)currentSoc) >= ACQY_OUTPUT_HYST) {
             if (millis() - acquyLastOutputChange > ACQY_OUTPUT_DELAY_MS) {
-                applyOutput(socStable);
+                applyOutput(socFiltered);
                 acquyLastOutputChange = millis();
             }
         }
     }
 
-    // Log tóm tắt ADC mỗi 10s
     static unsigned long lastAdcLog = 0;
     if (millis() - lastAdcLog > 10000) {
         lastAdcLog = millis();
-        LOGM(LOGMOD_ADC, "V=%.2fV OCV=%.2fV sag=%.2fV SOC=%d%%",
-             acquyRawV, acquyOcvEstimated, acquySag, acquySocStable);
+        LOGM(LOGMOD_ADC, "V=%.2fV OCV=%.2fV sag=%.2fV SOC=%d%% (raw=%d%%)%s",
+             acquyRawV, acquyOcvEstimated, acquySag, acquySocStable, acquySocRaw,
+             batteryType == BATT_TYPE_LFP ? " [LFP]" : " [Chì]");
     }
 }
 
@@ -702,7 +782,6 @@ bool parseJkFrame(uint8_t* data, size_t len) {
         }
         if (soc <= 100 && !manual) applyOutput(soc);
 
-        // Log BMS mỗi 30s
         static unsigned long lastBmsLog = 0;
         if (millis() - lastBmsLog > 30000) {
             lastBmsLog = millis();
@@ -1190,6 +1269,114 @@ bool fetchUpdateInfo() {
     return true;
 }
 
+// ============================================================
+// acquy.json — chỉ tải khi có request HTTP (giống data.json)
+// ============================================================
+static uint8_t parseOcvArray(const String& body, const String& key, OcvPoint* out, uint8_t maxN) {
+    int keyPos = body.indexOf("\"" + key + "\"");
+    if (keyPos < 0) return 0;
+    int arrStart = body.indexOf('[', keyPos);
+    if (arrStart < 0) return 0;
+    int arrEnd = body.indexOf(']', arrStart);
+    if (arrEnd < 0) return 0;
+    uint8_t n = 0;
+    int pos = arrStart + 1;
+    while (n < maxN) {
+        int os = body.indexOf('{', pos);
+        if (os < 0 || os > arrEnd) break;
+        int oe = body.indexOf('}', os);
+        if (oe < 0 || oe > arrEnd) break;
+        String obj = body.substring(os, oe + 1);
+        float v = parseJsonNumber(obj, 0, "v");
+        int s = (int)parseJsonNumber(obj, 0, "soc");
+        if (v > 0.0f && s >= 0 && s <= 100) {
+            out[n].v = v; out[n].soc = (uint8_t)s; n++;
+        }
+        pos = oe + 1;
+    }
+    return n;
+}
+
+bool fetchAcquyJson() {
+    if (!staConnected && !apActive) return false;
+    HTTPClient http;
+    WiFiClient client;
+    WiFiClientSecure clientSecure;
+    String url = ACQUY_JSON_URL;
+    if (url.startsWith("https://")) { clientSecure.setInsecure(); http.begin(clientSecure, url); }
+    else http.begin(client, url);
+    http.setTimeout(10000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    int code = http.GET();
+    if (code != 200) { http.end(); return false; }
+    String body = http.getString();
+    http.end();
+    if (body.length() < 50) return false;
+
+    String jsonDate = parseJsonString(body, 0, "date");
+    OcvPoint tmpLead[MAX_OCV_POINTS], tmpLfp[MAX_OCV_POINTS];
+    uint8_t nLead = parseOcvArray(body, "lead", tmpLead, MAX_OCV_POINTS);
+    uint8_t nLfp  = parseOcvArray(body, "lfp",  tmpLfp,  MAX_OCV_POINTS);
+    if (nLead < 2 && nLfp < 2) return false;
+
+    preferences.begin("bms_ocv", false);
+    if (nLead >= 2) {
+        lockState();
+        leadOcvN = nLead;
+        for (uint8_t i = 0; i < nLead; i++) leadOcvTable[i] = tmpLead[i];
+        unlockState();
+        preferences.putUChar("lead_n", nLead);
+        for (uint8_t i = 0; i < nLead; i++) {
+            String b = "l" + String(i) + "_";
+            preferences.putFloat((b + "v").c_str(), tmpLead[i].v);
+            preferences.putUChar((b + "s").c_str(), tmpLead[i].soc);
+        }
+    }
+    if (nLfp >= 2) {
+        lockState();
+        lfpOcvN = nLfp;
+        for (uint8_t i = 0; i < nLfp; i++) lfpOcvTable[i] = tmpLfp[i];
+        unlockState();
+        preferences.putUChar("lfp_n", nLfp);
+        for (uint8_t i = 0; i < nLfp; i++) {
+            String b = "f" + String(i) + "_";
+            preferences.putFloat((b + "v").c_str(), tmpLfp[i].v);
+            preferences.putUChar((b + "s").c_str(), tmpLfp[i].soc);
+        }
+    }
+    acquyJsonDate = jsonDate;
+    preferences.putString("date", acquyJsonDate);
+    preferences.end();
+
+    LOGM(LOGMOD_ADC, "📥 acquy.json: Lead=%d, LFP=%d (%s)", nLead, nLfp, acquyJsonDate.c_str());
+    return true;
+}
+
+void loadOcvFromNVS() {
+    preferences.begin("bms_ocv", false);
+    uint8_t nLead = preferences.getUChar("lead_n", 0);
+    uint8_t nLfp  = preferences.getUChar("lfp_n", 0);
+    if (nLead >= 2 && nLead <= MAX_OCV_POINTS) {
+        leadOcvN = nLead;
+        for (uint8_t i = 0; i < nLead; i++) {
+            String b = "l" + String(i) + "_";
+            leadOcvTable[i].v   = preferences.getFloat((b + "v").c_str(), 0.0f);
+            leadOcvTable[i].soc = preferences.getUChar((b + "s").c_str(), 0);
+        }
+    }
+    if (nLfp >= 2 && nLfp <= MAX_OCV_POINTS) {
+        lfpOcvN = nLfp;
+        for (uint8_t i = 0; i < nLfp; i++) {
+            String b = "f" + String(i) + "_";
+            lfpOcvTable[i].v   = preferences.getFloat((b + "v").c_str(), 0.0f);
+            lfpOcvTable[i].soc = preferences.getUChar((b + "s").c_str(), 0);
+        }
+    }
+    acquyJsonDate = preferences.getString("date", "");
+    preferences.end();
+    LOGM(LOGMOD_BOOT, "OCV NVS: Lead=%d, LFP=%d (%s)", leadOcvN, lfpOcvN, acquyJsonDate.c_str());
+}
+
 void autoUpdateTask() {
     if (!autoUpdateEnabled || autoUpdateDone) return;
     if (autoUpdateInProgress || otaInProgress) return;
@@ -1248,8 +1435,6 @@ void autoUpdateTask() {
     if (Update.end(true)) { delay(2000); ESP.restart(); }
     autoUpdateInProgress = false; otaInProgress = false;
 }
-
-// [Các handle functions giữ nguyên — handleChipInfo, handleData, handleSerial, handleSim, handleSaveOutput, handleSaveVMap, handlePresets, handleApplyPreset, handleFetchPresets, handleSaveWifi, handleWifiScan, handleSave, handleClearMac, handleScan, handleToggleAcquy, handleSaveAcquyCfg, handleSaveFwInfo, handleGetNotes, handleSaveAutoUpdate, handleUpdateDone, handleUpdateUpload, handleCheckUpdate, handleOtaOnline, handleCaptivePortal]
 
 void handleChipInfo() {
     TOUCH_HTTP();
@@ -1362,6 +1547,8 @@ void handleData() {
     json += "\"aqSocRaw\":" + String(acquySocRaw) + ",";
     json += "\"aqSocStable\":" + String(acquySocStable) + ",";
     json += "\"aqIsStable\":" + String(acquyStable ? "true" : "false") + ",";
+    json += "\"aqTempC\":" + String(temperatureRead(), 1) + ",";
+    json += "\"aqOcvComp\":" + String(tempCompLogged, 2) + ",";
     json += "\"aqAdcMax\":" + String(calcAdcMaxVoltage(), 3) + ",";
     json += "\"battType\":" + String(batteryType) + ",";
     json += "\"battCells\":" + String(batteryCells) + ",";
@@ -1379,7 +1566,7 @@ void handleData() {
     json += "\"cells\":[";
     for (int i = 0; i < 16; i++) { json += String(bmsCells[i], 3); if (i < 15) json += ","; }
     json += "]";
-    json += ",\"vmapEnabled\":" + String(vmapEnabled ? "true" : "false");
+    json += ",\"vmapEnabled\":true";
     json += ",\"vmap\":[";
     for (uint8_t i = 0; i < vmapCount; i++) {
         json += "{\"s\":" + String(vmap[i].startPct) + ",\"e\":" + String(vmap[i].endPct) + ",\"v\":" + String(vmap[i].voltage, 2) + "}";
@@ -1498,7 +1685,7 @@ void handleSaveOutput() {
 
 void handleSaveVMap() {
     TOUCH_HTTP();
-    bool enabled = server.hasArg("enabled") && server.arg("enabled") == "1";
+    bool enabled = true;
     int count = server.hasArg("count") ? server.arg("count").toInt() : 0;
     if (count < 0) count = 0;
     if (count > MAX_VMAP_ENTRIES) count = MAX_VMAP_ENTRIES;
@@ -1522,14 +1709,14 @@ void handleSaveVMap() {
         if (newMap[i].startPct <= newMap[i - 1].endPct) newMap[i].startPct = newMap[i - 1].endPct + 1;
     }
     lockState();
-    vmapEnabled = enabled;
+    vmapEnabled = true;
     vmapCount = (uint8_t)newCount;
     for (int i = 0; i < newCount; i++) vmap[i] = newMap[i];
     uint8_t soc = currentSoc;
     unlockState();
     activePresetName = "";
     preferences.begin("bms_config", false);
-    preferences.putBool("vmap_en", vmapEnabled);
+    preferences.putBool("vmap_en", true);
     preferences.putUChar("vmap_cnt", vmapCount);
     preferences.putString("active_preset", "");
     for (int i = 0; i < MAX_VMAP_ENTRIES; i++) {
@@ -1546,7 +1733,7 @@ void handleSaveVMap() {
     }
     preferences.end();
     applyOutput(soc);
-    LOGM(LOGMOD_OUT, "vMap: %s | %d dải", enabled ? "BẬT" : "TẮT", newCount);
+    LOGM(LOGMOD_OUT, "vMap: BẬT | %d dải", newCount);
     server.send(200, "text/plain", "OK");
 }
 
@@ -1618,6 +1805,107 @@ void handleFetchPresets() {
         server.send(200, "text/plain", resp);
         LOGM(LOGMOD_OUT, "Đã tải %d preset", remotePresetCount);
     } else server.send(500, "text/plain", "Tai that bai");
+}
+
+// ============= acquy.json HTTP handlers =============
+void handleFetchAcquyJson() {
+    TOUCH_HTTP();
+    bool ok = fetchAcquyJson();
+    if (ok) {
+        String resp = "OK|" + String(leadOcvN) + "|" + String(lfpOcvN) + "|" + acquyJsonDate;
+        server.send(200, "text/plain", resp);
+    } else {
+        server.send(500, "text/plain", "FAIL");
+    }
+}
+
+void handleAcquyJsonInfo() {
+    TOUCH_HTTP();
+    String json = "{";
+    json += "\"date\":\"" + acquyJsonDate + "\",";
+    json += "\"leadN\":" + String(leadOcvN) + ",";
+    json += "\"lfpN\":" + String(lfpOcvN) + ",";
+    json += "\"lead\":[";
+    for (uint8_t i = 0; i < leadOcvN; i++) {
+        json += "{\"v\":" + String(leadOcvTable[i].v, 3) + ",\"soc\":" + String(leadOcvTable[i].soc) + "}";
+        if (i < leadOcvN - 1) json += ",";
+    }
+    json += "],\"lfp\":[";
+    for (uint8_t i = 0; i < lfpOcvN; i++) {
+        json += "{\"v\":" + String(lfpOcvTable[i].v, 3) + ",\"soc\":" + String(lfpOcvTable[i].soc) + "}";
+        if (i < lfpOcvN - 1) json += ",";
+    }
+    json += "]}";
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(200, "application/json", json);
+}
+
+void handleSaveOcvManual() {
+    TOUCH_HTTP();
+    if (!server.hasArg("type")) { server.send(400, "text/plain", "Missing type"); return; }
+    String type = server.arg("type");
+    int count = server.hasArg("count") ? server.arg("count").toInt() : 0;
+    if (count < 2) { server.send(400, "text/plain", "Cần >=2 điểm"); return; }
+    if (count > MAX_OCV_POINTS) count = MAX_OCV_POINTS;
+
+    OcvPoint newTable[MAX_OCV_POINTS];
+    int n = 0;
+    for (int i = 0; i < count; i++) {
+        String kv = "e" + String(i) + "v";
+        String ks = "e" + String(i) + "s";
+        if (!server.hasArg(kv) || !server.hasArg(ks)) continue;
+        float v = server.arg(kv).toFloat();
+        int s = server.arg(ks).toInt();
+        if (v <= 0.0f || s < 0 || s > 100) continue;
+        newTable[n].v = v;
+        newTable[n].soc = (uint8_t)s;
+        n++;
+    }
+    if (n < 2) { server.send(400, "text/plain", "Dữ liệu không hợp lệ"); return; }
+
+    for (int i = 0; i < n - 1; i++)
+        for (int j = i + 1; j < n; j++)
+            if (newTable[j].v > newTable[i].v) { OcvPoint t = newTable[i]; newTable[i] = newTable[j]; newTable[j] = t; }
+
+    for (int i = 1; i < n; i++) {
+        if (newTable[i].soc > newTable[i-1].soc) {
+            server.send(400, "text/plain", "SOC phải giảm dần khi V giảm");
+            return;
+        }
+    }
+
+    lockState();
+    if (type == "lead") {
+        leadOcvN = n;
+        for (int i = 0; i < n; i++) leadOcvTable[i] = newTable[i];
+    } else {
+        lfpOcvN = n;
+        for (int i = 0; i < n; i++) lfpOcvTable[i] = newTable[i];
+    }
+    unlockState();
+
+    preferences.begin("bms_ocv", false);
+    if (type == "lead") {
+        preferences.putUChar("lead_n", n);
+        for (int i = 0; i < n; i++) {
+            String b = "l" + String(i) + "_";
+            preferences.putFloat((b + "v").c_str(), newTable[i].v);
+            preferences.putUChar((b + "s").c_str(), newTable[i].soc);
+        }
+    } else {
+        preferences.putUChar("lfp_n", n);
+        for (int i = 0; i < n; i++) {
+            String b = "f" + String(i) + "_";
+            preferences.putFloat((b + "v").c_str(), newTable[i].v);
+            preferences.putUChar((b + "s").c_str(), newTable[i].soc);
+        }
+    }
+    acquyJsonDate = "Thủ công";
+    preferences.putString("date", acquyJsonDate);
+    preferences.end();
+
+    LOGM(LOGMOD_ADC, "💾 Lưu OCV %s: %d điểm", type.c_str(), n);
+    server.send(200, "text/plain", "OK|" + String(n));
 }
 
 void handleSaveWifi() {
@@ -1785,7 +2073,10 @@ void handleToggleAcquy() {
         bleDeinit();
         acquyMedianFilled = false; acquyMedianIdx = 0;
         acquyEmaInit = false; acquyStable = false; acquyStableStart = 0;
-        compFactorLearned = 0.70f;
+        compFactorLearned = (batteryType == BATT_TYPE_LFP) ? 0.40f : 0.70f;
+        socFilteredInit = false;
+        acquyLastStableUpdate = 0;
+        acquyLastStableV = 0.0f;
         if (!apActive) ledSetMode(LED_MODE_SOLID);
         LOGM(LOGMOD_ADC, "Chế độ ẮC QUY bật | GPIO%d", acquyAdcPin);
     } else {
@@ -1827,6 +2118,10 @@ void handleSaveAcquyCfg() {
     analogSetPinAttenuation(acquyAdcPin, ACQY_ADC_ATTEN);
     acquyMedianFilled = false; acquyMedianIdx = 0;
     acquyEmaInit = false; acquyStable = false; acquyStableStart = 0;
+    compFactorLearned = (batteryType == BATT_TYPE_LFP) ? 0.40f : 0.70f;
+    socFilteredInit = false;
+    acquyLastStableUpdate = 0;
+    acquyLastStableV = 0.0f;
     LOGM(LOGMOD_ADC, "Lưu cấu hình: %s %d cell | R1=%.1fk R2=%.1fk | Gain=%.4f Offset=%.3f",
          batteryType == BATT_TYPE_LFP ? "LFP" : "Chì", batteryCells, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset);
     server.send(200, "text/plain", "OK");
@@ -1998,6 +2293,7 @@ void handleCaptivePortal() {
     server.sendHeader("Location", "http://192.168.4.1/", true);
     server.send(302, "text/plain", "");
 }
+
 // =====================================================
 // TRANG CHỦ HTML / UI
 // =====================================================
@@ -2048,7 +2344,7 @@ void handleRoot() {
         ".acc-head .arrow{font-size:14px;transition:transform .3s;color:#888;flex-shrink:0;margin-left:6px}"
         ".accordion.open .acc-head .arrow{transform:rotate(180deg)}"
         ".acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease;padding:0 15px}"
-        ".accordion.open .acc-body{max-height:9000px;padding:0 15px 15px 15px}"
+        ".accordion.open .acc-body{max-height:20000px;padding:0 15px 15px 15px}"
         ".acc-head.green{color:#28a745;border-bottom:1px solid #e9ecef}"
         ".acc-head.blue{color:#007bff;border-bottom:1px solid #e9ecef}"
         ".acc-head.red{color:#dc3545;border-bottom:1px solid #e9ecef}"
@@ -2062,6 +2358,16 @@ void handleRoot() {
         ".vmap-head span{text-align:center}"
         ".vmap-head .h1{width:52px}.vmap-head .h2{width:14px}.vmap-head .h3{width:52px}"
         ".vmap-head .h4{width:72px}.vmap-head .h5{width:34px}"
+        ".ocv-tab{display:flex;gap:6px;margin-bottom:10px;background:#f0f2f5;padding:4px;border-radius:8px}"
+        ".ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;transition:all .2s;user-select:none}"
+        ".ocv-tab div.active{background:#fff;color:#17a2b8;box-shadow:0 1px 3px rgba(0,0,0,.1)}"
+        ".ocv-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}"
+        ".ocv-row input{padding:6px;font-size:12px;text-align:center;min-width:0;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}"
+        ".ocv-row input.v{flex:1}"
+        ".ocv-row input.s{width:60px}"
+        ".ocv-row button{width:34px;padding:6px 0;margin:0;font-size:13px;background:#dc3545;border-radius:5px}"
+        ".ocv-preview{background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px;font-size:11px;margin-top:8px;font-family:monospace;color:#1b5e20}"
+        "#ocvListLead,#ocvListLfp{max-height:320px;overflow-y:auto;padding-right:2px}"
         ".preset-btn{width:100%;padding:12px;margin-bottom:8px;background:#fff;color:#333;border:2px solid #6f42c1;border-radius:10px;text-align:left;cursor:pointer;font-size:15px;transition:all .2s;font-family:inherit}"
         ".preset-btn:hover{background:#f5f0ff}"
         ".preset-btn.active{background:#6f42c1;color:#fff;border-color:#28a745}"
@@ -2107,6 +2413,7 @@ void handleRoot() {
         ".acc-head .title-text{font-size:13px}"
         ".mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}"
         ".acc-head{padding:12px}"
+        ".ocv-tab div{font-size:11px;padding:6px 2px}"
         "}"
         "</style></head><body>"
     );
@@ -2260,6 +2567,48 @@ void handleRoot() {
         "</div>"
         "</div>"
 
+        // ===== BẢNG OCV → SOC =====
+        "<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>"
+        "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>"
+        "<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>"
+        "<div style='font-size:10px;color:#6c757d;text-align:right' id='ocvDateInfo'>--</div>"
+        "</div>"
+
+        "<div class='ocv-tab'>"
+        "<div class='active' id='ocvTabLead' onclick='switchOcvTab(\"lead\")'>🔋 Chì (per 12V)</div>"
+        "<div id='ocvTabLfp' onclick='switchOcvTab(\"lfp\")'>⚡ LFP (per cell)</div>"
+        "</div>"
+
+        "<div id='ocvEditorLead'>"
+        "<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>"
+        "<span style='flex:1;text-align:center'>Điện áp (V)</span>"
+        "<span style='width:60px;text-align:center'>SOC %</span>"
+        "<span style='width:34px'></span>"
+        "</div>"
+        "<div id='ocvListLead'></div>"
+        "<button onclick='addOcvRow(\"lead\")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>"
+        "</div>"
+
+        "<div id='ocvEditorLfp' style='display:none'>"
+        "<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>"
+        "<span style='flex:1;text-align:center'>Điện áp (V)</span>"
+        "<span style='width:60px;text-align:center'>SOC %</span>"
+        "<span style='width:34px'></span>"
+        "</div>"
+        "<div id='ocvListLfp'></div>"
+        "<button onclick='addOcvRow(\"lfp\")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>"
+        "</div>"
+
+        "<div class='ocv-preview' id='ocvPreview'>--</div>"
+
+        "<div style='display:flex;gap:6px;margin-top:8px'>"
+        "<button onclick='saveOcvManual()' style='flex:1;background:#28a745;margin:0;font-size:12px;padding:8px'>💾 Lưu</button>"
+        "<button id='btnFetchAcquyJson' onclick='refreshAcquyJson()' style='flex:1;background:#ff9800;margin:0;font-size:12px;padding:8px;display:none'>⬇️ Tải từ server</button>"
+        "<button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>"
+        "</div>"
+        "</div>"
+        // ===== HẾT BẢNG OCV =====
+
         "<button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>"
 
         "<div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>"
@@ -2294,6 +2643,8 @@ void handleRoot() {
         "<div>OCV ước lượng: <span class='ir-val' id='ir-ocv' style='color:#1565c0'>--</span></div>"
         "<div>Sụt áp: <span class='ir-val' id='ir-sag' style='color:#e65100'>--</span></div>"
         "<div>Hệ số bù: <span class='ir-val' id='ir-comp' style='color:#6a1b9a'>--</span></div>"
+        "<div>Nhiệt độ chip: <span class='ir-val' id='ir-temp'>--</span></div>"
+        "<div>OCV sau bù nhiệt: <span class='ir-val' id='ir-ocvcomp' style='color:#00838f'>--</span></div>"
         "</div>"
         "<div style='font-size:11px;color:#2e7d32;margin-top:6px'>"
         "SOC được tính từ OCV, không phải điện áp chịu tải</div>"
@@ -2371,7 +2722,6 @@ void handleRoot() {
         "</div>"
         "<div id='terminal' style='background:#1e1e1e;color:#0f0;padding:10px;border-radius:5px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:250px;overflow-y:auto'>-- Chờ Serial --\n</div>"
 
-        // Lọc log theo module
         "<div style='margin-top:12px;padding:10px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px'>"
         "<div style='font-size:12px;font-weight:bold;color:#495057;margin-bottom:8px'>"
         "⚙️ Lọc log theo nhóm</div>"
@@ -2481,12 +2831,8 @@ void handleRoot() {
         "</div>"
         "<div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0'>"
         "<label style='margin:0'><strong>📋 Bảng điện áp theo %</strong></label>"
-        "<label class='tgl-switch' style='margin:0'>"
-        "<input type='checkbox' id='vmapEn' onchange='onVmapToggle()'>"
-        "<span class='tgl-slider'></span>"
-        "</label>"
         "</div>"
-        "<div id='vmapBox' style='display:none'>"
+        "<div id='vmapBox' style='display:block'>"
         "<div class='sub-tabs'>"
         "<div class='sub-tab active' id='subTabPreset' onclick='switchSubTab(\"preset\")'>⚡ Có sẵn</div>"
         "<div class='sub-tab' id='subTabManual' onclick='switchSubTab(\"manual\")'>✏️ Thủ công</div>"
@@ -2680,7 +3026,8 @@ void handleRoot() {
         "if(id==='accChip')updateChipInfo();"
         "else if(id==='accTerm')pollSerial();"
         "else if(id==='accBms')updateBmsInfo();"
-        "else if(id==='accScan'){setTimeout(checkDivider,100);}"
+        "else if(id==='accScan'){setTimeout(checkDivider,100);"
+        "if(!window.ocvInited){window.ocvInited=true;loadOcvFromServer();}}"
         "else if(id==='accOutput'){updateData();"
         "if(!window.presetLoaded){window.presetLoaded=true;loadPresets();}}"
         "else if(id==='accOta'){"
@@ -2710,7 +3057,6 @@ void handleRoot() {
         "document.getElementById('termBtn').innerText=termPaused?'Tiếp tục':'Tạm dừng';}"
         "setInterval(pollSerial,1500);"
 
-        // Log mask handlers
         "function updateLogMask(){"
         "let mask=0;"
         "if(document.getElementById('logBoot')?.checked)mask|=0x01;"
@@ -2830,9 +3176,6 @@ void handleRoot() {
         "let accOut=document.getElementById('accOutput');"
         "let outOpen=accOut&&accOut.classList.contains('open');"
         "if(outOpen&&!vmapInited&&d.vmap!==undefined){vmapInited=true;"
-        "document.getElementById('vmapEn').checked=d.vmapEnabled;"
-        "let vb=document.getElementById('vmapBox');"
-        "if(vb)vb.style.display=d.vmapEnabled?'block':'none';"
         "renderVmap(d.vmap);}"
 
         "let accWifi=document.getElementById('accWifi');"
@@ -2888,6 +3231,9 @@ void handleRoot() {
         "if(curMacEl){curMacEl.innerText=d.mac||'Chưa có';}"
         "let curNameEl=document.getElementById('curBmsName');"
         "if(curNameEl){curNameEl.innerText=d.bmsName?('📛 '+d.bmsName):'';}"
+
+        "let btnAcquy=document.getElementById('btnFetchAcquyJson');"
+        "if(btnAcquy){btnAcquy.style.display=(d.staConnected||d.configMode)?'block':'none';}"
 
         "let modeInit=document.getElementById('swBms');"
         "if(modeInit&&!modeInit.dataset.inited){"
@@ -3034,15 +3380,15 @@ void handleRoot() {
         "let vE,vF,vW,nom;"
         "if(t===0){"
         "let c=parseInt(document.getElementById('battCells').value);"
-        "vE=10.5*c; vF=13.8*c; vW=15.0*c; nom=12*c;"
+        "vE=11.31*c; vF=12.73*c; vW=14.4*c; nom=12*c;"
         "}else{"
         "let c=parseInt(document.getElementById('battCellsInput').value)||0;"
-        "vE=3.00*c; vF=3.45*c; vW=3.65*c; nom=(3.2*c).toFixed(1);"
+        "vE=2.80*c; vF=3.45*c; vW=3.65*c; nom=(3.2*c).toFixed(1);"
         "}"
         "let info=document.getElementById('battInfoText');"
         "if(info){"
-        "info.innerHTML='Không tải: <b>'+vE.toFixed(1)+'V</b>'"
-        "+' | Đầy: <b>'+vF.toFixed(1)+'V</b>'"
+        "info.innerHTML='OCV cạn: <b>'+vE.toFixed(1)+'V</b>'"
+        "+' | OCV đầy: <b>'+vF.toFixed(1)+'V</b>'"
         "+' | OVP: <b>'+vW.toFixed(1)+'V</b>';"
         "}"
         "checkDivider();}"
@@ -3055,7 +3401,7 @@ void handleRoot() {
         "if(!r1||!r2||r1<=0||r2<=0){warnBox.style.display='none';return;}"
         "let t=parseInt(document.getElementById('battType').value);"
         "let vMax;"
-        "if(t===0){let c=parseInt(document.getElementById('battCells').value)||1;vMax=15.0*c;}"
+        "if(t===0){let c=parseInt(document.getElementById('battCells').value)||1;vMax=14.4*c;}"
         "else{let c=parseInt(document.getElementById('battCellsInput').value)||1;vMax=3.65*c;}"
         "let vadc=vMax*r2/(r1+r2);"
         "let ratio=(r1+r2)/r2;"
@@ -3105,6 +3451,100 @@ void handleRoot() {
         "let p='pin='+pin+'&r1='+r1+'&r2='+r2+'&gain='+gain+'&offset='+offset+'&btype='+t+'&cells='+c;"
         "fetchTO('/saveacquycfg?'+p+'&t='+Date.now(),5000).then(r=>r.text()).then(t=>{"
         "if(t==='OK')alert('Đã lưu cấu hình Ắc quy!');else alert('Lỗi: '+t);}).catch(e=>alert('Timeout'));}"
+
+        // ===== OCV editor JS =====
+        "let ocvTab='lead';"
+        "function switchOcvTab(t){ocvTab=t;"
+        "document.getElementById('ocvTabLead').className=(t==='lead'?'active':'');"
+        "document.getElementById('ocvTabLfp').className=(t==='lfp'?'active':'');"
+        "document.getElementById('ocvEditorLead').style.display=(t==='lead'?'block':'none');"
+        "document.getElementById('ocvEditorLfp').style.display=(t==='lfp'?'block':'none');"
+        "updateOcvPreview();}"
+        "function addOcvRow(type,v,s){"
+        "let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');"
+        "if(box.children.length>=32){alert('Tối đa 32 điểm');return;}"
+        "let row=document.createElement('div');row.className='ocv-row';"
+        "row.innerHTML=\"<input class='v' type='number' step='0.001' placeholder='\"+(type==='lead'?'12.730':'3.450')+\"' value='\"+(v!==undefined?v:'')+\"'>\""
+        "+\"<input class='s' type='number' min='0' max='100' placeholder='100' value='\"+(s!==undefined?s:'')+\"'>\""
+        "+\"<button onclick='this.parentNode.remove();updateOcvPreview()'>✕</button>\";"
+        "row.querySelectorAll('input').forEach(i=>i.addEventListener('input',updateOcvPreview));"
+        "box.appendChild(row);updateOcvPreview();}"
+        "function renderOcvTable(type,arr){"
+        "let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');"
+        "box.innerHTML='';"
+        "if(!arr||arr.length===0){"
+        "if(type==='lead'){addOcvRow('lead',12.730,100);addOcvRow('lead',11.310,0);}"
+        "else{addOcvRow('lfp',3.450,100);addOcvRow('lfp',2.500,0);}"
+        "return;}"
+        "for(let i=0;i<arr.length;i++)addOcvRow(type,arr[i].v,arr[i].soc);}"
+        "function getOcvRows(type){"
+        "let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');"
+        "let rows=[];"
+        "box.querySelectorAll('.ocv-row').forEach(r=>{"
+        "let v=parseFloat(r.querySelector('.v').value);"
+        "let s=parseInt(r.querySelector('.s').value);"
+        "if(!isNaN(v)&&!isNaN(s))rows.push({v:v,soc:s});});"
+        "return rows;}"
+        "function updateOcvPreview(){"
+        "let rows=getOcvRows(ocvTab);"
+        "let el=document.getElementById('ocvPreview');if(!el)return;"
+        "if(rows.length<2){el.innerText='Cần ít nhất 2 điểm để tính SOC';return;}"
+        "rows.sort((a,b)=>b.v-a.v);"
+        "let testV=ocvTab==='lead'?12.2:3.25;"
+        "let soc=interpSoc(rows,testV);"
+        "let minV=rows[rows.length-1].v,maxV=rows[0].v;"
+        "el.innerHTML='📊 Preview: '+rows.length+' điểm | V ['+minV.toFixed(3)+' → '+maxV.toFixed(3)+'] | Test '+testV.toFixed(2)+'V → <b>'+soc+'%</b>';}"
+        "function interpSoc(table,v){"
+        "if(table.length<2)return 0;"
+        "if(v>=table[0].v)return table[0].soc;"
+        "if(v<=table[table.length-1].v)return table[table.length-1].soc;"
+        "for(let i=0;i<table.length-1;i++){"
+        "if(v<=table[i].v&&v>=table[i+1].v){"
+        "let v1=table[i].v,s1=table[i].soc,v2=table[i+1].v,s2=table[i+1].soc;"
+        "let t=(v-v2)/(v1-v2);"
+        "return Math.round(s2+t*(s1-s2));}}"
+        "return 0;}"
+        "function loadOcvFromServer(){"
+        "fetchTO('/acquyjsoninfo?t='+Date.now(),5000).then(r=>r.json()).then(d=>{"
+        "renderOcvTable('lead',d.lead||[]);"
+        "renderOcvTable('lfp',d.lfp||[]);"
+        "let di=document.getElementById('ocvDateInfo');"
+        "if(di){let src=(d.leadN>=2||d.lfpN>=2)?('Nguồn: '+(d.date||'NVS')):'Chưa có dữ liệu';"
+        "di.innerText='Lead '+d.leadN+' | LFP '+d.lfpN+' | '+src;}"
+        "updateOcvPreview();"
+        "}).catch(e=>{});}"
+        "function resetOcvEditor(){"
+        "if(!confirm('Tải lại bảng từ bộ nhớ (bỏ thay đổi chưa lưu)?'))return;"
+        "loadOcvFromServer();}"
+        "function saveOcvManual(){"
+        "let rows=getOcvRows(ocvTab);"
+        "if(rows.length<2){alert('Cần ít nhất 2 điểm');return;}"
+        "rows.sort((a,b)=>b.v-a.v);"
+        "for(let i=1;i<rows.length;i++){"
+        "if(rows[i].soc>rows[i-1].soc){alert('SOC phải giảm dần khi V giảm (dòng '+(i+1)+')');return;}}"
+        "let p='type='+ocvTab+'&count='+rows.length;"
+        "for(let i=0;i<rows.length;i++)p+='&e'+i+'v='+rows[i].v+'&e'+i+'s='+rows[i].soc;"
+        "if(!confirm('Lưu bảng '+(ocvTab==='lead'?'Chì':'LFP')+' ('+rows.length+' điểm) vào NVS?'))return;"
+        "fetchTO('/saveocvmanual?'+p+'&t='+Date.now(),8000)"
+        ".then(r=>r.text()).then(t=>{"
+        "if(t.startsWith('OK|')){alert('✅ Đã lưu '+t.split('|')[1]+' điểm');loadOcvFromServer();}"
+        "else alert('❌ '+t);"
+        "}).catch(e=>alert('❌ '+e.message));}"
+        "function refreshAcquyJson(){"
+        "if(!confirm('Tải bảng OCV mới từ server? (ghi đè bảng hiện tại)'))return;"
+        "let btn=document.getElementById('btnFetchAcquyJson');"
+        "if(btn){btn.disabled=true;btn.innerText='⏳ Đang tải...';}"
+        "fetchTO('/fetchacquyjson?t='+Date.now(),15000)"
+        ".then(r=>r.text()).then(t=>{"
+        "if(btn){btn.disabled=false;btn.innerText='⬇️ Tải từ server';}"
+        "if(t.startsWith('OK|')){"
+        "let parts=t.split('|');"
+        "alert('✅ Đã tải: Lead='+parts[1]+', LFP='+parts[2]+(parts[3]?' ('+parts[3]+')':''));"
+        "loadOcvFromServer();"
+        "}else alert('❌ Tải thất bại');"
+        "}).catch(e=>{"
+        "if(btn){btn.disabled=false;btn.innerText='⬇️ Tải từ server';}"
+        "alert('❌ '+e.message);});}"
 
         "function scan(){"
         "let s=document.getElementById('status'),r=document.getElementById('results');"
@@ -3168,12 +3608,6 @@ void handleRoot() {
         "else{tm.classList.add('active');tp.classList.remove('active');"
         "cm.style.display='block';cp.style.display='none';}}"
 
-        "function onVmapToggle(){"
-        "let en=document.getElementById('vmapEn').checked;"
-        "let b=document.getElementById('vmapBox');"
-        "if(b)b.style.display=en?'block':'none';"
-        "}"
-
         "function addVmapRow(s,e,v){"
         "let list=document.getElementById('vmapList');"
         "let row=document.createElement('div');row.className='vmap-row';"
@@ -3189,7 +3623,7 @@ void handleRoot() {
         "for(let i=0;i<arr.length;i++)addVmapRow(arr[i].s,arr[i].e,arr[i].v);}"
         "function saveVmap(){"
         "let rows=document.querySelectorAll('#vmapList .vmap-row');"
-        "let p='enabled='+(document.getElementById('vmapEn').checked?'1':'0')+'&count='+rows.length;"
+        "let p='enabled=1&count='+rows.length;"
         "for(let i=0;i<rows.length;i++){"
         "let inp=rows[i].querySelectorAll('input');"
         "let s=parseInt(inp[0].value)||0;let e=parseInt(inp[1].value)||0;let v=parseFloat(inp[2].value)||0;"
@@ -3465,6 +3899,8 @@ void handleRoot() {
         "let irOcv=document.getElementById('ir-ocv');if(irOcv)irOcv.innerText=(d.aqOcvEst||d.aqStableV||0).toFixed(2)+' V';"
         "let irSag=document.getElementById('ir-sag');if(irSag)irSag.innerText=(d.aqSag||0).toFixed(2)+' V';"
         "let irComp=document.getElementById('ir-comp');if(irComp)irComp.innerText=(d.aqCompFactor||0).toFixed(3);"
+        "let irTemp=document.getElementById('ir-temp');if(irTemp&&d.aqTempC!==undefined)irTemp.innerText=d.aqTempC.toFixed(1)+'°C';"
+        "let irOcvComp=document.getElementById('ir-ocvcomp');if(irOcvComp&&d.aqOcvComp!==undefined)irOcvComp.innerText=d.aqOcvComp.toFixed(2)+' V';"
         "let sagBar=document.getElementById('sag-bar');"
         "let sagLabel=document.getElementById('sag-label');"
         "if(sagBar){let sagPct=Math.min(100,(d.aqSag||0)*50);sagBar.style.width=sagPct+'%';}"
@@ -3592,7 +4028,7 @@ void setup() {
     if (jkVersion > 0 && jkVersion <= 2) jkVersionProbed = true;
     else { jkVersion = 0; jkVersionProbed = false; }
 
-    vmapEnabled = preferences.getBool("vmap_en", false);
+    vmapEnabled = true;   // ★ luôn bật
     vmapCount   = preferences.getUChar("vmap_cnt", 0);
     if (vmapCount > MAX_VMAP_ENTRIES) vmapCount = MAX_VMAP_ENTRIES;
     for (int i = 0; i < vmapCount; i++) {
@@ -3620,6 +4056,9 @@ void setup() {
 
     preferences.end();
 
+    // ★ Nạp bảng OCV từ NVS
+    loadOcvFromNVS();
+
     pinMode(acquyAdcPin, INPUT);
     analogReadResolution(12);
     analogSetAttenuation(ACQY_ADC_ATTEN);
@@ -3631,7 +4070,6 @@ void setup() {
     analogSetPinAttenuation(acquyAdcPin, ACQY_ADC_ATTEN);
 #endif
 
-    // Log cấu hình
     LOGM(LOGMOD_BOOT, "Firmware v%s", FW_VERSION);
     LOGM(LOGMOD_BOOT, "Chip: %s | DAC=%d", CHIP_NAME, HAS_DAC);
     LOGM(LOGMOD_BOOT, "ADC: pin=GPIO%d atten=%d", acquyAdcPin, (int)ACQY_ADC_ATTEN);
@@ -3709,6 +4147,10 @@ void setup() {
     server.on("/checkupdate", handleCheckUpdate);
     server.on("/otaonline", HTTP_GET, handleOtaOnline);
     server.on("/update", HTTP_POST, []() { handleUpdateDone(); }, []() { handleUpdateUpload(); });
+    // ★ OCV endpoints
+    server.on("/fetchacquyjson", handleFetchAcquyJson);
+    server.on("/acquyjsoninfo",  handleAcquyJsonInfo);
+    server.on("/saveocvmanual",  handleSaveOcvManual);
 
     server.on("/generate_204", handleCaptivePortal);
     server.on("/gen_204", handleCaptivePortal);
@@ -3771,7 +4213,6 @@ void loop() {
         }
     }
 
-    // Log tóm tắt mỗi 60s
     static unsigned long lastSumLog = 0;
     if (millis() - lastSumLog > 60000) {
         lastSumLog = millis();
