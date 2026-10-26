@@ -65,10 +65,16 @@ int pwmPin = 14;
 int pwmFreq = 5000;
 int pwmRes = 10;
 
-#define AP_TIMEOUT_MS     60000UL
+// AP timeout: 0 = luôn bật
 #define AP_CHECK_INTERVAL 1000UL
+#define AP_TIMEOUT_MIN_S  10
+#define AP_TIMEOUT_MAX_S  3600
+unsigned long apTimeoutMs = 60000UL;
+
 bool apActive = false;
-bool apAlwaysOn = false;
+bool apCfgPanelOpen = false;
+String apSSID = "BMS_Config";
+String apPass = "12345678";
 unsigned long apLastClientTime = 0;
 unsigned long apStartedTime = 0;
 uint8_t apLastClientCount = 0;
@@ -491,13 +497,13 @@ void apStart() {
     if (apActive) return;
     if (staEnabled && staSSID != "") WiFi.mode(WIFI_AP_STA); else WiFi.mode(WIFI_AP);
     WiFi.setSleep(false);
-    WiFi.softAP("BMS_Config", "12345678", 1);
+    WiFi.softAP(apSSID.c_str(), apPass.c_str(), 1);
     WiFi.setTxPower(WIFI_POWER_19_5dBm);
     apActive = true;
     apStartedTime = millis();
     apLastClientTime = 0; apLastClientCount = 0; apLastCheck = millis();
-    LOGM(LOGMOD_WIFI, "📡 Phát WiFi: BMS_Config/12345678 | IP=%s",
-         WiFi.softAPIP().toString().c_str());
+    LOGM(LOGMOD_WIFI, "📡 Phát WiFi: %s/%s | IP=%s",
+         apSSID.c_str(), apPass.c_str(), WiFi.softAPIP().toString().c_str());
     if (!dnsServerStarted) { dnsServer.start(DNS_PORT, "*", WiFi.softAPIP()); dnsServerStarted = true; }
 }
 
@@ -515,7 +521,7 @@ void apStop() {
 void apWatchdog() {
     if (!apActive) return;
     if (otaInProgress) return;
-    if (apAlwaysOn) { apLastClientTime = millis(); return; }
+    if (apTimeoutMs == 0) { apLastClientTime = millis(); return; }   // ★ 0 = luôn bật
     if (millis() - apLastCheck < AP_CHECK_INTERVAL) return;
     apLastCheck = millis();
     uint8_t cc = WiFi.softAPgetStationNum();
@@ -526,11 +532,11 @@ void apWatchdog() {
     if (apLastClientCount > 0) { apLastClientCount = 0; apLastClientTime = millis(); return; }
     if (!staConnected) { apLastClientTime = millis(); return; }
     unsigned long ref = (apLastClientTime > 0) ? apLastClientTime : apStartedTime;
-    if (millis() - ref >= AP_TIMEOUT_MS) apStop();
+    if (millis() - ref >= apTimeoutMs) apStop();
 }
 
 float getMappedVoltage(uint8_t soc) {
-    if (vmapCount == 0) return -1.0f;   // vmapEnabled luôn true
+    if (vmapCount == 0) return -1.0f;
     for (uint8_t i = 0; i < vmapCount; i++) {
         if (soc >= vmap[i].startPct && soc <= vmap[i].endPct) return vmap[i].voltage;
     }
@@ -1270,7 +1276,7 @@ bool fetchUpdateInfo() {
 }
 
 // ============================================================
-// acquy.json — chỉ tải khi có request HTTP (giống data.json)
+// acquy.json — chỉ tải khi có request HTTP (không auto-sync)
 // ============================================================
 static uint8_t parseOcvArray(const String& body, const String& key, OcvPoint* out, uint8_t maxN) {
     int keyPos = body.indexOf("\"" + key + "\"");
@@ -1575,7 +1581,10 @@ void handleData() {
     json += "]";
     json += ",\"staEnabled\":" + String(staEnabled ? "true" : "false");
     json += ",\"staConnected\":" + String(staConnected ? "true" : "false");
-    json += ",\"apAlwaysOn\":" + String(apAlwaysOn ? "true" : "false");
+    json += ",\"apTimeout\":" + String(apTimeoutMs / 1000);
+    json += ",\"apSSID\":\"" + apSSID + "\"";
+    json += ",\"apPass\":\"" + apPass + "\"";
+    json += ",\"apCfgOpen\":" + String(apCfgPanelOpen ? "true" : "false");
     json += ",\"logMask\":" + String(logModulesEnabled);
     json += ",\"staSSID\":\"" + staSSID + "\"";
     json += ",\"staPass\":\"" + staPass + "\"";
@@ -1599,10 +1608,10 @@ void handleData() {
     if (apActive) {
         uint8_t cc = WiFi.softAPgetStationNum();
         unsigned long ref = (apLastClientTime > 0) ? apLastClientTime : apStartedTime;
-        long remain = (long)AP_TIMEOUT_MS - (long)(millis() - ref);
+        long remain = (long)apTimeoutMs - (long)(millis() - ref);
         if (cc > 0) remain = -1;
         if (!staConnected) remain = -2;
-        if (apAlwaysOn) remain = -3;
+        if (apTimeoutMs == 0) remain = -3;   // ★ 0 = luôn bật
         json += ",\"apClients\":" + String(cc);
         json += ",\"apRemain\":" + String(remain / 1000);
     }
@@ -1934,17 +1943,6 @@ void handleSaveWifi() {
     server.send(200, "text/plain", "OK");
 }
 
-void handleSaveApAlways() {
-    TOUCH_HTTP();
-    if (!server.hasArg("en")) { server.send(400, "text/plain", "Missing arg"); return; }
-    apAlwaysOn = (server.arg("en") == "1");
-    preferences.begin("bms_config", false);
-    preferences.putBool("ap_always", apAlwaysOn);
-    preferences.end();
-    LOGM(LOGMOD_WIFI, "Luôn phát WiFi: %s", apAlwaysOn ? "BẬT" : "TẮT");
-    server.send(200, "text/plain", "OK");
-}
-
 void handleSaveSta() {
     TOUCH_HTTP();
     if (!server.hasArg("en")) { server.send(400, "text/plain", "Missing arg"); return; }
@@ -2124,6 +2122,72 @@ void handleSaveAcquyCfg() {
     acquyLastStableV = 0.0f;
     LOGM(LOGMOD_ADC, "Lưu cấu hình: %s %d cell | R1=%.1fk R2=%.1fk | Gain=%.4f Offset=%.3f",
          batteryType == BATT_TYPE_LFP ? "LFP" : "Chì", batteryCells, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset);
+    server.send(200, "text/plain", "OK");
+}
+
+void handleSaveApCfg() {
+    TOUCH_HTTP();
+    String newSSID = server.hasArg("ssid") ? server.arg("ssid") : "";
+    String newPass = server.hasArg("pass") ? server.arg("pass") : "";
+    newSSID.trim();
+
+    if (newSSID.length() == 0 || newSSID.length() > 32) {
+        server.send(400, "text/plain", "SSID phải 1-32 ký tự");
+        return;
+    }
+    if (newPass.length() < 8 || newPass.length() > 63) {
+        server.send(400, "text/plain", "Mật khẩu phải 8-63 ký tự");
+        return;
+    }
+
+    apSSID = newSSID;
+    apPass = newPass;
+
+    preferences.begin("bms_config", false);
+    preferences.putString("ap_ssid", apSSID);
+    preferences.putString("ap_pass", apPass);
+    preferences.end();
+
+    LOGM(LOGMOD_WIFI, "Lưu AP: %s/%s", apSSID.c_str(), apPass.c_str());
+
+    server.send(200, "text/plain", "OK");
+    delay(1000);
+    if (apActive) {
+        if (dnsServerStarted) { dnsServer.stop(); dnsServerStarted = false; }
+        WiFi.softAPdisconnect(true);
+        delay(200);
+        apActive = false;
+        apStart();
+    }
+}
+
+void handleSaveApTimeout() {
+    TOUCH_HTTP();
+    if (!server.hasArg("sec")) { server.send(400, "text/plain", "Missing sec"); return; }
+    int sec = server.arg("sec").toInt();
+    // 0 = luôn bật, hoặc 10..3600
+    if (sec != 0 && (sec < AP_TIMEOUT_MIN_S || sec > AP_TIMEOUT_MAX_S)) {
+        String err = "Phải là 0 (luôn bật) hoặc " + String(AP_TIMEOUT_MIN_S) + "-" + String(AP_TIMEOUT_MAX_S) + "s";
+        server.send(400, "text/plain", err);
+        return;
+    }
+    apTimeoutMs = (unsigned long)sec * 1000UL;
+
+    preferences.begin("bms_config", false);
+    preferences.putUInt("ap_timeout", sec);
+    preferences.end();
+
+    LOGM(LOGMOD_WIFI, "AP timeout: %ds", sec);
+    server.send(200, "text/plain", "OK");
+}
+
+void handleSaveApCfgPanel() {
+    TOUCH_HTTP();
+    if (!server.hasArg("en")) { server.send(400, "text/plain", "Missing arg"); return; }
+    apCfgPanelOpen = (server.arg("en") == "1");
+    preferences.begin("bms_config", false);
+    preferences.putBool("ap_cfg_open", apCfgPanelOpen);
+    preferences.end();
     server.send(200, "text/plain", "OK");
 }
 
@@ -2414,6 +2478,7 @@ void handleRoot() {
         ".mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}"
         ".acc-head{padding:12px}"
         ".ocv-tab div{font-size:11px;padding:6px 2px}"
+        "#btnFetchPresets{font-size:10px;padding:5px 8px !important}"
         "}"
         "</style></head><body>"
     );
@@ -2829,8 +2894,9 @@ void handleRoot() {
         "<input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)'>"
         "<button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>"
         "</div>"
-        "<div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0'>"
-        "<label style='margin:0'><strong>📋 Bảng điện áp theo %</strong></label>"
+        "<div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>"
+        "<label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>"
+        "<button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;display:none;flex-shrink:0'>🔄 Cập nhật</button>"
         "</div>"
         "<div id='vmapBox' style='display:block'>"
         "<div class='sub-tabs'>"
@@ -2838,9 +2904,6 @@ void handleRoot() {
         "<div class='sub-tab' id='subTabManual' onclick='switchSubTab(\"manual\")'>✏️ Thủ công</div>"
         "</div>"
         "<div id='subPreset'>"
-        "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>"
-        "<button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;display:none'>🔄 Cập nhật</button>"
-        "</div>"
         "<div id='presetUpdatedBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:6px 10px;border-radius:5px;font-size:11px;margin-bottom:8px'>"
         "📅 Cập nhật: <b><span id='presetUpdatedText'>--</span></b></div>"
         "<div id='presetList'></div>"
@@ -2894,17 +2957,55 @@ void handleRoot() {
         "</div>"
         "<div class='acc-body'>"
 
-        "<div style='display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px 0;"
-        "background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:12px'>"
+        // ===== CÀI ĐẶT PHÁT WIFI (có công tắc gạt) =====
+        "<div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:12px;margin:12px 0'>"
+        "<div style='display:flex;justify-content:space-between;align-items:center'>"
         "<div>"
-        "<div style='font-size:13px;font-weight:bold;color:#856404'>📡 Luôn Phát WiFi</div>"
-        "<div style='font-size:11px;color:#6c757d;margin-top:2px'>Không tự tắt sau 60s</div>"
+        "<div style='font-size:13px;font-weight:bold;color:#856404'>📡 Cài Đặt Phát WiFi</div>"
+        "<div style='font-size:11px;color:#6c757d;margin-top:2px'>Tên, mật khẩu, thời gian tắt AP</div>"
         "</div>"
-        "<label class='tgl-switch tgl-warn'>"
-        "<input type='checkbox' id='apAlwaysToggle' onchange='toggleApAlways(this.checked)'>"
+        "<label class='tgl-switch tgl-warn' style='margin:0'>"
+        "<input type='checkbox' id='apCfgToggle' onchange='toggleApCfgPanel(this.checked)'>"
         "<span class='tgl-slider'></span>"
         "</label>"
         "</div>"
+
+        "<div id='apCfgPanel' style='display:none;border-top:1px dashed #ffeeba;padding-top:10px;margin-top:10px'>"
+
+        "<div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>🔐 Tên & Mật khẩu AP</div>"
+        "<div class='input-row' style='margin-bottom:8px'>"
+        "<label style='flex:0 0 70px;font-size:12px'><strong>SSID:</strong></label>"
+        "<input type='text' id='apSSIDInput' maxlength='32' placeholder='BMS_Config' style='font-size:12px;padding:6px'>"
+        "</div>"
+        "<div class='input-row' style='margin-bottom:8px'>"
+        "<label style='flex:0 0 70px;font-size:12px'><strong>Mật khẩu:</strong></label>"
+        "<div class='input-with-icon'>"
+        "<input type='password' id='apPassInput' maxlength='63' placeholder='(8-63 ký tự)' style='font-size:12px;padding:6px;padding-right:44px !important'>"
+        "<button class='icon-btn' id='btnToggleApPass' onclick='toggleApPassVisibility()' style='width:36px;height:28px;font-size:16px'>👁️</button>"
+        "</div>"
+        "</div>"
+        "<div style='display:flex;gap:6px;margin-top:4px'>"
+        "<button class='btn-warn' style='flex:1;margin:0;font-size:12px;padding:7px' onclick='saveApCfg()'>💾 Lưu AP</button>"
+        "<button onclick='resetApCfg()' title='Điền lại mặc định' style='width:auto;margin:0;padding:7px 12px;font-size:13px;background:#6c757d'>↺</button>"
+        "</div>"
+        "<div id='apCfgMsg' style='font-size:11px;margin-top:6px'></div>"
+
+        "<div style='border-top:1px dashed #ffeeba;padding-top:10px;margin-top:10px'>"
+        "<div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⏱️ Thời gian tự tắt AP</div>"
+        "<div class='input-row' style='margin:0 0 6px 0'>"
+        "<label style='flex:0 0 90px;font-size:12px'><strong>Giây:</strong></label>"
+        "<input type='number' id='apTimeoutInput' min='0' max='3600' step='10' value='60' style='font-size:12px;padding:6px'>"
+        "</div>"
+        "<div style='font-size:11px;color:#6c757d;margin-bottom:6px'>"
+        "<b>0 = luôn bật</b> (không tự tắt). Hoặc 10–3600s: tắt sau N giây không có client."
+        "</div>"
+        "<button class='btn-warn' style='margin:0;font-size:12px;padding:7px' onclick='saveApTimeout()'>💾 Lưu thời gian</button>"
+        "<div id='apTimeoutMsg' style='font-size:11px;margin-top:6px'></div>"
+        "</div>"
+
+        "</div>"  // apCfgPanel
+        "</div>"
+        // ===== HẾT CÀI ĐẶT PHÁT WIFI =====
 
         "<div style='display:flex;justify-content:space-between;align-items:center;margin:0 0 10px 0;"
         "background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px'>"
@@ -3199,8 +3300,18 @@ void handleRoot() {
         "document.getElementById('staPass').value=d.staPass||'';}"
         "if(en)en.checked=d.staEnabled;"
 
-        "let apT=document.getElementById('apAlwaysToggle');"
-        "if(apT)apT.checked=d.apAlwaysOn||false;"
+        "let apSsidEl=document.getElementById('apSSIDInput');"
+        "if(apSsidEl&&!apSsidEl.dataset.inited){apSsidEl.dataset.inited='1';"
+        "if(d.apSSID)apSsidEl.value=d.apSSID;"
+        "if(d.apPass)document.getElementById('apPassInput').value=d.apPass;}"
+        "let apTEl=document.getElementById('apTimeoutInput');"
+        "if(apTEl&&!apTEl.dataset.inited){apTEl.dataset.inited='1';"
+        "if(d.apTimeout!==undefined)apTEl.value=d.apTimeout;}"
+        "let apCfgToggleEl=document.getElementById('apCfgToggle');"
+        "if(apCfgToggleEl&&!apCfgToggleEl.dataset.inited){apCfgToggleEl.dataset.inited='1';"
+        "apCfgToggleEl.checked=d.apCfgOpen||false;"
+        "toggleApCfgPanel(d.apCfgOpen||false);"
+        "}"
         "}"
 
         "let otaBox=document.getElementById('otaOnlineBox');"
@@ -3232,8 +3343,10 @@ void handleRoot() {
         "let curNameEl=document.getElementById('curBmsName');"
         "if(curNameEl){curNameEl.innerText=d.bmsName?('📛 '+d.bmsName):'';}"
 
+        "let btnFetch=document.getElementById('btnFetchPresets');"
+        "if(btnFetch){btnFetch.style.display=d.staConnected?'inline-block':'none';}"
         "let btnAcquy=document.getElementById('btnFetchAcquyJson');"
-        "if(btnAcquy){btnAcquy.style.display=(d.staConnected||d.configMode)?'block':'none';}"
+        "if(btnAcquy){btnAcquy.style.display=d.staConnected?'block':'none';}"
 
         "let modeInit=document.getElementById('swBms');"
         "if(modeInit&&!modeInit.dataset.inited){"
@@ -3311,9 +3424,6 @@ void handleRoot() {
         "}else{typeBadge.style.display='none';}"
         "}"
 
-        "let btnFetch=document.getElementById('btnFetchPresets');"
-        "if(btnFetch){btnFetch.style.display=(d.staConnected||d.configMode)?'inline-block':'none';}"
-
         "if(accOut&&accOut.classList.contains('open')){"
         "if(!window.urlsInited){window.urlsInited=true;"
         "if(d.presetInfoLoaded&&d.presetUpdated)showPresetUpdated(d.presetUpdated);}"
@@ -3355,17 +3465,56 @@ void handleRoot() {
         "}).catch(e=>{if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}});"
         "}"
 
-        "function toggleApAlways(en){"
-        "let msg=document.getElementById('wifiMsg');"
-        "if(msg){msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';}"
-        "fetchTO('/saveapalways?en='+(en?'1':'0')+'&t='+Date.now(),5000)"
+        "function toggleApCfgPanel(en){"
+        "let panel=document.getElementById('apCfgPanel');"
+        "if(panel)panel.style.display=en?'block':'none';"
+        "fetchTO('/saveapcfgpanel?en='+(en?'1':'0')+'&t='+Date.now(),3000).catch(e=>{});}"
+
+        "function toggleApPassVisibility(){"
+        "let inp=document.getElementById('apPassInput');"
+        "let btn=document.getElementById('btnToggleApPass');"
+        "if(inp.type==='password'){inp.type='text';btn.innerText='🙈';}"
+        "else{inp.type='password';btn.innerText='👁️';}}"
+
+        "function resetApCfg(){"
+        "document.getElementById('apSSIDInput').value='BMS_Config';"
+        "document.getElementById('apPassInput').value='12345678';"
+        "let msg=document.getElementById('apCfgMsg');"
+        "msg.innerText='↺ Đã điền mặc định — bấm 💾 Lưu AP để áp dụng';"
+        "msg.style.color='#6c757d';}"
+
+        "function saveApCfg(){"
+        "let ssid=document.getElementById('apSSIDInput').value.trim();"
+        "let pass=document.getElementById('apPassInput').value;"
+        "let msg=document.getElementById('apCfgMsg');"
+        "if(ssid.length===0){msg.innerText='❌ Nhập SSID!';msg.style.color='#dc3545';return;}"
+        "if(pass.length<8||pass.length>63){msg.innerText='❌ Mật khẩu phải 8-63 ký tự!';msg.style.color='#dc3545';return;}"
+        "if(!confirm('Lưu AP:\\nSSID: '+ssid+'\\nMật khẩu: '+pass+'\\n\\nAP sẽ KHỞI ĐỘNG LẠI.\\nBạn sẽ phải kết nối lại WiFi!'))return;"
+        "msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';"
+        "fetchTO('/saveapcfg?ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent(pass)+'&t='+Date.now(),8000)"
         ".then(r=>r.text()).then(t=>{"
         "if(t==='OK'){"
-        "if(msg){msg.innerText=en?'✅ WiFi sẽ LUÔN phát':'✅ WiFi tự tắt bình thường';msg.style.color='#28a745';}"
+        "msg.innerText='✅ Đã lưu! AP đang khởi động lại...';"
+        "msg.style.color='#28a745';"
+        "setTimeout(function(){alert('AP đã đổi sang:\\nSSID: '+ssid+'\\nHãy kết nối lại WiFi!');},2000);"
+        "}else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}"
+        "}).catch(e=>{msg.innerText='⚠️ AP đang restart — hãy kết nối lại';msg.style.color='#ff9800';});}"
+
+        "function saveApTimeout(){"
+        "let sec=parseInt(document.getElementById('apTimeoutInput').value);"
+        "let msg=document.getElementById('apTimeoutMsg');"
+        "if(isNaN(sec)||(sec!==0&&(sec<10||sec>3600))){"
+        "msg.innerText='❌ Phải là 0 (luôn bật) hoặc 10-3600 giây';msg.style.color='#dc3545';return;}"
+        "msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';"
+        "fetchTO('/saveaptimeout?sec='+sec+'&t='+Date.now(),5000)"
+        ".then(r=>r.text()).then(t=>{"
+        "if(t==='OK'){"
+        "let txt=(sec===0)?'✅ AP sẽ LUÔN BẬT (không tự tắt)':'✅ Đã lưu: '+sec+' giây';"
+        "msg.innerText=txt;"
+        "msg.style.color='#28a745';"
         "updateData();"
-        "}else{if(msg){msg.innerText='❌ '+t;msg.style.color='#dc3545';}}"
-        "}).catch(e=>{if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}});"
-        "}"
+        "}else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}"
+        "}).catch(e=>{msg.innerText='❌ Timeout';msg.style.color='#dc3545';});}"
 
         "function onBattTypeChange(){"
         "let t=parseInt(document.getElementById('battType').value);"
@@ -3531,6 +3680,7 @@ void handleRoot() {
         "else alert('❌ '+t);"
         "}).catch(e=>alert('❌ '+e.message));}"
         "function refreshAcquyJson(){"
+        "if(!window._staConnected){alert('❌ Cần kết nối WiFi nhà để tải từ server');return;}"
         "if(!confirm('Tải bảng OCV mới từ server? (ghi đè bảng hiện tại)'))return;"
         "let btn=document.getElementById('btnFetchAcquyJson');"
         "if(btn){btn.disabled=true;btn.innerText='⏳ Đang tải...';}"
@@ -3713,6 +3863,7 @@ void handleRoot() {
         "else box.style.display='none';}"
 
         "function fetchPresets(){"
+        "if(!window._staConnected){alert('❌ Cần kết nối WiFi nhà để tải từ server');return;}"
         "let lmsg=document.getElementById('presetListMsg');"
         "let box=document.getElementById('presetList');"
         "if(box){box.innerHTML='<div style=\"text-align:center;padding:20px;color:#6c757d;font-size:13px\">⏳ Đang tải...</div>';}"
@@ -4041,7 +4192,20 @@ void setup() {
     staSSID    = preferences.getString("sta_ssid", "");
     staPass    = preferences.getString("sta_pass", "");
     staEnabled = preferences.getBool("sta_en", false);
-    apAlwaysOn = preferences.getBool("ap_always", false);
+
+    apSSID = preferences.getString("ap_ssid", "BMS_Config");
+    apPass = preferences.getString("ap_pass", "12345678");
+    if (apSSID.length() == 0 || apSSID.length() > 32) apSSID = "BMS_Config";
+    if (apPass.length() < 8 || apPass.length() > 63)  apPass = "12345678";
+
+    uint32_t savedTimeout = preferences.getUInt("ap_timeout", 60);
+    // 0 = luôn bật, hoặc 10..3600
+    if (savedTimeout != 0 && savedTimeout < AP_TIMEOUT_MIN_S) savedTimeout = AP_TIMEOUT_MIN_S;
+    if (savedTimeout > AP_TIMEOUT_MAX_S) savedTimeout = AP_TIMEOUT_MAX_S;
+    apTimeoutMs = (unsigned long)savedTimeout * 1000UL;
+
+    apCfgPanelOpen = preferences.getBool("ap_cfg_open", false);
+
     logModulesEnabled = preferences.getUShort("log_mask", LOGMOD_ALL);
     fwDate  = preferences.getString("fw_date", "");
     fwNotes = preferences.getString("fw_notes", "");
@@ -4074,6 +4238,7 @@ void setup() {
     LOGM(LOGMOD_BOOT, "Chip: %s | DAC=%d", CHIP_NAME, HAS_DAC);
     LOGM(LOGMOD_BOOT, "ADC: pin=GPIO%d atten=%d", acquyAdcPin, (int)ACQY_ADC_ATTEN);
     LOGM(LOGMOD_BOOT, "Log mask: 0x%04X", logModulesEnabled);
+    LOGM(LOGMOD_BOOT, "AP: SSID=%s | Timeout=%lus", apSSID.c_str(), apTimeoutMs/1000);
 
     preferences.begin("bms_presets", false);
     int n = preferences.getInt("count", 0);
@@ -4134,8 +4299,10 @@ void setup() {
     server.on("/toggleacquy", handleToggleAcquy);
     server.on("/saveacquycfg", handleSaveAcquyCfg);
     server.on("/savewifi", handleSaveWifi);
-    server.on("/saveapalways", handleSaveApAlways);
     server.on("/savesta", handleSaveSta);
+    server.on("/saveapcfg", handleSaveApCfg);
+    server.on("/saveaptimeout", handleSaveApTimeout);
+    server.on("/saveapcfgpanel", handleSaveApCfgPanel);
     server.on("/setlogmodules", handleSetLogModules);
     server.on("/wifiscan", handleWifiScan);
     server.on("/fetchpresets", handleFetchPresets);
