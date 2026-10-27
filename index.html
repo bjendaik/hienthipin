@@ -81,7 +81,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 .mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}
 .mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}
 @media (max-width:380px){.acc-head .title-text{font-size:13px}.mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}.acc-head{padding:12px}.ocv-tab div{font-size:11px;padding:6px 2px}}
-/* Nút BLE cạnh tiêu đề MONITOR */
 .ble-inline{
   display:flex;align-items:center;gap:6px;flex-wrap:wrap;
   justify-content:flex-end;flex:0 0 auto;
@@ -114,8 +113,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 }
 .ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
 .ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
-/* Ẩn/hiện theo mode */
-.mode-hidden{display:none !important}
 </style></head><body>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
@@ -522,15 +519,13 @@ let autoReconnecting = false;
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
 let otaInProgress = false;
+let currentAcquyMode = false;
 
 let configLoaded = false;
 let configDirty = false;
 let outputTouched = false;
 let activePresetIdx = -1;
 let vmapLoaded = false;
-
-// ★ Lưu mode hiện tại để tránh ghi đè display
-let currentAcquyMode = false;
 
 function markDirty(){ configDirty = true; }
 function markOutputTouched(){ outputTouched = true; }
@@ -974,42 +969,19 @@ function onAccOpen(id){
     if(!vmapLoaded) setTimeout(loadVmapFromServer, 400);
   }
   else if(id==='accOta'){
-    // Không tự check update — user bấm nút để check
+    // Không tự check update
   }
 }
 
-// ★ Sửa applyModeUI: ẩn/hiện TOÀN BỘ theo mode
 function applyModeUI(isAcquy){
   currentAcquyMode = isAcquy;
 
   document.getElementById('swBms').className='sw-lbl'+(isAcquy?'':' active bms');
   document.getElementById('swAcquy').className='sw-lbl'+(isAcquy?' active acquy':'');
 
-  // Nguồn dữ liệu: config
   document.getElementById('acquyConfigBox').style.display=isAcquy?'block':'none';
   document.getElementById('bmsScanArea').style.display=isAcquy?'none':'block';
 
-  // Box acquy trong "Chi Tiết Điện Áp"
-  const aqBoxes = ['aq-box-raw', 'aq-box-stable', 'aq-status-line', 'irBox'];
-  aqBoxes.forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){
-      if(isAcquy) el.classList.remove('mode-hidden');
-      else el.classList.add('mode-hidden');
-    }
-  });
-
-  // Box BMS trong "Chi Tiết Điện Áp"
-  const bmsBoxes = ['bms-box-totalv','bms-box-cellcount','bms-box-current','bms-box-power','bms-cellstats','bms-cells-wrap','bms-empty'];
-  bmsBoxes.forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){
-      if(isAcquy) el.classList.add('mode-hidden');
-      else el.classList.remove('mode-hidden');
-    }
-  });
-
-  // Đổi tiêu đề accordion
   const titleEl = document.getElementById('accBmsTitle');
   const headEl = document.getElementById('accBmsHead');
   if(titleEl && headEl){
@@ -1083,9 +1055,13 @@ function saveOutput(){
   }).catch(e=>alert('Timeout'));
 }
 
+// ================================================================
+// updateData — cập nhật TEXT + DISPLAY cho tất cả box theo mode
+// ================================================================
 function updateData(){
   if(!bleConnected) return;
   fetch('/data').then(r=>r.json()).then(d=>{
+    // ===== MONITOR =====
     let s=document.getElementById('conn-status');
     if(d.acquyMode){s.innerText='Đang đo Ắc quy';s.style.color='#ff9800';}
     else if(d.connected){s.innerText='Đã kết nối';s.style.color='green';}
@@ -1103,12 +1079,14 @@ function updateData(){
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
     document.getElementById('chip-name').innerText=d.chipName;
 
+    // Firmware version
     const fwVer = d.fwVersion || '0.0';
     const fwVerHeaderEl = document.getElementById('fwVerHeader');
     const fwVerOtaEl = document.getElementById('fwVerOta');
     if(fwVerHeaderEl) fwVerHeaderEl.innerText = 'v'+fwVer;
     if(fwVerOtaEl) fwVerOtaEl.innerText = 'v'+fwVer;
 
+    // Output
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V (' + outText + ')';
@@ -1118,17 +1096,12 @@ function updateData(){
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
 
+    // MAC
     const bmsMac = (d.mac || '').trim();
-    const macDisplay = bmsMac || 'Chưa có';
-    document.getElementById('curMacText').innerText = macDisplay;
+    document.getElementById('curMacText').innerText = bmsMac || 'Chưa có';
     document.getElementById('curBmsName').innerText = d.bmsName ? ('📛 '+d.bmsName) : '';
 
-    if(d.acquyMode){
-      document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
-      document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
-      document.getElementById('aqStableV').innerText=(d.aqOcvEst||0).toFixed(2)+' V';
-      document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%';
-    }
+    // Thiết bị
     let bmsNameEl=document.getElementById('bms-name-text');
     if(d.acquyMode){
       bmsNameEl.innerText='Chế độ Ắc quy';
@@ -1143,22 +1116,134 @@ function updateData(){
       bmsNameEl.innerText='--';
       bmsNameEl.style.color='#6c757d';
     }
-    document.getElementById('bms-totalv').innerText=(d.totalV||0).toFixed(2)+' V';
-    document.getElementById('bms-current').innerText=(d.current||0).toFixed(2)+' A';
-    document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';
-    document.getElementById('bms-cellcount').innerText=d.cellCount||0;
-    let grid=document.getElementById('bms-cells-grid');
-    let html='';
-    for(let i=0;i<16;i++){
-      let v=(d.cells&&d.cells[i])||0;
-      if(v>0.5){
-        html+='<div style="background:#f8f9fa;border:1px solid #dee2e6;padding:6px;text-align:center;border-radius:5px">';
-        html+='<div style="font-size:10px;color:#999">C'+(i+1)+'</div>';
-        html+='<div style="font-size:13px;font-weight:bold">'+v.toFixed(3)+'</div></div>';
+
+    // Acquy values (cho Nguồn Dữ Liệu)
+    if(d.acquyMode){
+      document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
+      document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
+      document.getElementById('aqStableV').innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+      document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%';
+    }
+
+    // ===== BOX BMS =====
+    const bmsBoxTV=document.getElementById('bms-box-totalv');
+    const bmsBoxCC=document.getElementById('bms-box-cellcount');
+    const bmsBoxCur=document.getElementById('bms-box-current');
+    const bmsBoxPow=document.getElementById('bms-box-power');
+    const bmsCellStats=document.getElementById('bms-cellstats');
+    const bmsCellsWrap=document.getElementById('bms-cells-wrap');
+    const bmsEmpty=document.getElementById('bms-empty');
+
+    if(d.acquyMode){
+      // Ẩn tất cả box BMS
+      [bmsBoxTV,bmsBoxCC,bmsBoxCur,bmsBoxPow,bmsCellStats,bmsCellsWrap].forEach(el=>{
+        if(el) el.style.display='none';
+      });
+      if(bmsEmpty) bmsEmpty.style.display='none';
+    } else {
+      // Hiện/ẩn box BMS theo dữ liệu
+      if(bmsBoxTV){
+        if(d.hasTotalV){ bmsBoxTV.style.display='block'; document.getElementById('bms-totalv').innerText=(d.totalV||0).toFixed(2)+' V'; }
+        else bmsBoxTV.style.display='none';
+      }
+      if(bmsBoxCC){
+        if(d.cellCount>0){ bmsBoxCC.style.display='block'; document.getElementById('bms-cellcount').innerText=d.cellCount; }
+        else bmsBoxCC.style.display='none';
+      }
+      if(bmsBoxCur){
+        if(d.hasCurrent){
+          bmsBoxCur.style.display='block';
+          const curEl=document.getElementById('bms-current');
+          const cur=d.current||0;
+          curEl.innerText=cur.toFixed(2)+' A';
+          curEl.style.color=cur<0?'#28a745':(cur>0?'#dc3545':'#ff9800');
+        } else bmsBoxCur.style.display='none';
+      }
+      if(bmsBoxPow){
+        if(d.hasPower){ bmsBoxPow.style.display='block'; document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W'; }
+        else bmsBoxPow.style.display='none';
+      }
+      if(bmsCellStats){
+        if(d.hasCells && d.cellCount>0){
+          bmsCellStats.style.display='flex';
+          let maxV=-1,minV=999,mi=0,ni=0;
+          for(let i=0;i<16;i++){
+            let v=(d.cells&&d.cells[i])||0;
+            if(v>0.5){if(v>maxV){maxV=v;mi=i}if(v<minV){minV=v;ni=i}}
+          }
+          if(maxV>0 && minV<999){
+            document.getElementById('bms-cellmax').innerText='C'+(mi+1)+' - '+maxV.toFixed(3)+'V';
+            document.getElementById('bms-cellmin').innerText='C'+(ni+1)+' - '+minV.toFixed(3)+'V';
+            let diff=maxV-minV;let diffEl=document.getElementById('bms-celldiff');
+            diffEl.innerText=(diff*1000).toFixed(0)+' mV';
+            diffEl.style.color=diff>0.05?'#dc3545':(diff>0.03?'#ff9800':'#28a745');
+          }
+        } else bmsCellStats.style.display='none';
+      }
+      if(bmsCellsWrap){
+        if(d.hasCells && d.cellCount>0){
+          bmsCellsWrap.style.display='block';
+          let maxV=-1,minV=999,mi=0,ni=0;
+          for(let i=0;i<16;i++){
+            let vv=(d.cells&&d.cells[i])||0;
+            if(vv>0.5){if(vv>maxV){maxV=vv;mi=i}if(vv<minV){minV=vv;ni=i}}
+          }
+          let grid=document.getElementById('bms-cells-grid');
+          let html='';
+          for(let i=0;i<16;i++){
+            let v=(d.cells&&d.cells[i])||0;
+            if(v>0.5){
+              let color='#333';let bg='#f8f9fa';
+              if(i===mi){color='#fff';bg='#dc3545';}
+              else if(i===ni){color='#fff';bg='#28a745';}
+              html+='<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">';
+              html+='<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>';
+              html+='<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
+            }
+          }
+          grid.innerHTML=html;
+        } else bmsCellsWrap.style.display='none';
+      }
+      if(bmsEmpty){
+        const hasAny=d.hasTotalV||d.hasCurrent||d.hasPower||d.hasCells;
+        bmsEmpty.style.display=hasAny?'none':'block';
       }
     }
-    grid.innerHTML=html;
 
+    // ===== BOX ACQUY =====
+    const aqBoxRaw=document.getElementById('aq-box-raw');
+    const aqBoxStable=document.getElementById('aq-box-stable');
+    const aqStatusLine=document.getElementById('aq-status-line');
+    const irBox=document.getElementById('irBox');
+
+    if(d.acquyMode){
+      if(aqBoxRaw){
+        aqBoxRaw.style.display='block';
+        const rvEl=document.getElementById('aq-totalv-raw');
+        if(rvEl){
+          rvEl.innerText=(d.aqRawV||0).toFixed(2)+' V';
+          const diff=Math.abs((d.aqRawV||0)-(d.aqOcvEst||0));
+          rvEl.style.color=(diff>0.3)?'#ff9800':'#6c757d';
+        }
+      }
+      if(aqBoxStable){
+        aqBoxStable.style.display='block';
+        const svEl=document.getElementById('aq-totalv-stable');
+        if(svEl){
+          svEl.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+          svEl.style.color=d.aqIsStable?'#28a745':'#6c757d';
+        }
+      }
+      if(aqStatusLine) aqStatusLine.style.display='block';
+      if(irBox) irBox.style.display='block';
+    } else {
+      if(aqBoxRaw) aqBoxRaw.style.display='none';
+      if(aqBoxStable) aqBoxStable.style.display='none';
+      if(aqStatusLine) aqStatusLine.style.display='none';
+      if(irBox) irBox.style.display='none';
+    }
+
+    // Config load lần đầu
     if(!configLoaded){
       loadConfigFromStatus(d);
       configLoaded = true;
@@ -1455,15 +1540,11 @@ function loadVmapFromServer(){
     if(arr.length===0){
       addVmapRow(0, 50, 1.65);
       addVmapRow(51, 100, 3.30);
-      console.log('[VMAP] ESP32 chưa có bảng → tạo mặc định 2 dải');
     } else {
       arr.forEach(e=>addVmapRow(e.s, e.e, e.v));
-      console.log('[VMAP] Loaded '+arr.length+' dải từ ESP32');
     }
     vmapLoaded = true;
-  }).catch(e=>{
-    console.warn('[VMAP] Load fail:', e);
-  });
+  }).catch(e=>{});
 }
 
 function saveVmap(){
@@ -1626,163 +1707,51 @@ function clearMac(){
   });
 }
 
-// ============ BMS INFO ============
-// ★ Sửa updateBmsInfo: KHÔNG ghi đè display khi sai mode
+// ================================================================
+// updateBmsInfo — CHỈ cập nhật text của IR/status acquy
+// ================================================================
 function updateBmsInfo(){
   fetch('/data').then(r=>r.json()).then(d=>{
-    // ★ Nếu mode hiện tại khác với d.acquyMode, cập nhật lại UI trước
     if(currentAcquyMode !== d.acquyMode){
       applyModeUI(d.acquyMode);
     }
+    if(!d.acquyMode) return; // BMS mode: updateData đã lo hết
 
-    let vc=0,maxV=-1,minV=999,mi=0,ni=0;
-    for(let i=0;i<16;i++){
-      let v=(d.cells&&d.cells[i])||0;
-      if(v>0.5){vc++;if(v>maxV){maxV=v;mi=i}if(v<minV){minV=v;ni=i}}
+    // Acquy: cập nhật IR box + status line
+    let irRaw=document.getElementById('ir-raw');if(irRaw)irRaw.innerText=(d.aqRawV||0).toFixed(2)+' V';
+    let irOcv=document.getElementById('ir-ocv');if(irOcv)irOcv.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+    let irSag=document.getElementById('ir-sag');if(irSag)irSag.innerText=(d.aqSag||0).toFixed(2)+' V';
+    let irComp=document.getElementById('ir-comp');if(irComp)irComp.innerText=(d.aqCompFactor||0).toFixed(3);
+    let irTemp=document.getElementById('ir-temp');if(irTemp)irTemp.innerText=(d.aqTempC||25).toFixed(1)+'°C';
+    let irOcvComp=document.getElementById('ir-ocvcomp');if(irOcvComp)irOcvComp.innerText=(d.aqOcvComp||0).toFixed(2)+' V';
+    let sagBar=document.getElementById('sag-bar');
+    if(sagBar){let sagPct=Math.min(100,(d.aqSag||0)*50);sagBar.style.width=sagPct+'%';}
+    let sagLabel=document.getElementById('sag-label');
+    if(sagLabel){let sag=d.aqSag||0;
+      if(sag<0.3)sagLabel.innerText='Không tải ('+sag.toFixed(2)+'V)';
+      else if(sag<1.0)sagLabel.innerText='Tải nhẹ ('+sag.toFixed(2)+'V)';
+      else if(sag<2.0)sagLabel.innerText='Tải vừa ('+sag.toFixed(2)+'V)';
+      else sagLabel.innerText='🔥 TẢI NẶNG ('+sag.toFixed(2)+'V)';}
+
+    const statusText=document.getElementById('bms-aq-status-text');
+    const adcVEl=document.getElementById('bms-aq-adc-v');
+    const pinLabelEl=document.getElementById('bms-aq-pin-label');
+    const ovpBadge=document.getElementById('bms-aq-ovp-badge');
+    const gainEl=document.getElementById('bms-aq-gain');
+    const offsetEl=document.getElementById('bms-aq-offset');
+    if(pinLabelEl)pinLabelEl.innerText='GPIO'+(d.aqPin||'--');
+    if(adcVEl)adcVEl.innerText=(d.aqAdcV||0).toFixed(3)+' V';
+    if(gainEl)gainEl.innerText=(d.aqGain||1).toFixed(4);
+    if(offsetEl)offsetEl.innerText=(d.aqOffset||0).toFixed(3);
+    if(statusText){
+      if(d.aqIsStable){statusText.innerText='✅ Ổn định';statusText.style.color='#28a745';}
+      else{let sag=d.aqSag||0;
+        if(sag<0.3){statusText.innerText='⏳ Chờ ổn định';statusText.style.color='#6c757d';}
+        else if(sag<1.0){statusText.innerText='⚠️ Tải nhẹ';statusText.style.color='#ff9800';}
+        else if(sag<2.0){statusText.innerText='⚠️ Tải vừa';statusText.style.color='#ff9800';}
+        else{statusText.innerText='🔥 TẢI NẶNG';statusText.style.color='#dc3545';}}
     }
-
-    // ===== BOX ACQUY =====
-    if(d.acquyMode){
-      const boxRaw=document.getElementById('aq-box-raw');
-      const boxStable=document.getElementById('aq-box-stable');
-      if(boxRaw){
-        boxRaw.classList.remove('mode-hidden');
-        let rvEl=document.getElementById('aq-totalv-raw');
-        if(rvEl){
-          rvEl.innerText=(d.aqRawV||0).toFixed(2)+' V';
-          let diff=Math.abs((d.aqRawV||0)-(d.aqOcvEst||0));
-          rvEl.style.color=(diff>0.3)?'#ff9800':'#6c757d';
-        }
-      }
-      if(boxStable){
-        boxStable.classList.remove('mode-hidden');
-        let svEl=document.getElementById('aq-totalv-stable');
-        if(svEl){
-          svEl.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
-          svEl.style.color=d.aqIsStable?'#28a745':'#6c757d';
-        }
-      }
-    }
-
-    // ===== BOX BMS =====
-    if(!d.acquyMode){
-      const boxTV=document.getElementById('bms-box-totalv');
-      if(d.hasTotalV && boxTV){
-        boxTV.classList.remove('mode-hidden');
-        document.getElementById('bms-totalv').innerText=d.totalV.toFixed(2)+' V';
-      } else if(boxTV){
-        boxTV.classList.add('mode-hidden');
-      }
-
-      const boxCC=document.getElementById('bms-box-cellcount');
-      if(d.hasCells && boxCC){
-        boxCC.classList.remove('mode-hidden');
-        document.getElementById('bms-cellcount').innerText=vc;
-      } else if(boxCC){
-        boxCC.classList.add('mode-hidden');
-      }
-
-      const boxCur=document.getElementById('bms-box-current');
-      if(d.hasCurrent && boxCur){
-        boxCur.classList.remove('mode-hidden');
-        let cur=d.current||0;let curEl=document.getElementById('bms-current');
-        curEl.innerText=cur.toFixed(2)+' A';
-        curEl.style.color=cur<0?'#28a745':(cur>0?'#dc3545':'#ff9800');
-      } else if(boxCur){
-        boxCur.classList.add('mode-hidden');
-      }
-
-      const boxPow=document.getElementById('bms-box-power');
-      if(d.hasPower && boxPow){
-        boxPow.classList.remove('mode-hidden');
-        document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';
-      } else if(boxPow){
-        boxPow.classList.add('mode-hidden');
-      }
-
-      const stats=document.getElementById('bms-cellstats');
-      if(d.hasCells && vc>0 && stats){
-        stats.classList.remove('mode-hidden');
-        stats.style.display='flex';
-        document.getElementById('bms-cellmax').innerText='C'+(mi+1)+' - '+maxV.toFixed(3)+'V';
-        document.getElementById('bms-cellmin').innerText='C'+(ni+1)+' - '+minV.toFixed(3)+'V';
-        let diff=maxV-minV;let diffEl=document.getElementById('bms-celldiff');
-        diffEl.innerText=(diff*1000).toFixed(0)+' mV';
-        diffEl.style.color=diff>0.05?'#dc3545':(diff>0.03?'#ff9800':'#28a745');
-      } else if(stats){
-        stats.classList.add('mode-hidden');
-      }
-
-      const wrap=document.getElementById('bms-cells-wrap');
-      if(d.hasCells && vc>0 && wrap){
-        wrap.classList.remove('mode-hidden');
-        wrap.style.display='block';
-        let grid=document.getElementById('bms-cells-grid');
-        let html='';
-        for(let i=0;i<16;i++){
-          let v=(d.cells&&d.cells[i])||0;
-          if(v>0.5){
-            let color='#333';let bg='#f8f9fa';
-            if(i===mi){color='#fff';bg='#dc3545';}
-            else if(i===ni){color='#fff';bg='#28a745';}
-            html+='<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">';
-            html+='<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>';
-            html+='<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
-          }
-        }
-        grid.innerHTML=html;
-      } else if(wrap){
-        wrap.classList.add('mode-hidden');
-      }
-    }
-
-    // ===== IR BOX + STATUS LINE (acquy) =====
-    const irBox=document.getElementById('irBox');
-    if(irBox){
-      if(d.acquyMode) irBox.classList.remove('mode-hidden');
-      else irBox.classList.add('mode-hidden');
-    }
-    if(d.acquyMode){
-      let irRaw=document.getElementById('ir-raw');if(irRaw)irRaw.innerText=(d.aqRawV||0).toFixed(2)+' V';
-      let irOcv=document.getElementById('ir-ocv');if(irOcv)irOcv.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
-      let irSag=document.getElementById('ir-sag');if(irSag)irSag.innerText=(d.aqSag||0).toFixed(2)+' V';
-      let irComp=document.getElementById('ir-comp');if(irComp)irComp.innerText=(d.aqCompFactor||0).toFixed(3);
-      let irTemp=document.getElementById('ir-temp');if(irTemp)irTemp.innerText=(d.aqTempC||25).toFixed(1)+'°C';
-      let irOcvComp=document.getElementById('ir-ocvcomp');if(irOcvComp)irOcvComp.innerText=(d.aqOcvComp||0).toFixed(2)+' V';
-      let sagBar=document.getElementById('sag-bar');
-      if(sagBar){let sagPct=Math.min(100,(d.aqSag||0)*50);sagBar.style.width=sagPct+'%';}
-      let sagLabel=document.getElementById('sag-label');
-      if(sagLabel){let sag=d.aqSag||0;
-        if(sag<0.3)sagLabel.innerText='Không tải ('+sag.toFixed(2)+'V)';
-        else if(sag<1.0)sagLabel.innerText='Tải nhẹ ('+sag.toFixed(2)+'V)';
-        else if(sag<2.0)sagLabel.innerText='Tải vừa ('+sag.toFixed(2)+'V)';
-        else sagLabel.innerText='🔥 TẢI NẶNG ('+sag.toFixed(2)+'V)';}
-
-      const statusLine=document.getElementById('aq-status-line');
-      const statusText=document.getElementById('bms-aq-status-text');
-      const adcVEl=document.getElementById('bms-aq-adc-v');
-      const pinLabelEl=document.getElementById('bms-aq-pin-label');
-      const ovpBadge=document.getElementById('bms-aq-ovp-badge');
-      const gainEl=document.getElementById('bms-aq-gain');
-      const offsetEl=document.getElementById('bms-aq-offset');
-      if(statusLine) statusLine.classList.remove('mode-hidden');
-      if(pinLabelEl)pinLabelEl.innerText='GPIO'+(d.aqPin||'--');
-      if(adcVEl)adcVEl.innerText=(d.aqAdcV||0).toFixed(3)+' V';
-      if(gainEl)gainEl.innerText=(d.aqGain||1).toFixed(4);
-      if(offsetEl)offsetEl.innerText=(d.aqOffset||0).toFixed(3);
-      if(statusText){
-        if(d.aqIsStable){statusText.innerText='✅ Ổn định';statusText.style.color='#28a745';}
-        else{let sag=d.aqSag||0;
-          if(sag<0.3){statusText.innerText='⏳ Chờ ổn định';statusText.style.color='#6c757d';}
-          else if(sag<1.0){statusText.innerText='⚠️ Tải nhẹ';statusText.style.color='#ff9800';}
-          else if(sag<2.0){statusText.innerText='⚠️ Tải vừa';statusText.style.color='#ff9800';}
-          else{statusText.innerText='🔥 TẢI NẶNG';statusText.style.color='#dc3545';}}
-      }
-      if(ovpBadge)ovpBadge.style.display=d.aqOvp?'inline-block':'none';
-    } else {
-      const statusLine=document.getElementById('aq-status-line');
-      if(statusLine) statusLine.classList.add('mode-hidden');
-    }
+    if(ovpBadge)ovpBadge.style.display=d.aqOvp?'inline-block':'none';
   }).catch(e=>{});
 }
 setInterval(function(){
