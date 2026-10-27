@@ -44,7 +44,7 @@ void bleSendLog(const String& s);
     Serial.println(_b); bleSendLog(_b); \
 } while(0)
 
-#define FW_VERSION "5.2"
+#define FW_VERSION "3.4"
 
 #define LED_PIN 2
 enum LedMode { LED_MODE_CONFIG_BLINK, LED_MODE_SOLID, LED_MODE_BREATHE };
