@@ -1,116 +1,118 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BMS Monitor Web Bluetooth</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-      background-color: #121212;
-      color: #ffffff;
-    }
-    .card {
-      background: #1e1e1e;
-      border-radius: 12px;
-      padding: 20px;
-      max-width: 400px;
-      margin: 20px auto;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-    }
-    .metric {
-      font-size: 1.4rem;
-      margin: 15px 0;
-    }
-    .value {
-      font-weight: bold;
-      color: #00e676;
-    }
-    button {
-      padding: 12px 24px;
-      font-size: 1rem;
-      font-weight: bold;
-      background-color: #00e676;
-      color: #121212;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    button:active {
-      transform: scale(0.98);
-    }
-    #status {
-      margin-top: 10px;
-      font-style: italic;
-      color: #888;
-    }
-  </style>
-</head>
-<body>
+#include <Arduino.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
-  <div class="card">
-    <h2>Theo Dõi BMS Qua Bluetooth</h2>
-    <button id="btnConnect" onclick="connectBle()">Kết nối ESP32</button>
-    <div id="status">Chưa kết nối</div>
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
-    <div class="metric">Điện áp: <span class="value" id="valV">--</span> V</div>
-    <div class="metric">Dòng điện: <span class="value" id="valI">--</span> A</div>
-    <div class="metric">SOC: <span class="value" id="valSoc">--</span> %</div>
-  </div>
+// Nút nhấn ngắt kết nối (mặc định dùng nút BOOT GPIO 0 trên ESP32)
+#define BUTTON_PIN 0
 
-  <script>
-    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+BLEServer* pServer = nullptr;
+BLECharacteristic* pCharacteristic = nullptr;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
 
-    async function connectBle() {
-      const status = document.getElementById("status");
-      try {
-        status.innerText = "Đang tìm kiếm thiết bị...";
+unsigned long lastNotifyTime = 0;
+const unsigned long notifyInterval = 1000; // Gửi dữ liệu mỗi 1000ms (1s)
 
-        const device = await navigator.bluetooth.requestDevice({
-  filters: [{ name: "ESP32_BMS" }],
-  optionalServices: [SERVICE_UUID]
-});
-
-        status.innerText = "Đang kết nối...";
-        const server = await device.gatt.connect();
-
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
-
-        status.innerText = "Đã kết nối thành công!";
-        document.getElementById("btnConnect").innerText = "Đã Kết Nối";
-
-        device.addEventListener('gattserverdisconnected', () => {
-          status.innerText = "Đã mất kết nối!";
-          document.getElementById("btnConnect").innerText = "Kết nối ESP32";
-        });
-
-      } catch (error) {
-        console.error(error);
-        status.innerText = "Lỗi kết nối: " + error.message;
-      }
+class MyServerCallbacks : public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+        deviceConnected = true;
+        Serial.println(">> Da co dien thoai ket noi!");
     }
 
-    function handleNotifications(event) {
-      const value = event.target.value;
-      const decoder = new TextDecoder('utf-8');
-      const jsonString = decoder.decode(value);
-
-      try {
-        const data = JSON.parse(jsonString);
-        document.getElementById("valV").innerText = data.v;
-        document.getElementById("valI").innerText = data.i;
-        document.getElementById("valSoc").innerText = data.soc;
-      } catch (err) {
-        console.error("Lỗi parse JSON:", err);
-      }
+    void onDisconnect(BLEServer* pServer) {
+        deviceConnected = false;
+        Serial.println(">> Dien thoai ngat ket noi!");
     }
-  </script>
-</body>
-</html>
+};
+
+void setup() {
+    Serial.begin(115200);
+    delay(1000);
+    Serial.println("\n=== TEST BLE SERVER BMS ===");
+
+    // Cấu hình nút nhấn (dùng điện trở kéo lên nội bộ)
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+    // Khởi tạo bộ sinh số ngẫu nhiên theo nhiễu ADC
+    randomSeed(analogRead(34));
+
+    BLEDevice::init("ESP32_BMS_TEST");
+    pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new MyServerCallbacks());
+
+    BLEService *pService = pServer->createService(SERVICE_UUID);
+
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
+
+    pCharacteristic->addDescriptor(new BLE2902());
+    pService->start();
+
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06);
+    pAdvertising->setMaxPreferred(0x12);
+
+    BLEDevice::startAdvertising();
+    Serial.println(">> Dang quang ba. Nhan nut BOOT de chu dong ngat ket noi BLE.");
+}
+
+void loop() {
+    // 1. Kiểm tra nút bấm ngắt kết nối (Active LOW)
+    if (digitalRead(BUTTON_PIN) == LOW) {
+        delay(50); // Chống rung phím (debounce)
+        if (digitalRead(BUTTON_PIN) == LOW && deviceConnected) {
+            Serial.println(">> Nut nhan duoc bam: Chu dong ngat ket noi BLE!");
+            pServer->disconnect(pServer->getConnId());
+
+            // Đợi người dùng nhả nút
+            while (digitalRead(BUTTON_PIN) == LOW) {
+                delay(10);
+            }
+        }
+    }
+
+    // 2. Tạo và gửi dữ liệu ngẫu nhiên mỗi 1 giây khi có kết nối
+    if (deviceConnected) {
+        unsigned long currentMillis = millis();
+        if (currentMillis - lastNotifyTime >= notifyInterval) {
+            lastNotifyTime = currentMillis;
+
+            // Điện áp: 48.0V - 54.5V
+            float v = random(480, 546) / 10.0;
+            // Dòng điện: 2.0A - 25.0A
+            float i = random(20, 251) / 10.0;
+            // Phần trăm pin (SOC): 20% - 100%
+            int soc = random(20, 101);
+
+            char payload[64];
+            snprintf(payload, sizeof(payload), "{\"v\":%.1f,\"i\":%.1f,\"soc\":%d}", v, i, soc);
+
+            pCharacteristic->setValue(payload);
+            pCharacteristic->notify();
+            Serial.printf("Notify: %s\n", payload);
+        }
+    }
+
+    // 3. Xử lý bật lại quảng bá khi bị ngắt kết nối
+    if (!deviceConnected && oldDeviceConnected) {
+        delay(500); // Chờ stack BLE giải phóng bộ nhớ
+        pServer->startAdvertising();
+        Serial.println(">> Bat lai quang ba BLE...");
+        oldDeviceConnected = deviceConnected;
+    }
+
+    // 4. Xử lý trạng thái vừa kết nối
+    if (deviceConnected && !oldDeviceConnected) {
+        oldDeviceConnected = deviceConnected;
+    }
+}
