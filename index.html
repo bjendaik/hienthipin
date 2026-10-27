@@ -1,313 +1,745 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BMS Monitor - Web Bluetooth</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BMS & ACQUY BLE Dashboard</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --primary: #3b82f6;
-      --danger: #ef4444;
-      --success: #22c55e;
-      --border: #334155;
+      --primary: #007bff;
+      --success: #28a745;
+      --danger: #dc3545;
+      --warning: #ff9800;
+      --info: #17a2b8;
+      --dark: #212529;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --border: #dee2e6;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     body {
-      background-color: var(--bg);
+      background: var(--bg);
       color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
+      padding: 12px;
+      max-width: 540px;
+      margin: 0 auto;
+      line-height: 1.4;
     }
 
-    .container {
-      width: 100%;
-      max-width: 480px;
-      background: var(--card-bg);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--border);
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
     }
 
     h1 {
-      font-size: 1.4rem;
-      text-align: center;
-      margin-bottom: 8px;
-    }
-
-    .status-badge {
-      display: inline-flex;
+      font-size: 18px;
+      color: var(--dark);
+      display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.85rem;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      background: #334155;
-      color: var(--text-muted);
-      margin: 0 auto 20px;
-      display: table;
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-muted);
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      color: #fff;
+      display: inline-block;
     }
 
-    .status-dot.connected {
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
-    }
-
-    .button-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    button {
-      padding: 12px;
-      border-radius: 8px;
-      border: none;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .btn-connect {
-      background: var(--primary);
-      color: white;
-    }
-    .btn-connect:hover:not(:disabled) {
-      background: #2563eb;
-    }
-
-    .btn-disconnect {
-      background: var(--danger);
-      color: white;
-    }
-    .btn-disconnect:hover:not(:disabled) {
-      background: #dc2626;
-    }
-
-    .grid-metrics {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
+    .bg-off { background: #6c757d; }
+    .bg-ok { background: var(--success); }
+    .bg-warn { background: var(--warning); }
+    .bg-err { background: var(--danger); }
+    .bg-info { background: var(--info); }
 
     .card {
-      background: #0f172a;
-      padding: 16px;
-      border-radius: 12px;
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
       border: 1px solid var(--border);
-      text-align: center;
     }
 
-    .card-full {
-      grid-column: span 2;
-    }
-
-    .label {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .value {
-      font-size: 1.8rem;
-      font-weight: 700;
-    }
-
-    .unit {
-      font-size: 1rem;
-      font-weight: 400;
-      color: var(--text-muted);
-      margin-left: 2px;
-    }
-
-    .progress-bar-bg {
+    .btn {
       width: 100%;
-      height: 10px;
-      background: #334155;
-      border-radius: 5px;
-      margin-top: 10px;
-      overflow: hidden;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s, transform 0.1s;
     }
 
-    .progress-bar-fill {
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-warning { background: var(--warning); color: #fff; }
+    .btn-dark { background: var(--dark); color: #fff; }
+
+    .battery-container {
+      margin-top: 8px;
+    }
+
+    .battery-bg {
+      background: #e9ecef;
+      height: 24px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ced4da;
+    }
+
+    .battery-bar {
       height: 100%;
       width: 0%;
       background: var(--success);
-      transition: width 0.3s ease;
+      transition: width 0.3s ease, background 0.3s ease;
     }
 
-    .raw-log {
-      margin-top: 16px;
-      font-family: monospace;
-      font-size: 0.75rem;
-      color: var(--text-muted);
+    .battery-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 12px;
+      color: #000;
+      text-shadow: 0 0 2px rgba(255,255,255,0.8);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .stat-box {
+      background: #f8f9fa;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
       text-align: center;
+    }
+
+    .stat-title {
+      font-size: 11px;
+      color: #6c757d;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    .cell-box {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 2px;
+      text-align: center;
+    }
+
+    .cell-name {
+      font-size: 10px;
+      color: #6c757d;
+      font-weight: bold;
+    }
+
+    .cell-volts {
+      font-size: 12px;
+      font-weight: bold;
+      font-family: monospace;
+      margin-top: 2px;
+    }
+
+    .cell-max { background: #ffebee; border-color: var(--danger); color: var(--danger); }
+    .cell-min { background: #e8f5e9; border-color: var(--success); color: var(--success); }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      gap: 8px;
+    }
+
+    .input-row label {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 0 0 110px;
+    }
+
+    input[type=number], input[type=text], select {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    input[type=range] {
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    .terminal-box {
+      background: #1e1e1e;
+      color: #00ff66;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 6px;
+      height: 160px;
+      overflow-y: auto;
+      white-space: pre-wrap;
       word-break: break-all;
+      margin-top: 8px;
+    }
+
+    .accordion-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .accordion-body {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .accordion-body.open {
+      display: block;
+    }
+
+    #browserNotice {
+      display: none;
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
     }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <h1>BMS Dashboard</h1>
-    
-    <div class="status-badge">
-      <div id="statusDot" class="status-dot"></div>
-      <span id="statusText">Chưa kết nối</span>
+  <div id="browserNotice">
+    ⚠️ Trình duyệt của bạn chưa bật hoặc không hỗ trợ <b>Web Bluetooth API</b>. Hãy dùng trình duyệt <b>Google Chrome</b> hoặc <b>Edge</b> qua giao thức HTTPS.
+  </div>
+
+  <header>
+    <h1>🔋 BMS & ACQ BLE</h1>
+    <span id="bleStatusBadge" class="badge bg-off">Chưa kết nối</span>
+  </header>
+
+  <!-- KẾT NỐI BLUETOOTH -->
+  <div class="card">
+    <button id="btnConnect" class="btn btn-primary" onclick="toggleBleConnection()">
+      🔗 Quét & Kết Nối ESP32
+    </button>
+    <div id="deviceInfo" style="font-size: 12px; color: #6c757d; margin-top: 6px; text-align: center;">
+      Sử dụng BLE Nordic UART Service để truyền nhận dữ liệu.
+    </div>
+  </div>
+
+  <!-- BẢNG ĐIỀU KHIỂN & GIÁM SÁT CHÍNH -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 14px; font-weight: bold;">Dung lượng Pin (SOC)</span>
+      <span id="socBadge" class="badge bg-info">--</span>
     </div>
 
-    <div class="button-group">
-      <button id="btnConnect" class="btn-connect" onclick="connectBLE()">Kết nối BLE</button>
-      <button id="btnDisconnect" class="btn-disconnect" onclick="disconnectBLE()" disabled>Ngắt kết nối</button>
+    <div class="battery-container">
+      <div class="battery-bg">
+        <div id="socBar" class="battery-bar"></div>
+        <div id="socText" class="battery-text">0%</div>
+      </div>
     </div>
 
-    <div class="grid-metrics">
-      <div class="card">
-        <div class="label">Điện áp</div>
-        <div class="value"><span id="valV">--</span><span class="unit">V</span></div>
+    <div class="grid-2">
+      <div class="stat-box">
+        <div class="stat-title">ĐIỆN ÁP TỔNG</div>
+        <div id="valTotalV" class="stat-value">0.00 V</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">DÒNG ĐIỆN</div>
+        <div id="valCurrent" class="stat-value" style="color: var(--warning);">0.00 A</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">CÔNG SUẤT</div>
+        <div id="valPower" class="stat-value" style="color: #6f42c1;">0 W</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">ĐẦU RA ANALOG</div>
+        <div id="valOutVoltage" class="stat-value" style="color: var(--success);">0.000 V</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHI TIẾT CELL BMS -->
+  <div class="card" id="cardCells" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 13px; font-weight: bold;">Điện áp từng Cell (<span id="valCellCount">0</span> cell)</span>
+      <span id="valCellDiff" style="font-size: 11px; font-weight: bold; color: var(--warning);">Lệch: 0 mV</span>
+    </div>
+    <div id="cellsGrid" class="grid-4"></div>
+  </div>
+
+  <!-- GIẢ LẬP SOC & ĐIỀU KHIỂN -->
+  <div class="card">
+    <div class="accordion-header" onclick="toggleAccordion('bodySim')">
+      <span>🎚️ Giả Lập SOC / Điều Khiển Output</span>
+      <span id="arrowSim">▼</span>
+    </div>
+    <div id="bodySim" class="accordion-body">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label style="font-size: 13px; font-weight: 600;">Gán mức pin giả lập:</label>
+        <span id="sliderVal" style="font-size: 14px; font-weight: bold; color: var(--warning);">50%</span>
+      </div>
+      <input type="range" id="simSlider" min="0" max="100" value="50" oninput="onSliderInput(this.value)">
+      <div class="grid-2">
+        <button class="btn btn-warning" onclick="sendSimSoc()">Áp dụng Giả lập</button>
+        <button class="btn btn-success" onclick="sendRealSocMode()">Chạy Pin Thực</button>
       </div>
 
-      <div class="card">
-        <div class="label">Dòng điện</div>
-        <div class="value"><span id="valI">--</span><span class="unit">A</span></div>
-      </div>
-
-      <div class="card card-full">
-        <div class="label">Dung lượng pin (SOC)</div>
-        <div class="value"><span id="valSoc">--</span><span class="unit">%</span></div>
-        <div class="progress-bar-bg">
-          <div id="socBar" class="progress-bar-fill"></div>
+      <div style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px;">
+        <div class="input-row">
+          <label>Chế độ nguồn:</label>
+          <select id="selOutMode" onchange="sendOutputMode()">
+            <option value="0">DAC (GPIO 25/26)</option>
+            <option value="1">PWM</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <label>Chế độ đo:</label>
+          <select id="selDeviceMode" onchange="sendDeviceMode()">
+            <option value="0">Bluetooth BMS (MOVE / JiKong)</option>
+            <option value="1">Đo Ắc quy (Cầu phân áp ADC)</option>
+          </select>
         </div>
       </div>
     </div>
+  </div>
 
-    <div id="rawLog" class="raw-log">Payload: --</div>
+  <!-- CẤU HÌNH CẦU PHÂN ÁP ẮC QUY -->
+  <div class="card">
+    <div class="accordion-header" onclick="toggleAccordion('bodyAcquy')">
+      <span>⚡ Cấu Hình Ắc Quy / ADC</span>
+      <span id="arrowAcquy">▼</span>
+    </div>
+    <div id="bodyAcquy" class="accordion-body">
+      <div class="input-row">
+        <label>Loại pin:</label>
+        <select id="cfgBattType">
+          <option value="0">Ắc quy Chì (Lead-Acid)</option>
+          <option value="1">LFP (LiFePO4)</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <label>Số bình / cell:</label>
+        <input type="number" id="cfgBattCells" min="1" max="32" value="4">
+      </div>
+      <div class="input-row">
+        <label>Trở R1 (kΩ):</label>
+        <input type="number" id="cfgR1" step="0.1" value="100.0">
+      </div>
+      <div class="input-row">
+        <label>Trở R2 (kΩ):</label>
+        <input type="number" id="cfgR2" step="0.1" value="4.7">
+      </div>
+      <div class="input-row">
+        <label>Gain hiệu chuẩn:</label>
+        <input type="number" id="cfgGain" step="0.0001" value="1.0000">
+      </div>
+      <div class="input-row">
+        <label>Offset (V):</label>
+        <input type="number" id="cfgOffset" step="0.01" value="0.00">
+      </div>
+      <button class="btn btn-primary" style="margin-top: 10px;" onclick="sendAcquyConfig()">
+        💾 Lưu Cấu Hình Vào ESP32
+      </button>
+    </div>
+  </div>
+
+  <!-- TERMINAL LOG TRỰC TIẾP -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 13px; font-weight: bold;">💻 BLE Terminal Logs</span>
+      <div>
+        <button class="btn btn-dark" style="padding: 3px 8px; font-size: 11px; display: inline-block; width: auto;" onclick="clearTerminal()">Xóa</button>
+      </div>
+    </div>
+    <div id="terminal" class="terminal-box">-- Chờ kết nối Bluetooth BLE --&#10;</div>
+    <div class="input-row" style="margin-top: 6px;">
+      <input type="text" id="rawCmdInput" placeholder='Nhập lệnh JSON (vd: {"cmd":"sim","soc":80})'>
+      <button class="btn btn-dark" style="width: auto; padding: 8px 14px;" onclick="sendRawCommand()">Gửi</button>
+    </div>
   </div>
 
   <script>
-    // UUID trùng khớp với code trên ESP32
-    const SERVICE_UUID        = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    // UUID CHUẨN NORDIC UART SERVICE (NUS)
+    const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const UART_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Trình duyệt ghi (Write) gửi lệnh tới ESP32
+    const UART_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Trình duyệt lắng nghe (Notify) nhận từ ESP32
 
     let bleDevice = null;
-    let bmsCharacteristic = null;
+    let gattServer = null;
+    let rxCharacteristic = null;
+    let txCharacteristic = null;
 
-    const btnConnect = document.getElementById('btnConnect');
-    const btnDisconnect = document.getElementById('btnDisconnect');
-    const statusText = document.getElementById('statusText');
-    const statusDot = document.getElementById('statusDot');
-    const valV = document.getElementById('valV');
-    const valI = document.getElementById('valI');
-    const valSoc = document.getElementById('valSoc');
-    const socBar = document.getElementById('socBar');
-    const rawLog = document.getElementById('rawLog');
+    let rxBuffer = '';
+    const MAX_TERMINAL_LEN = 10000;
 
-    async function connectBLE() {
+    // Kiểm tra hỗ trợ trình duyệt
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!navigator.bluetooth) {
+        document.getElementById('browserNotice').style.display = 'block';
+        document.getElementById('btnConnect').disabled = true;
+      }
+    });
+
+    function logTerminal(msg) {
+      const term = document.getElementById('terminal');
+      term.textContent += msg + '\n';
+      if (term.textContent.length > MAX_TERMINAL_LEN) {
+        term.textContent = term.textContent.slice(-MAX_TERMINAL_LEN);
+      }
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function clearTerminal() {
+      document.getElementById('terminal').textContent = '';
+    }
+
+    function setConnectionStatus(connected, name = '') {
+      const badge = document.getElementById('bleStatusBadge');
+      const btn = document.getElementById('btnConnect');
+      const info = document.getElementById('deviceInfo');
+
+      if (connected) {
+        badge.className = 'badge bg-ok';
+        badge.textContent = 'Đã kết nối';
+        btn.className = 'btn btn-danger';
+        btn.textContent = '🔌 Ngắt Kết Nối';
+        info.textContent = 'Thiết bị: ' + (name || 'ESP32 Controller');
+      } else {
+        badge.className = 'badge bg-off';
+        badge.textContent = 'Chưa kết nối';
+        btn.className = 'btn btn-primary';
+        btn.textContent = '🔗 Quét & Kết Nối ESP32';
+        info.textContent = 'Đã ngắt kết nối.';
+      }
+    }
+
+    async function toggleBleConnection() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        disconnectBle();
+      } else {
+        await connectBle();
+      }
+    }
+
+    async function connectBle() {
       try {
-        statusText.textContent = "Đang tìm kiếm thiết bị...";
-
-        // Yêu cầu quyền truy cập thiết bị có Service UUID tương ứng
+        logTerminal('[BLE] Đang tìm kiếm thiết bị...');
         bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: "ESP32_BMS" }],
-          optionalServices: [SERVICE_UUID]
+          filters: [
+            { namePrefix: 'ESP32' },
+            { namePrefix: 'BMS' }
+          ],
+          optionalServices: [UART_SERVICE_UUID]
         });
 
-        // Lắng nghe sự kiện ngắt kết nối (do ESP32 hoặc mất sóng)
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-        statusText.textContent = "Đang kết nối GATT...";
-        const server = await bleDevice.gatt.connect();
+        logTerminal(`[BLE] Đang kết nối tới: ${bleDevice.name} (${bleDevice.id})...`);
+        gattServer = await bleDevice.gatt.connect();
 
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bmsCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        logTerminal('[BLE] Tìm kiếm dịch vụ Nordic UART...');
+        const service = await gattServer.getPrimaryService(UART_SERVICE_UUID);
 
-        // Đăng ký nhận Notify
-        await bmsCharacteristic.startNotifications();
-        bmsCharacteristic.addEventListener('characteristicvaluechanged', handleNotify);
+        logTerminal('[BLE] Lấy Characteristics RX & TX...');
+        rxCharacteristic = await service.getCharacteristic(UART_RX_CHAR_UUID);
+        txCharacteristic = await service.getCharacteristic(UART_TX_CHAR_UUID);
 
-        // Cập nhật trạng thái UI
-        statusText.textContent = "Đã kết nối: " + bleDevice.name;
-        statusDot.classList.add('connected');
-        btnConnect.disabled = true;
-        btnDisconnect.disabled = false;
+        // Bật Notify để nhận telemetry từ ESP32
+        await txCharacteristic.startNotifications();
+        txCharacteristic.addEventListener('characteristicvaluechanged', handleIncomingData);
 
-      } catch (error) {
-        console.error("Lỗi BLE:", error);
-        statusText.textContent = "Kết nối thất bại";
-        resetUI();
+        setConnectionStatus(true, bleDevice.name);
+        logTerminal('✅ [BLE] Kết nối thành công! Đang đón nhận dữ liệu...');
+
+        // Gửi lệnh yêu cầu ESP32 đẩy toàn bộ thông số hiện tại
+        await sendBleCommand({ cmd: 'getData' });
+
+      } catch (err) {
+        logTerminal(`❌ [Lỗi Kết Nối] ${err.message}`);
+        setConnectionStatus(false);
       }
     }
 
-    // Xử lý dữ liệu nhận được từ Notify
-    function handleNotify(event) {
-      const decoder = new TextDecoder('utf-8');
-      const jsonString = decoder.decode(event.target.value);
-      rawLog.textContent = "Payload: " + jsonString;
+    function disconnectBle() {
+      if (!bleDevice) return;
+      logTerminal('[BLE] Đang chủ động ngắt kết nối...');
+      if (bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+      }
+    }
+
+    function onDisconnected() {
+      logTerminal('⚠️ [BLE] Thiết bị đã ngắt kết nối!');
+      setConnectionStatus(false);
+      rxCharacteristic = null;
+      txCharacteristic = null;
+    }
+
+    // Xử lý dữ liệu nhận từ ESP32 (Ghép packet MTU phân mảnh theo delimiter \n)
+    function handleIncomingData(event) {
+      const chunk = new TextDecoder('utf-8').decode(event.target.value);
+      rxBuffer += chunk;
+
+      let delimiterPos;
+      while ((delimiterPos = rxBuffer.indexOf('\n')) >= 0) {
+        const fullMessage = rxBuffer.substring(0, delimiterPos).trim();
+        rxBuffer = rxBuffer.substring(delimiterPos + 1);
+
+        if (fullMessage.length > 0) {
+          processPacket(fullMessage);
+        }
+      }
+    }
+
+    // Phân tích chuỗi JSON nhận được và cập nhật UI
+    function processPacket(raw) {
+      // Nếu là log text thông thường
+      if (!raw.startsWith('{') || !raw.endsWith('}')) {
+        logTerminal(raw);
+        return;
+      }
 
       try {
-        const data = JSON.parse(jsonString);
-        
-        if (data.v !== undefined) valV.textContent = data.v.toFixed(1);
-        if (data.i !== undefined) valI.textContent = data.i.toFixed(1);
-        if (data.soc !== undefined) {
-          valSoc.textContent = data.soc;
-          socBar.style.width = Math.min(Math.max(data.soc, 0), 100) + "%";
+        const d = JSON.parse(raw);
+
+        // Cập nhật SOC & Bar
+        if (d.soc !== undefined) {
+          const soc = d.soc;
+          document.getElementById('socText').textContent = soc + '%';
+          const bar = document.getElementById('socBar');
+          bar.style.width = soc + '%';
+          if (soc <= 15) bar.style.background = 'var(--danger)';
+          else if (soc <= 35) bar.style.background = 'var(--warning)';
+          else bar.style.background = 'var(--success)';
         }
+
+        // Badge trạng thái
+        const badge = document.getElementById('socBadge');
+        if (d.manualSim) {
+          badge.textContent = 'GIẢ LẬP';
+          badge.className = 'badge bg-warn';
+        } else if (d.acquyMode) {
+          badge.textContent = 'ẮC QUY';
+          badge.className = 'badge bg-info';
+        } else if (d.connected) {
+          badge.textContent = 'PIN THỰC';
+          badge.className = 'badge bg-ok';
+        } else {
+          badge.textContent = 'CŨ';
+          badge.className = 'badge bg-off';
+        }
+
+        // Điện áp / Dòng / Công suất
+        if (d.totalV !== undefined) {
+          document.getElementById('valTotalV').textContent = d.totalV.toFixed(2) + ' V';
+        } else if (d.aqStableV !== undefined && d.acquyMode) {
+          document.getElementById('valTotalV').textContent = d.aqStableV.toFixed(2) + ' V';
+        }
+
+        if (d.current !== undefined) {
+          const cur = d.current;
+          const el = document.getElementById('valCurrent');
+          el.textContent = cur.toFixed(2) + ' A';
+          el.style.color = cur < 0 ? 'var(--success)' : (cur > 0 ? 'var(--danger)' : 'var(--warning)');
+        }
+
+        if (d.power !== undefined) {
+          document.getElementById('valPower').textContent = Math.round(d.power) + ' W';
+        }
+
+        if (d.voltage !== undefined) {
+          document.getElementById('valOutVoltage').textContent = d.voltage.toFixed(3) + ' V';
+        }
+
+        // Cập nhật từng cell BMS
+        if (d.cells && Array.isArray(d.cells) && d.cellCount > 0) {
+          renderCellGrid(d.cells, d.cellCount);
+        } else {
+          document.getElementById('cardCells').style.display = 'none';
+        }
+
+        // Cập nhật các select controls nếu có đẩy về
+        if (d.outMode !== undefined) document.getElementById('selOutMode').value = d.outMode;
+        if (d.acquyMode !== undefined) document.getElementById('selDeviceMode').value = d.acquyMode ? 1 : 0;
+
       } catch (e) {
-        console.warn("Dữ liệu không phải định dạng JSON hợp lệ:", jsonString);
+        logTerminal(`[Parse Err] ${raw}`);
       }
     }
 
-    // Nút ngắt kết nối trên web
-    function disconnectBLE() {
-      if (!bleDevice || !bleDevice.gatt.connected) return;
-      bleDevice.gatt.disconnect();
+    function renderCellGrid(cells, count) {
+      const card = document.getElementById('cardCells');
+      const grid = document.getElementById('cellsGrid');
+      document.getElementById('valCellCount').textContent = count;
+      card.style.display = 'block';
+
+      let maxV = -1, minV = 999;
+      let maxIdx = -1, minIdx = -1;
+
+      for (let i = 0; i < count; i++) {
+        const v = cells[i];
+        if (v > maxV) { maxV = v; maxIdx = i; }
+        if (v < minV) { minV = v; minIdx = i; }
+      }
+
+      const diffMv = Math.round((maxV - minV) * 1000);
+      document.getElementById('valCellDiff').textContent = `Lệch: ${diffMv} mV`;
+
+      let html = '';
+      for (let i = 0; i < count; i++) {
+        const v = cells[i];
+        let cls = 'cell-box';
+        if (i === maxIdx) cls += ' cell-max';
+        else if (i === minIdx) cls += ' cell-min';
+
+        html += `
+          <div class="${cls}">
+            <div class="cell-name">C${i + 1}</div>
+            <div class="cell-volts">${v.toFixed(3)}</div>
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
     }
 
-    // Callback khi ngắt kết nối
-    function onDisconnected() {
-      statusText.textContent = "Đã ngắt kết nối";
-      resetUI();
+    // Gửi lệnh dạng chuỗi kết thúc bằng \n qua BLE RX Characteristic (phân mảnh theo MTU 20-byte an toàn)
+    async function sendBleRaw(str) {
+      if (!rxCharacteristic) {
+        alert('Chưa kết nối BLE với ESP32!');
+        return;
+      }
+      try {
+        const data = new TextEncoder().encode(str + '\n');
+        const chunkSize = 20; // BLE default MTU packet payload
+        for (let i = 0; i < data.length; i += chunkSize) {
+          const slice = data.slice(i, i + chunkSize);
+          await rxCharacteristic.writeValue(slice);
+        }
+        logTerminal(`[TX] ${str}`);
+      } catch (err) {
+        logTerminal(`❌ [Gửi Lỗi] ${err.message}`);
+      }
     }
 
-    function resetUI() {
-      statusDot.classList.remove('connected');
-      btnConnect.disabled = false;
-      btnDisconnect.disabled = true;
-      valV.textContent = "--";
-      valI.textContent = "--";
-      valSoc.textContent = "--";
-      socBar.style.width = "0%";
-      rawLog.textContent = "Payload: --";
+    async function sendBleCommand(obj) {
+      await sendBleRaw(JSON.stringify(obj));
+    }
+
+    // Các hàm tương tác giao diện người dùng
+    function onSliderInput(val) {
+      document.getElementById('sliderVal').textContent = val + '%';
+    }
+
+    async function sendSimSoc() {
+      const soc = parseInt(document.getElementById('simSlider').value, 10);
+      await sendBleCommand({ cmd: 'sim', soc: soc });
+    }
+
+    async function sendRealSocMode() {
+      await sendBleCommand({ cmd: 'real' });
+    }
+
+    async function sendOutputMode() {
+      const mode = parseInt(document.getElementById('selOutMode').value, 10);
+      await sendBleCommand({ cmd: 'setOutMode', mode: mode });
+    }
+
+    async function sendDeviceMode() {
+      const isAcquy = parseInt(document.getElementById('selDeviceMode').value, 10) === 1;
+      await sendBleCommand({ cmd: 'toggleAcquy', en: isAcquy ? 1 : 0 });
+    }
+
+    async function sendAcquyConfig() {
+      const payload = {
+        cmd: 'saveAcquyCfg',
+        btype: parseInt(document.getElementById('cfgBattType').value, 10),
+        cells: parseInt(document.getElementById('cfgBattCells').value, 10),
+        r1: parseFloat(document.getElementById('cfgR1').value),
+        r2: parseFloat(document.getElementById('cfgR2').value),
+        gain: parseFloat(document.getElementById('cfgGain').value),
+        offset: parseFloat(document.getElementById('cfgOffset').value)
+      };
+      await sendBleCommand(payload);
+    }
+
+    async function sendRawCommand() {
+      const input = document.getElementById('rawCmdInput');
+      const val = input.value.trim();
+      if (!val) return;
+      await sendBleRaw(val);
+      input.value = '';
+    }
+
+    function toggleAccordion(id) {
+      const body = document.getElementById(id);
+      const isOpened = body.classList.contains('open');
+      document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
+      if (!isOpened) {
+        body.classList.add('open');
+      }
     }
   </script>
 </body>
