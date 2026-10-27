@@ -2,7 +2,7 @@
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v5.4</title><style>
+<title>BMS & ACQUY Controller v5.5</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
@@ -94,7 +94,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.4</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.5</span></h2>
 <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
@@ -360,43 +360,6 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 </div>
 </div></div>
 
-<div class='card accordion' id='accChip' style='border:2px solid #6c757d'>
-<div class='acc-head dark' onclick='toggleAcc("accChip")'>
-<span>💻 Thông tin Chip</span><span class='arrow'>▼</span>
-</div>
-<div class='acc-body'>
-<div style='font-size:12px;color:#495057;margin:12px 0 10px 0;text-align:center'>
-Model: <b id='chipModel'>--</b> | Rev: <b id='chipRev'>--</b> | Core: <b id='chipCores'>--</b> | <b id='chipFreq'>--</b> MHz</div>
-<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px'>
-<div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
-<span>🧠 RAM</span><span><span id='heapPct'>--</span>% dùng</span></div>
-<div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='heapBar' class='battery-bar' style='width:0%;background:#007bff;height:100%'></div></div>
-<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
-<div>Tổng: <b style='color:#333'><span id='heapTotal'>--</span> KB</b></div>
-<div>Đã dùng: <b style='color:#dc3545'><span id='heapUsed'>--</span> KB</b></div>
-<div>Trống: <b style='color:#28a745'><span id='heapFree'>--</span> KB</b></div>
-<div>Còn (min): <b style='color:#ff9800'><span id='heapMin'>--</span> KB</b></div>
-</div></div>
-<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px'>
-<div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
-<span>💿 Flash</span><span><span id='flashPct'>--</span>%</span></div>
-<div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='flashBar' class='battery-bar' style='width:0%;background:#ff9800;height:100%'></div></div>
-<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
-<div>Tổng: <b style='color:#333'><span id='flashTotal'>--</span> KB</b></div>
-<div>Firmware: <b style='color:#dc3545'><span id='sketchSize'>--</span> KB</b></div>
-<div>Còn trống: <b style='color:#28a745'><span id='sketchFree'>--</span> KB</b></div>
-<div>Uptime: <b style='color:#17a2b8'><span id='uptime'>--</span></b></div>
-</div></div>
-<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px'>
-<div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
-<span>⚙️ CPU</span><span><span id='cpuLoad'>--</span>% tải</span></div>
-<div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='cpuBar' class='battery-bar' style='width:0%;background:#dc3545;height:100%'></div></div>
-<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
-<div>Tần số: <b style='color:#333'><span id='cpuFreq'>--</span> MHz</b></div>
-<div>Số core: <b style='color:#333'><span id='coreCount'>--</span></b></div>
-</div>
-</div></div></div>
-
 <div class='card accordion' id='accOutput' style='border:2px solid #28a745'>
 <div class='acc-head green' onclick='toggleAcc("accOutput")'>
 <span>⚡ Output Analog</span><span class='arrow'>▼</span>
@@ -463,7 +426,7 @@ Model: <b id='chipModel'>--</b> | Rev: <b id='chipRev'>--</b> | Core: <b id='chi
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.4</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.5</div>
 <div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>BLE-only firmware</div>
 </div>
 <div class='ota-box'>
@@ -489,7 +452,7 @@ Model: <b id='chipModel'>--</b> | Rev: <b id='chipRev'>--</b> | Core: <b id='chi
 
 <script>
 // ================================================================
-// BLE SHIM v5.4
+// BLE SHIM v5.5
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -633,7 +596,6 @@ window.fetch = async function(url, opts){
   const path=u.pathname, q=u.searchParams;
   if(!bleConnected){
     if(path==='/data') return jsonResponse(dummyStatus());
-    if(path==='/chipinfo') return jsonResponse(dummyChipInfo());
     return textResponse('NOT_CONNECTED');
   }
   try{
@@ -643,7 +605,6 @@ window.fetch = async function(url, opts){
       const obj=await bleWaitFor('status', 5000);
       return jsonResponse(enrich(obj));
     }
-    if(path==='/chipinfo') return jsonResponse(dummyChipInfo());
     if(path==='/sim'){
       if(q.has('soc')){ await bleSend('SOC:'+q.get('soc')); await bleWaitFor('ack',2000).catch(()=>{}); return textResponse('OK'); }
       if(q.has('real')){ await bleSend('REAL'); await bleWaitFor('ack',2000).catch(()=>{}); return textResponse('OK'); }
@@ -711,12 +672,10 @@ window.fetch = async function(url, opts){
     }
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
-    if(path==='/checkupdate') return textResponse('LATEST:5.4');
-    if(path==='/serial') return textResponse('');
+    if(path==='/checkupdate') return textResponse('LATEST:5.5');
     return textResponse('OK');
   }catch(e){
     if(path==='/data') return jsonResponse(dummyStatus());
-    if(path==='/chipinfo') return jsonResponse(dummyChipInfo());
     return textResponse('ERR');
   }
 };
@@ -761,17 +720,10 @@ function enrich(o){
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.4';
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.5';
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
-function dummyChipInfo(){
-  return {
-    heapTotal: ESP.getHeapSize?0:0, heapFree:0, heapUsed:0, heapMin:0,
-    psramTotal:0, psramFree:0, flashSize:0, sketchSize:0, sketchFree:0,
-    cpuFreq:240, chipRev:0, cores:2, chipModel:'ESP32', cpuLoad:0, uptime:0
-  };
-}
 function jsonResponse(o){ return new Response(JSON.stringify(o),{headers:{'Content-Type':'application/json'}}); }
 function textResponse(t){ return new Response(t,{headers:{'Content-Type':'text/plain'}}); }
 function htmlResponse(h){ return new Response(h,{headers:{'Content-Type':'text/html'}}); }
@@ -788,15 +740,13 @@ function toggleAcc(id){
 }
 
 function onAccOpen(id){
-  if(id==='accChip') updateChipInfo();
-  else if(id==='accBms') updateBmsInfo();
+  if(id==='accBms') updateBmsInfo();
   else if(id==='accScan'){
     setTimeout(checkDivider,100);
     if(!window.ocvInited){ window.ocvInited=true; loadOcvFromServer(); }
   }
   else if(id==='accOutput'){
     updateData();
-    if(!window.urlsInited) window.urlsInited=true;
   }
   else if(id==='accOta'){
     checkUpdate();
@@ -1278,46 +1228,6 @@ function clearMac(){
   });
 }
 
-// ============ CHIP INFO ============
-function fmtKB(b){return (b/1024).toFixed(1);}
-function fmtUptime(s){
-  let d=Math.floor(s/86400),h=Math.floor((s%86400)/3600);
-  let m=Math.floor((s%3600)/60),ss=s%60;
-  if(d>0)return d+'d '+h+'h '+m+'m';
-  if(h>0)return h+'h '+m+'m '+ss+'s';
-  if(m>0)return m+'m '+ss+'s';
-  return ss+'s';
-}
-function updateChipInfo(){
-  fetch('/chipinfo').then(r=>r.json()).then(d=>{
-    document.getElementById('chipModel').innerText=d.chipModel||'--';
-    document.getElementById('chipRev').innerText='v'+(d.chipRev||0);
-    document.getElementById('chipCores').innerText=d.cores||0;
-    document.getElementById('chipFreq').innerText=d.cpuFreq||0;
-    document.getElementById('cpuFreq').innerText=d.cpuFreq||0;
-    document.getElementById('coreCount').innerText=d.cores||0;
-    let hp=d.heapTotal>0?((d.heapUsed/d.heapTotal)*100).toFixed(1):0;
-    document.getElementById('heapPct').innerText=hp;
-    document.getElementById('heapBar').style.width=hp+'%';
-    document.getElementById('heapTotal').innerText=fmtKB(d.heapTotal);
-    document.getElementById('heapUsed').innerText=fmtKB(d.heapUsed);
-    document.getElementById('heapFree').innerText=fmtKB(d.heapFree);
-    document.getElementById('heapMin').innerText=fmtKB(d.heapMin);
-    let appTotal=d.sketchSize+d.sketchFree;
-    let fPct=appTotal>0?((d.sketchSize/appTotal)*100).toFixed(1):0;
-    document.getElementById('flashPct').innerText=fPct;
-    document.getElementById('flashBar').style.width=fPct+'%';
-    document.getElementById('flashTotal').innerText=fmtKB(appTotal)+' (APP)';
-    document.getElementById('sketchSize').innerText=fmtKB(d.sketchSize);
-    document.getElementById('sketchFree').innerText=fmtKB(d.sketchFree);
-    document.getElementById('uptime').innerText=fmtUptime(d.uptime);
-    let cl=d.cpuLoad||0;
-    document.getElementById('cpuLoad').innerText=cl.toFixed(1);
-    document.getElementById('cpuBar').style.width=cl+'%';
-  }).catch(e=>{});
-}
-setInterval(function(){let acc=document.getElementById('accChip');if(acc&&acc.classList.contains('open'))updateChipInfo();},2000);
-
 // ============ BMS INFO ============
 function updateBmsInfo(){
   fetch('/data').then(r=>r.json()).then(d=>{
@@ -1456,7 +1366,7 @@ async function checkUpdate(){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
     remoteUpdateInfo=j;
-    const curVer='5.4';
+    const curVer='5.5';
     const isNewer=(j.version && j.version !== curVer);
     if(!isNewer){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
