@@ -1,774 +1,1671 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>BMS BLE Controller</title>
-<style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:12px;background:#f0f2f5;color:#333;max-width:560px;margin:0 auto;padding-bottom:80px}
-.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.08)}
-h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:0 0 10px;color:#444}
-.sub{font-size:12px;color:#6c757d}
-.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0}
-button{border:none;border-radius:8px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;background:#007bff;color:#fff;transition:.15s}
-button:active{transform:scale(.97)}
-button:disabled{opacity:.45;cursor:not-allowed}
-.btn-conn{width:100%;background:#17a2b8;font-size:15px;padding:14px}
-.btn-conn.connected{background:#dc3545}
-.btn-success{background:#28a745}.btn-danger{background:#dc3545}
-.btn-warn{background:#ff9800}.btn-gray{background:#6c757d}.btn-purple{background:#6f42c1}
-.soc-bar-bg{background:#e0e0e0;border-radius:8px;height:22px;overflow:hidden;margin:10px 0;position:relative}
-.soc-bar{background:linear-gradient(90deg,#28a745,#7cb342);height:100%;width:0;transition:width .3s}
-.soc-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat{background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:10px;text-align:center}
-.stat-label{font-size:11px;color:#6c757d;font-weight:600;text-transform:uppercase}
-.stat-val{font-size:17px;font-weight:700;color:#007bff;margin-top:4px;font-family:'SF Mono',Consolas,monospace}
-input[type=range]{width:100%;margin:8px 0;accent-color:#28a745}
-input[type=number],input[type=text],input[type=password],select,textarea{width:100%;padding:9px;border:1px solid #ccc;border-radius:7px;font-size:14px;box-sizing:border-box;font-family:inherit}
-.mode-tabs{display:flex;gap:8px;margin:10px 0}
-.mode-tab{flex:1;padding:12px;text-align:center;border-radius:9px;border:2px solid #dee2e6;background:#f8f9fa;font-weight:700;font-size:13px;cursor:pointer;transition:.15s;user-select:none}
+<!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<title>BMS & ACQUY Controller v4.0</title><style>
+body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5}
+.card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
+h2,h3{margin-top:0;color:#333;font-size:18px}
+.battery-bg{background:#e0e0e0;border-radius:8px;height:20px;overflow:hidden;margin-top:8px}
+.battery-bar{background:#28a745;height:100%;width:0;transition:width .3s}
+button{padding:10px 15px;width:100%;cursor:pointer;font-size:15px;background:#007bff;color:#fff;border:none;border-radius:5px;margin-top:10px}
+.btn-success{background:#28a745;font-weight:bold}
+.btn-danger{background:#dc3545;color:#fff;font-weight:bold}
+.btn-warn{background:#ff9800;color:#fff;font-weight:bold}
+.stat-box{background:#f8f9fa;border:1px solid #e9ecef;padding:10px;border-radius:8px;text-align:center}
+.stat-box div:first-child{font-size:13px;color:#6c757d;font-weight:bold}
+.stat-val{font-size:20px;font-weight:bold;color:#007bff;margin-top:5px}
+input[type=number],input[type=text],input[type=password],select{width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;box-sizing:border-box}
+textarea{font-family:inherit}
+input[type=range]{width:100%;margin:12px 0}
+.input-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.input-row label{flex:0 0 110px}
+.input-row input,.input-row select{flex:1}
+.input-with-icon{flex:1;position:relative;display:flex;align-items:center;min-width:0}
+.input-with-icon input{width:100%;padding-right:44px !important;margin:0}
+.input-with-icon .icon-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:32px;margin:0;padding:0;background:transparent;color:#6c757d;border:none;border-radius:6px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.input-with-icon .icon-btn:hover{background:#e9ecef}
+#wifiList{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0;margin:0}
+#wifiList.open{max-height:220px;overflow-y:auto}
+ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd}
+.mode-tabs{display:flex;gap:8px;margin-bottom:12px}
+.mode-tab{flex:1;padding:12px;text-align:center;border-radius:8px;cursor:pointer;border:2px solid #ccc;background:#f8f9fa;font-weight:bold}
 .mode-tab.active{border-color:#007bff;background:#e7f3ff;color:#007bff}
-.log{background:#1e1e1e;color:#0f0;font-family:'SF Mono',Consolas,monospace;font-size:11px;padding:10px;border-radius:8px;height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
-.log .ts{color:#888}.log .rx{color:#4fc3f7}.log .tx{color:#ffd54f}.log .err{color:#ff5252}
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:#6c757d;color:#fff;margin-left:6px}
-.badge.ok{background:#28a745}.badge.warn{background:#ff9800}.badge.err{background:#dc3545}
-.cells{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
-.cell{background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:6px 3px;text-align:center;font-family:'SF Mono',Consolas,monospace}
-.cell .cn{font-size:9px;color:#999;font-weight:700}
-.cell .cv{font-size:12px;font-weight:700;margin-top:1px}
-.cell.max{background:#dc3545;border-color:#c82333}.cell.max .cn,.cell.max .cv{color:#fff}
-.cell.min{background:#28a745;border-color:#1e7e34}.cell.min .cn,.cell.min .cv{color:#fff}
-#warnBox{background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:10px;font-size:12px;color:#856404;margin-bottom:10px;display:none}
-.acc{border:1px solid #dee2e6;border-radius:10px;margin-bottom:10px;overflow:hidden}
-.acc-head{padding:14px;cursor:pointer;display:flex;justify-content:space-between;font-weight:700;font-size:15px;background:#f8f9fa;user-select:none}
-.acc-head .arrow{transition:.3s}
-.acc.open .acc-head .arrow{transform:rotate(180deg)}
-.acc-body{display:none;padding:14px;border-top:1px solid #dee2e6}
-.acc.open .acc-body{display:block}
-.progress{background:#e0e0e0;border-radius:8px;height:20px;overflow:hidden;margin-top:10px}
-.progress-bar{background:#dc3545;height:100%;width:0;transition:width .2s}
-.cfg-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
-.cfg-row label{flex:0 0 120px;font-size:13px}
-.cfg-row input,.cfg-row select{flex:1;min-width:0}
-@media(max-width:380px){.stat-val{font-size:15px}.cfg-row label{flex:0 0 90px;font-size:12px}}
-</style>
-</head>
-<body>
+.mode-tab.disabled{opacity:.4;cursor:not-allowed}
+.accordion{padding:0;overflow:hidden}
+.acc-head{display:flex;justify-content:space-between;align-items:center;padding:15px;cursor:pointer;user-select:none;margin:0;font-size:18px;font-weight:bold;transition:background .2s}
+.acc-head:hover{background:#f8f9fa}
+.acc-head .arrow{font-size:14px;transition:transform .3s;color:#888;flex-shrink:0;margin-left:6px}
+.accordion.open .acc-head .arrow{transform:rotate(180deg)}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease;padding:0 15px}
+.accordion.open .acc-body{max-height:20000px;padding:0 15px 15px 15px}
+.acc-head.green{color:#28a745;border-bottom:1px solid #e9ecef}
+.acc-head.blue{color:#007bff;border-bottom:1px solid #e9ecef}
+.acc-head.red{color:#dc3545;border-bottom:1px solid #e9ecef}
+.acc-head.dark{color:#444;border-bottom:1px solid #e9ecef}
+.vmap-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.vmap-row input{padding:6px;font-size:13px;text-align:center;min-width:0}
+.vmap-row input.pct{width:52px}
+.vmap-row input.volt{width:72px}
+.vmap-row button{width:auto;padding:6px 10px;margin:0;font-size:14px;background:#dc3545}
+.vmap-head{display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px}
+.vmap-head span{text-align:center}
+.vmap-head .h1{width:52px}.vmap-head .h2{width:14px}.vmap-head .h3{width:52px}
+.vmap-head .h4{width:72px}.vmap-head .h5{width:34px}
+.ocv-tab{display:flex;gap:6px;margin-bottom:10px;background:#f0f2f5;padding:4px;border-radius:8px}
+.ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;transition:all .2s;user-select:none}
+.ocv-tab div.active{background:#fff;color:#17a2b8;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ocv-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.ocv-row input{padding:6px;font-size:12px;text-align:center;min-width:0;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}
+.ocv-row input.v{flex:1}
+.ocv-row input.s{width:60px}
+.ocv-row button{width:34px;padding:6px 0;margin:0;font-size:13px;background:#dc3545;border-radius:5px}
+.ocv-preview{background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px;font-size:11px;margin-top:8px;font-family:monospace;color:#1b5e20}
+#ocvListLead,#ocvListLfp{max-height:320px;overflow-y:auto;padding-right:2px}
+.preset-btn{width:100%;padding:12px;margin-bottom:8px;background:#fff;color:#333;border:2px solid #6f42c1;border-radius:10px;text-align:left;cursor:pointer;font-size:15px;transition:all .2s;font-family:inherit}
+.preset-btn:hover{background:#f5f0ff}
+.preset-btn.active{background:#6f42c1;color:#fff;border-color:#28a745}
+.preset-btn .p-title{font-size:16px;font-weight:bold;color:#6f42c1;margin-bottom:2px}
+.preset-btn.active .p-title{color:#fff}
+.preset-btn .p-sub{font-size:11px;color:#6c757d;margin-bottom:6px}
+.preset-btn.active .p-sub{color:#e0d4f7}
+.preset-btn .p-ranges{font-size:11px;font-family:monospace;background:#f8f9fa;padding:5px 7px;border-radius:5px;color:#495057;line-height:1.5;word-break:break-word}
+.preset-btn.active .p-ranges{background:rgba(255,255,255,.15);color:#fff}
+.sub-tabs{display:flex;gap:6px;margin-bottom:12px;background:#f0f2f5;padding:4px;border-radius:8px}
+.sub-tab{flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;color:#6c757d;transition:all .2s;user-select:none}
+.sub-tab.active{background:#fff;color:#6f42c1;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ir-box{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);border:2px solid #4caf50;border-radius:8px;padding:12px;margin:12px 0}
+.ir-box h4{margin:0 0 8px 0;font-size:14px;color:#2e7d32}
+.ir-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
+.ir-val{font-family:monospace;font-weight:bold;font-size:14px;color:#1b5e20}
+.sag-bar-bg{background:#e0e0e0;border-radius:5px;height:10px;margin-top:6px;overflow:hidden}
+.sag-bar{background:linear-gradient(90deg,#4caf50,#ff9800,#f44336);height:100%;width:0;transition:width .3s}
+.acc-head .title-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px}
+.acc-head .mode-switch-mini{display:flex;align-items:center;background:#f0f2f5;border-radius:16px;
+padding:3px;margin-left:6px;font-size:10px;font-weight:bold;gap:2px;flex-shrink:0}
+.mode-switch-mini .sw-lbl{padding:5px 8px;border-radius:13px;cursor:pointer;transition:all .25s;
+color:#6c757d;user-select:none;white-space:nowrap;font-size:10px;line-height:1.2}
+.mode-switch-mini .sw-lbl.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}
+.mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}
+.tgl-switch{position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0}
+.tgl-switch input{opacity:0;width:0;height:0}
+.tgl-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+background:#ccc;transition:.3s;border-radius:26px}
+.tgl-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;
+background:white;transition:.3s;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tgl-switch input:checked + .tgl-slider{background:#28a745}
+.tgl-warn input:checked + .tgl-slider{background:#ff9800}
+.tgl-switch input:checked + .tgl-slider:before{transform:translateX(22px)}
+.log-row{display:flex;justify-content:space-between;align-items:center;
+padding:8px 10px;background:#fff;border:1px solid #dee2e6;border-radius:5px}
+.log-row span:first-child{font-weight:bold;font-size:13px}
+.log-row .tgl-switch{transform:scale(0.75);transform-origin:right center}
+.log-err{background:#f8d7da;border-color:#dc3545}
+.log-err span:first-child{color:#721c24}
+@media (max-width:380px){
+.acc-head .title-text{font-size:13px}
+.mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}
+.acc-head{padding:12px}
+.ocv-tab div{font-size:11px;padding:6px 2px}
+#btnFetchPresets{font-size:10px;padding:5px 8px !important}
+}
+/* ============ BLE floating bar ============ */
+#bleBar{position:fixed;bottom:0;left:0;right:0;padding:10px;background:#fff;border-top:2px solid #007bff;box-shadow:0 -2px 8px rgba(0,0,0,.1);z-index:9999;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto}
+#bleBar button{margin:0;padding:10px;font-size:14px}
+#bleBar .status{flex:1;font-size:12px;font-weight:bold;color:#6c757d}
+body{padding-bottom:80px}
+</style></head><body>
 
-<div class="card">
-  <h1>🔋 BMS BLE Controller v4.0</h1>
-  <div class="sub">Điều khiển ESP32 qua Bluetooth — không cần WiFi</div>
-  <div id="warnBox">⚠️ Trình duyệt không hỗ trợ Web Bluetooth. Dùng <b>Chrome / Edge / Opera</b> trên Android hoặc máy tính. <b>iOS Safari không hỗ trợ.</b></div>
-  <button id="btnConn" class="btn-conn" onclick="toggleConnect()">🔵 Kết nối BLE</button>
-  <div class="row" style="margin-top:8px">
-    <span class="sub">Trạng thái:</span>
-    <span id="statusText" class="badge">Chưa kết nối</span>
-  </div>
+<!-- ============ BLE CONNECTION BAR (fixed bottom) ============ -->
+<div id="bleBar">
+  <div class="status" id="bleStatus">🔵 Chưa kết nối BLE</div>
+  <button id="bleConnBtn" onclick="bleToggle()" style="width:auto;background:#17a2b8;padding:10px 16px">Kết nối</button>
 </div>
 
-<div class="card">
-  <h2>⚡ SOC & Thông số</h2>
-  <div class="soc-bar-bg">
-    <div id="socBar" class="soc-bar"></div>
-    <div id="socText" class="soc-text">0%</div>
-  </div>
-  <div class="stat-grid" style="margin-top:10px">
-    <div class="stat"><div class="stat-label">Điện áp</div><div class="stat-val" id="volVal">-- V</div></div>
-    <div class="stat"><div class="stat-label">Dòng</div><div class="stat-val" id="curVal">-- A</div></div>
-    <div class="stat"><div class="stat-label">Công suất</div><div class="stat-val" id="powVal">-- W</div></div>
-    <div class="stat"><div class="stat-label">Số cell</div><div class="stat-val" id="cellCnt">--</div></div>
-  </div>
-  <div id="cellsGrid" class="cells"></div>
+<!-- ============ MONITOR ============ -->
+<div class='card' style='border-top:4px solid #17a2b8'>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v4.0</span></h2>
+<div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
+<div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
+<div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
+<div style='margin-top:10px;display:flex;align-items:center;gap:8px'>
+<strong>SOC:</strong><span id='soc-text' style='font-size:18px;font-weight:bold'>0%</span>
+<span id='soc-badge' style='font-size:11px;padding:3px 8px;border-radius:10px;background:#999;color:#fff;font-weight:bold'>--</span></div>
+<div class='battery-bg'><div id='soc-bar' class='battery-bar'></div></div>
+<div id='soc-warning' style='display:none;background:#fff3cd;color:#856404;padding:8px 12px;border-radius:5px;font-size:13px;margin-top:10px'></div>
 </div>
 
-<div class="card">
-  <h2>🎚️ Giả lập SOC</h2>
-  <div class="row">
-    <span class="sub">Kéo để gửi SOC tới ESP32</span>
-    <span id="simVal" style="font-weight:700;color:#ff9800">50%</span>
-  </div>
-  <input type="range" id="simSlider" min="0" max="100" value="50" oninput="onSlide(this.value)">
-  <button class="btn-success" style="width:100%;margin-top:6px" onclick="sendCmd('REAL')">↩️ Về SOC thực</button>
+<!-- ============ NGUỒN DỮ LIỆU ============ -->
+<div class='card accordion' id='accScan' style='border:2px solid #007bff'>
+<div class='acc-head blue' onclick='toggleAcc("accScan")'>
+<span class='title-text'>🔍 Nguồn Dữ Liệu</span>
+<div class='mode-switch-mini' onclick='event.stopPropagation()'>
+<span class='sw-lbl active bms' id='swBms' onclick='switchMode("bms")'>🔋 BMS</span>
+<span class='sw-lbl' id='swAcquy' onclick='switchMode("acquy")'>⚡ ẮC QUY</span>
+</div>
+<span class='arrow'>▼</span>
+</div>
+<div class='acc-body'>
+
+<div id='bmsScanArea' style='margin-top:12px'>
+<div style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:10px 12px;border-radius:5px;
+font-size:12px;color:#004085;margin-bottom:10px;line-height:1.5'>
+🔋 <b>Chế độ BMS</b> — ESP32 kết nối BMS qua Bluetooth để đọc SOC, dòng, cell.</div>
+
+<div style='display:flex;justify-content:space-between;align-items:center;gap:8px'>
+<div style='flex:1;min-width:0'>
+<div style='font-size:13px'><strong>MAC hiện tại:</strong></div>
+<div id='curMacText' style='font-family:monospace;font-size:12px;color:#007bff;word-break:break-all;margin-top:2px'>Chưa có</div>
+<div id='curBmsName' style='font-size:11px;color:#6c757d;margin-top:2px'></div>
+</div>
+<button onclick='clearMac()' style='width:auto;margin:0;padding:8px 12px;font-size:12px;background:#dc3545'>🗑️ Xóa MAC</button>
 </div>
 
-<div class="card">
-  <h2>🔀 Chế độ nguồn</h2>
-  <div class="mode-tabs">
-    <div class="mode-tab active" id="tabBms" onclick="setMode('BMS')">🔋 BMS</div>
-    <div class="mode-tab" id="tabAcq" onclick="setMode('ACQ')">⚡ Ắc quy</div>
-  </div>
+<div id='autoConnectHint' style='display:none;background:#fff3cd;color:#856404;padding:8px 12px;border-radius:5px;font-size:12px;margin-top:10px'>
+⏳ Đang chờ BMS — sẽ tự kết nối khi chỉ tìm thấy 1 thiết bị</div>
+
+<div class='sub-tabs'>
+<div class='sub-tab active' id='subTabScan' onclick='switchMacTab("scan")'>📡 Quét Tự Động</div>
+<div class='sub-tab' id='subTabManualMac' onclick='switchMacTab("manual")'>⌨️ Nhập Thủ Công</div>
 </div>
 
-<!-- ============ CẤU HÌNH ẮC QUY ============ -->
-<div class="acc" id="accAcq">
-  <div class="acc-head" onclick="toggleAcc('accAcq')"><span>⚡ Cấu hình Ắc quy</span><span class="arrow">▼</span></div>
-  <div class="acc-body">
-    <div class="cfg-row"><label>Loại bình</label>
-      <select id="battType" onchange="onBattTypeChange()">
-        <option value="0">Chì</option><option value="1">LFP</option>
-      </select></div>
-    <div class="cfg-row"><label>Số bình/cell</label><input type="number" id="battCells" min="1" max="32" value="4"></div>
-    <div class="cfg-row"><label>Chân ADC</label><input type="number" id="aqPin" min="0" max="39" value="32"></div>
-    <div class="cfg-row"><label>R1 (kΩ)</label><input type="number" id="aqR1" step="0.1" value="100"></div>
-    <div class="cfg-row"><label>R2 (kΩ)</label><input type="number" id="aqR2" step="0.1" value="4.7"></div>
-    <div class="cfg-row"><label>Gain</label><input type="number" id="aqGain" step="0.0001" value="1.0"></div>
-    <div class="cfg-row"><label>Offset (V)</label><input type="number" id="aqOffset" step="0.01" value="0"></div>
-    <button class="btn-warn" style="width:100%;margin-top:8px" onclick="saveAcqCfg()">💾 Lưu cấu hình</button>
-  </div>
+<div id='macSubScan'>
+<button onclick='scan()'>🔍 Bắt đầu quét Bluetooth</button>
+<div id='status' style='color:red;margin-top:10px'></div>
+<ul id='results'></ul>
 </div>
 
-<!-- ============ BẢNG OCV ============ -->
-<div class="acc" id="accOcv">
-  <div class="acc-head" onclick="toggleAcc('accOcv')"><span>📋 Bảng OCV → SOC</span><span class="arrow">▼</span></div>
-  <div class="acc-body">
-    <div class="row">
-      <button class="btn-purple" style="flex:1;font-size:12px" onclick="fetchOcvFromGitHub()">⬇️ Tải từ GitHub</button>
-      <button class="btn-gray" style="flex:1;font-size:12px" onclick="showOcvEditor()">✏️ Xem/Sửa</button>
-    </div>
-    <div id="ocvDateInfo" class="sub" style="margin-top:8px">--</div>
-    <div id="ocvEditor" style="display:none;margin-top:10px">
-      <div class="row" style="margin-bottom:6px">
-        <button class="btn-purple" style="flex:1;font-size:12px" id="tabOcvLead" onclick="switchOcvTab('lead')">Chì</button>
-        <button class="btn-gray" style="flex:1;font-size:12px" id="tabOcvLfp" onclick="switchOcvTab('lfp')">LFP</button>
-      </div>
-      <div id="ocvListLead" style="max-height:260px;overflow-y:auto"></div>
-      <div id="ocvListLfp" style="max-height:260px;overflow-y:auto;display:none"></div>
-      <button class="btn-success" style="width:100%;margin-top:8px;font-size:12px" onclick="saveOcvToEsp()">💾 Lưu bảng OCV</button>
-    </div>
-  </div>
+<div id='macSubManual' style='display:none'>
+<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin-bottom:12px'>
+<div style='font-size:13px;font-weight:bold;color:#007bff;margin-bottom:8px'>⌨️ Nhập MAC thủ công</div>
+<input type='text' id='manualMac' placeholder='AA:BB:CC:DD:EE:FF' maxlength='17' style='font-family:monospace;text-transform:uppercase;letter-spacing:1px'>
+<button class='btn-success' style='margin-top:8px' onclick='saveManualMac()'>💾 Lưu & Kết nối</button>
+<div id='manualMacMsg' style='font-size:12px;margin-top:6px'></div>
+</div>
+</div>
 </div>
 
-<!-- ============ VMAP ============ -->
-<div class="acc" id="accVmap">
-  <div class="acc-head" onclick="toggleAcc('accVmap')"><span>⚡ Bảng điện áp theo %</span><span class="arrow">▼</span></div>
-  <div class="acc-body">
-    <button class="btn-purple" style="width:100%;font-size:12px" onclick="fetchPresetsFromGitHub()">⬇️ Tải preset từ GitHub</button>
-    <div id="presetList" style="margin-top:10px"></div>
-    <div id="activePresetName" class="sub" style="margin-top:8px">Chưa áp dụng preset nào</div>
-  </div>
+<div id='acquyConfigBox' style='display:none;margin-top:12px'>
+<div style='background:#fff3cd;border-left:3px solid #ff9800;padding:10px 12px;border-radius:5px;
+font-size:12px;color:#856404;margin-bottom:10px;line-height:1.5'>
+⚡ <b>Chế độ Ắc quy</b> — BLE tắt kết nối BMS, ESP32 đọc ADC chân GPIO (cầu phân áp R1/R2).</div>
+
+<div id='ovpAlert' style='display:none;background:#f8d7da;color:#721c24;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;margin-bottom:8px'>
+⚠️ CẢNH BÁO: QUÁ ÁP!</div>
+
+<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px'>
+<div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
+<div style='font-size:11px;color:#6c757d;font-weight:bold'>⚡ TỨC THỜI</div>
+<div style='font-size:18px;font-weight:bold;color:#ff9800;margin-top:4px' id='aqRawV'>-- V</div>
+<div style='font-size:11px;color:#ff9800;margin-top:2px' id='aqSocRaw'>--%</div>
+</div>
+<div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
+<div style='font-size:11px;color:#6c757d;font-weight:bold'>📊 OCV (dùng cho SOC)</div>
+<div style='font-size:18px;font-weight:bold;color:#28a745;margin-top:4px' id='aqStableV'>-- V</div>
+<div style='font-size:11px;color:#28a745;margin-top:2px' id='aqSocStable'>--%</div>
+</div>
 </div>
 
-<!-- ============ WIFI ============ -->
-<div class="acc" id="accWifi">
-  <div class="acc-head" onclick="toggleAcc('accWifi')"><span>📶 Kết nối WiFi (tùy chọn)</span><span class="arrow">▼</span></div>
-  <div class="acc-body">
-    <div class="sub" style="margin-bottom:10px">Chỉ dùng nếu muốn ESP32 tự tải preset/OCV từ GitHub. Nếu không, để trống — HTML sẽ đẩy dữ liệu qua BLE.</div>
-    <div class="cfg-row"><label>SSID</label><input type="text" id="staSSID" maxlength="32"></div>
-    <div class="cfg-row"><label>Mật khẩu</label><input type="password" id="staPass" maxlength="64"></div>
-    <button class="btn-warn" style="width:100%;margin-top:8px" onclick="saveWifi()">💾 Lưu WiFi</button>
-    <div id="wifiInfo" class="sub" style="margin-top:8px">--</div>
-  </div>
+<div style='font-size:11px;color:#6c757d;margin-bottom:6px;text-align:center'>
+ADC: <span id='aqAdcV' style='font-family:monospace'>0.00V</span>
+| <b><span id='aqStableStatus'>--</span></b>
 </div>
+<div style='font-size:11px;color:#6c757d;margin-bottom:10px;text-align:center'>
+Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
+| Offset <b><span id='dispOffset'>--</span></b> V
+</div>
+
+<div class='input-row'><label><strong>Loại bình:</strong></label>
+<select id='battType' onchange='onBattTypeChange()'>
+<option value='0'>Ắc quy chì</option>
+<option value='1'>LFP (LiFePO4)</option>
+</select></div>
+
+<div id='leadOptions' style='display:block'>
+<div class='input-row'><label><strong>Số bình:</strong></label>
+<select id='battCells' onchange='updateBattInfo()'>
+<option value='1'>1 bình (12V)</option>
+<option value='2'>2 bình (24V)</option>
+<option value='3'>3 bình (36V)</option>
+<option value='4'>4 bình (48V)</option>
+<option value='5'>5 bình (60V)</option>
+<option value='6'>6 bình (72V)</option>
+</select></div>
+</div>
+
+<div id='lfpOptions' style='display:none'>
+<div class='input-row'><label><strong>Số cell:</strong></label>
+<input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo()'></div>
+</div>
+
+<div id='battInfoBox' style='background:#e7f3ff;border-left:3px solid #007bff;
+padding:8px 10px;border-radius:5px;font-size:11px;margin-bottom:10px;color:#004085'>
+<b>Ngưỡng:</b> <span id='battInfoText'>--</span>
+</div>
+
+<div class='input-row'><label><strong>Điện trở R1 (kΩ):</strong></label>
+<input type='number' id='aqR1' step='0.1' placeholder='Vd: 100' oninput='checkDivider()'></div>
+<div class='input-row'><label><strong>Điện trở R2 (kΩ):</strong></label>
+<input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7' oninput='checkDivider()'></div>
+<div id='dividerWarn' style='display:none;border-radius:5px;padding:10px;font-size:12px;margin-bottom:10px;line-height:1.6'></div>
+
+<div style='border-top:1px dashed #dee2e6;padding-top:10px;margin-top:10px'>
+<div style='font-size:12px;font-weight:bold;color:#007bff;margin-bottom:8px'>🎯 Hiệu chuẩn điện áp</div>
+<div class='input-row'><label><strong>Hệ số nhân:</strong></label>
+<input type='number' id='aqGain' step='0.0001' min='0.5' max='2' placeholder='1.0000'></div>
+<div class='input-row'><label><strong>Bù lệch (V):</strong></label>
+<input type='number' id='aqOffset' step='0.01' min='-5' max='5' placeholder='0.00'></div>
+
+<div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:5px;padding:10px;margin-bottom:10px'>
+<div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⚡ Hiệu chuẩn nhanh</div>
+<div class='input-row' style='margin:0 0 8px 0'>
+<label style='font-size:12px'><strong>V thực tế:</strong></label>
+<input type='number' id='calRefV' step='0.1' placeholder='Đo bằng VOM'></div>
+<button class='btn-warn' style='margin:0;font-size:13px;padding:8px' onclick='quickCalibrate()'>🎯 Tính Gain</button>
+<div id='calMsg' style='font-size:11px;margin-top:6px'></div>
+</div>
+</div>
+
+<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>
+<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
+<div style='font-size:10px;color:#6c757d;text-align:right' id='ocvDateInfo'>--</div>
+</div>
+
+<div class='ocv-tab'>
+<div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì (per 12V)</div>
+<div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP (per cell)</div>
+</div>
+
+<div id='ocvEditorLead'>
+<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+<span style='flex:1;text-align:center'>Điện áp (V)</span>
+<span style='width:60px;text-align:center'>SOC %</span>
+<span style='width:34px'></span>
+</div>
+<div id='ocvListLead'></div>
+<button onclick='addOcvRow("lead")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
+</div>
+
+<div id='ocvEditorLfp' style='display:none'>
+<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+<span style='flex:1;text-align:center'>Điện áp (V)</span>
+<span style='width:60px;text-align:center'>SOC %</span>
+<span style='width:34px'></span>
+</div>
+<div id='ocvListLfp'></div>
+<button onclick='addOcvRow("lfp")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
+</div>
+
+<div class='ocv-preview' id='ocvPreview'>--</div>
+
+<div style='display:flex;gap:6px;margin-top:8px'>
+<button onclick='saveOcvManual()' style='flex:1;background:#28a745;margin:0;font-size:12px;padding:8px'>💾 Lưu</button>
+<button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>
+</div>
+</div>
+
+<button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>
+
+<div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>
+<div style='font-size:13px;font-weight:bold;color:#004085;margin-bottom:8px'>📌 Chân ADC đo Ắc quy</div>
+<div class='input-row' style='margin:0'><label><strong>GPIO:</strong></label>
+<input type='number' id='aqPin' min='0' max='39' value='32'></div>
+<div style='font-size:11px;color:#6c757d;margin-top:6px'>Ưu tiên ADC1: GPIO32/33/34/35</div>
+</div>
+
+</div>
+</div></div>
+
+<!-- ============ CHI TIẾT BMS / ẮC QUY ============ -->
+<div class='card accordion' id='accBms' style='border:2px solid #17a2b8'>
+<div class='acc-head' id='accBmsHead' style='color:#17a2b8;border-bottom:1px solid #e9ecef' onclick='toggleAcc("accBms")'>
+<span id='accBmsTitle'>🔋 Chi Tiết Điện Áp / BMS</span><span class='arrow'>▼</span>
+</div>
+<div class='acc-body'>
+
+<div id='bms-name-box' style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:8px 12px;border-radius:5px;font-size:13px;margin:12px 0 8px 0'>
+📛 <b>Thiết bị:</b> <span id='bms-name-text'>--</span>
+<span id='bms-type-badge' style='display:none;font-size:10px;font-weight:bold;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle'></span>
+</div>
+
+<div class='ir-box' id='irBox' style='display:none'>
+<h4>🚗 BÙ NỘI TRỞ (IR COMPENSATION)</h4>
+<div class='ir-grid'>
+<div>Điện áp đo: <span class='ir-val' id='ir-raw'>--</span></div>
+<div>OCV ước lượng: <span class='ir-val' id='ir-ocv' style='color:#1565c0'>--</span></div>
+<div>Sụt áp: <span class='ir-val' id='ir-sag' style='color:#e65100'>--</span></div>
+<div>Hệ số bù: <span class='ir-val' id='ir-comp' style='color:#6a1b9a'>--</span></div>
+<div>Nhiệt độ chip: <span class='ir-val' id='ir-temp'>--</span></div>
+<div>OCV sau bù nhiệt: <span class='ir-val' id='ir-ocvcomp' style='color:#00838f'>--</span></div>
+</div>
+<div style='font-size:11px;color:#2e7d32;margin-top:6px'>
+SOC được tính từ OCV, không phải điện áp chịu tải</div>
+<div class='sag-bar-bg'><div class='sag-bar' id='sag-bar'></div></div>
+<div style='font-size:10px;color:#6c757d;margin-top:4px;text-align:center'>
+Mức sụt áp <span id='sag-label'>--</span></div>
+</div>
+
+<div id='bms-empty' style='display:none;text-align:center;padding:20px;color:#888;font-size:13px'>📭 Chưa có dữ liệu chi tiết</div>
+
+<div id='bms-overview' style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0'>
+<div class='stat-box' id='bms-box-totalv' style='display:none'>
+<div>Điện áp tổng</div>
+<div class='stat-val' id='bms-totalv' style='color:#007bff'>-- V</div></div>
+<div class='stat-box' id='aq-box-raw' style='display:none'>
+<div>⚡ Điện áp tức thời</div>
+<div class='stat-val' id='aq-totalv-raw' style='color:#ff9800'>-- V</div></div>
+<div class='stat-box' id='aq-box-stable' style='display:none'>
+<div>📊 OCV ước lượng</div>
+<div class='stat-val' id='aq-totalv-stable' style='color:#28a745'>-- V</div></div>
+<div class='stat-box' id='bms-box-cellcount' style='display:none'>
+<div>Số cell</div>
+<div class='stat-val' id='bms-cellcount' style='color:#17a2b8'>--</div></div>
+<div class='stat-box' id='bms-box-current' style='display:none'>
+<div>Dòng điện</div>
+<div class='stat-val' id='bms-current' style='color:#ff9800'>-- A</div></div>
+<div class='stat-box' id='bms-box-power' style='display:none'>
+<div>Công suất</div>
+<div class='stat-val' id='bms-power' style='color:#6f42c1'>-- W</div></div>
+</div>
+
+<div id='aq-status-line' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;
+border-radius:6px;padding:8px 12px;font-size:12px;color:#495057;margin-bottom:10px'>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+<span>📌 <b>Chân ADC:</b> <span id='bms-aq-pin-label' style='font-family:monospace;color:#007bff'>GPIO--</span></span>
+<span><b style='font-family:monospace' id='bms-aq-adc-v'>0.000 V</b></span>
+</div>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+<span>Trạng thái: <b><span id='bms-aq-status-text'>--</span></b></span>
+<span id='bms-aq-ovp-badge' style='display:none;background:#f8d7da;color:#721c24;
+padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold'>⚠️ QUÁ ÁP</span>
+</div>
+<div style='display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#6c757d'>
+<span>Hiệu chuẩn: Gain <b style='color:#007bff'><span id='bms-aq-gain'>--</span></b></span>
+<span>Offset <b style='color:#007bff'><span id='bms-aq-offset'>--</span></b> V</span>
+</div>
+</div>
+
+<div id='bms-cellstats' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px;justify-content:space-around;font-size:13px'>
+<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MAX</div>
+<div id='bms-cellmax' style='color:#dc3545;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MIN</div>
+<div id='bms-cellmin' style='color:#28a745;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CHÊNH LỆCH</div>
+<div id='bms-celldiff' style='color:#ff9800;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+</div>
+
+<div id='bms-cells-wrap' style='display:none'>
+<div style='font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>📊 Điện áp từng cell (V)</div>
+<div id='bms-cells-grid' style='display:grid;grid-template-columns:repeat(4,1fr);gap:5px'></div>
+</div>
+</div></div>
+
+<!-- ============ TERMINAL ============ -->
+<div class='card accordion' id='accTerm' style='border:2px solid #444'>
+<div class='acc-head dark' onclick='toggleAcc("accTerm")'>
+<span>💻 Terminal</span><span class='arrow'>▼</span>
+</div>
+<div class='acc-body'>
+<div style='display:flex;gap:8px;margin:12px 0 8px 0'>
+<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='clearTerm()'>Xóa</button>
+<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='toggleTermPause()' id='termBtn'>Tạm dừng</button>
+</div>
+<div id='terminal' style='background:#1e1e1e;color:#0f0;padding:10px;border-radius:5px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:250px;overflow-y:auto'>-- Chờ BLE --&#10;</div>
+
+<div style='margin-top:12px;padding:10px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px'>
+<div style='font-size:12px;font-weight:bold;color:#495057;margin-bottom:8px'>
+⚙️ Lọc log theo nhóm</div>
+<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px'>
+
+<label class='log-row'>
+<span style='color:#17a2b8'>🔍 ADC</span>
+<span class='tgl-switch'><input type='checkbox' id='logAdc' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#6f42c1'>🔋 BMS</span>
+<span class='tgl-switch'><input type='checkbox' id='logBle' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#17a2b8'>📶 WiFi</span>
+<span class='tgl-switch'><input type='checkbox' id='logWifi' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#28a745'>⚡ OUT</span>
+<span class='tgl-switch'><input type='checkbox' id='logOut' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#dc3545'>⬆️ OTA</span>
+<span class='tgl-switch'><input type='checkbox' id='logOta' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#ff9800'>📊 SUM</span>
+<span class='tgl-switch'><input type='checkbox' id='logSum' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row'>
+<span style='color:#6c757d'>💾 BOOT</span>
+<span class='tgl-switch'><input type='checkbox' id='logBoot' onchange='updateLogMask()'><span class='tgl-slider'></span></span>
+</label>
+
+<label class='log-row log-err'>
+<span>❌ ERR (luôn bật)</span>
+<span style='color:#721c24;font-size:10px;font-weight:bold'>ON</span>
+</label>
+
+</div></div>
+</div></div>
+
+<!-- ============ OUTPUT ============ -->
+<div class='card accordion' id='accOutput' style='border:2px solid #28a745'>
+<div class='acc-head green' onclick='toggleAcc("accOutput")'>
+<span>⚡ Output Analog</span><span class='arrow'>▼</span>
+</div>
+<div class='acc-body'>
+<div style='text-align:center;font-size:20px;font-weight:bold;color:#28a745;margin-top:12px' id='vol-text'>0.000 V</div>
+<div style='text-align:center;font-size:12px;color:#6c757d;margin-top:4px'>Chip: <span id='chip-name'>--</span></div>
+<div style='margin-top:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef'>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>
+<label style='margin:0;font-size:13px'><strong>🎚️ Giả lập % pin:</strong></label>
+<span id='slider-val' style='font-size:16px;font-weight:bold;color:#ff9800'>50%</span>
+</div>
+<input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)'>
+<button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>
+</div>
+<div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>
+<label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>
+</div>
+<div id='vmapBox' style='display:block'>
+<div class='sub-tabs'>
+<div class='sub-tab active' id='subTabPreset' onclick='switchSubTab("preset")'>⚡ Có sẵn</div>
+<div class='sub-tab' id='subTabManual' onclick='switchSubTab("manual")'>✏️ Thủ công</div>
+</div>
+<div id='subPreset'>
+<div id='presetList'></div>
+<div id='presetListMsg' style='font-size:11px;color:#6c757d;text-align:center;margin-top:8px;display:none'></div>
+</div>
+<div id='subManual' style='display:none'>
+<div class='vmap-head'><span class='h1'>Từ %</span><span class='h2'></span><span class='h3'>Đến %</span><span class='h4'>Điện áp (V)</span><span class='h5'></span></div>
+<div id='vmapList'></div>
+<button onclick='addVmapRow()' style='background:#17a2b8;margin-top:8px'>+ Thêm dải</button>
+<button class='btn-success' onclick='saveVmap()'>Lưu bảng</button>
+</div>
+</div>
+<hr>
+
+<div class='mode-tabs' style='margin-top:5px'>
+<div class='mode-tab' id='tabDac' onclick='selectMode(0)'>DAC</div>
+<div class='mode-tab' id='tabPwm' onclick='selectMode(1)'>PWM</div></div>
+
+<div id='dacCfg' style='display:none'>
+<div class='input-row'><label><strong>Chân DAC:</strong></label><select id='dacPinSel'>
+<option value='25'>GPIO 25</option>
+<option value='26'>GPIO 26</option>
+</select></div></div>
+
+<div id='pwmCfg' style='display:none'>
+<div class='input-row'><label><strong>Chân PWM:</strong></label><input type='number' id='pwmPinIn' min='0' max='48' value='14'></div>
+<div class='input-row'><label><strong>Tần số:</strong></label><input type='number' id='pwmFreqIn' value='5000'></div>
+<div class='input-row'><label><strong>Độ phân giải:</strong></label><select id='pwmResIn'>
+<option value='8'>8-bit</option>
+<option value='10' selected>10-bit</option>
+<option value='12'>12-bit</option>
+</select></div></div>
+<button class='btn-warn' style='margin-top:12px' onclick='saveOutput()'>Lưu Output</button>
+<div style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'>Hiện tại: <span id='out-current'>--</span></div>
+</div></div>
 
 <!-- ============ OTA ============ -->
-<div class="acc" id="accOta">
-  <div class="acc-head" onclick="toggleAcc('accOta')"><span>⬆️ Cập nhật Firmware</span><span class="arrow">▼</span></div>
-  <div class="acc-body">
-    <div class="row" style="margin-bottom:8px">
-      <div><div class="sub">Hiện tại</div><div style="font-weight:700;color:#007bff" id="fwCurVer">v--</div></div>
-      <div style="text-align:right"><div class="sub">Server</div><div style="font-weight:700;color:#ff9800" id="fwSrvVer">--</div></div>
-    </div>
-    <button class="btn-warn" style="width:100%;font-size:12px" onclick="checkUpdate()">🔍 Kiểm tra bản mới</button>
-    <button class="btn-danger" style="width:100%;font-size:12px;margin-top:6px" id="btnOtaOnline" onclick="otaFromGitHub()" disabled>🚀 Nạp từ GitHub</button>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #dee2e6">
-      <div class="sub" style="margin-bottom:6px">Hoặc chọn file .bin trong máy:</div>
-      <input type="file" id="fwFile" accept=".bin" style="font-size:12px">
-      <button class="btn-danger" style="width:100%;font-size:12px;margin-top:6px" onclick="otaFromFile()">🚀 Nạp từ file</button>
-    </div>
-    <div class="progress"><div class="progress-bar" id="otaBar"></div></div>
-    <div id="otaStatus" style="text-align:center;font-size:12px;color:#6c757d;margin-top:8px">Chưa nạp</div>
-  </div>
+<div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
+<div class='acc-head red' onclick='toggleAcc("accOta")'>
+<span>⬆️ Cập nhật Firmware (BLE OTA)</span><span class='arrow'>▼</span>
 </div>
-
-<!-- ============ LOG ============ -->
-<div class="card">
-  <div class="row">
-    <h2 style="margin:0">📜 Log BLE</h2>
-    <button class="btn-gray" style="padding:5px 12px;font-size:12px" onclick="clearLog()">Xóa</button>
-  </div>
-  <div id="logBox" class="log" style="margin-top:10px">-- Chờ kết nối --</div>
+<div class='acc-body'>
+<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
+<div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v4.0</div>
+<div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5'>BLE-only firmware</div>
 </div>
+<div id='otaLocalBox' style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
+<div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
+<input type='file' id='fwFile' accept='.bin' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box'>
+<button class='btn-danger' style='margin-top:10px' onclick='bleOtaFile()'>🚀 Nạp Firmware qua BLE</button>
+<div class='battery-bg' style='margin-top:12px'><div id='fwProgress' class='battery-bar' style='width:0%;background:#dc3545'></div></div>
+<div id='fwStatus' style='text-align:center;font-size:13px;margin-top:8px;color:#6c757d'>Chưa nạp</div>
+</div>
+</div></div>
 
 <script>
-/* ==================================================================
-   CẤU HÌNH — Bạn có thể đổi base URL GitHub tại đây
-   ================================================================== */
-const GITHUB_BASE = 'https://bjendaik.github.io/hienthipin/';
-const URL_DATA     = GITHUB_BASE + 'data.json';
-const URL_ACQUY    = GITHUB_BASE + 'acquy.json';
-const URL_UPDATE   = GITHUB_BASE + 'update.json';
+// ================================================================
+// BLE SHIM: giả lập window.fetch → gửi lệnh qua BLE UART
+// ================================================================
+const BLE_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_RX_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_TX_CHAR = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_OTA_SVC = '0000ff00-0000-1000-8000-00805f9b34fb';
+const BLE_OTA_RX  = '0000ff01-0000-1000-8000-00805f9b34fb';
+const BLE_OTA_TX  = '0000ff02-0000-1000-8000-00805f9b34fb';
 
-/* ============ UUID ============ */
-const SERVICE_UUID    = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-const RX_CHAR_UUID    = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-const TX_CHAR_UUID    = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-const OTA_SERVICE_UUID = '0000ff00-0000-1000-8000-00805f9b34fb';
-const OTA_RX_CHAR_UUID = '0000ff01-0000-1000-8000-00805f9b34fb';
-const OTA_TX_CHAR_UUID = '0000ff02-0000-1000-8000-00805f9b34fb';
+let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
+let bleConnected=false, bleRxBuf='', bleLineQueue=[];
+let blePendingResolvers=[];   // chờ response JSON {t:'status'|'scan'|...}
+let bleLastStatus=null;
+let bleLastScan=null;
+let bleLastOcv=null;
+let bleLastAck=null;
+let bleOtaAckResolve=null;
 
-let bleDevice=null, rxChar=null, txChar=null, otaRxChar=null, otaTxChar=null;
-let rxBuffer='', isConnected=false, otaInProgress=false, otaAckResolve=null;
+function bleLog(m){ console.log('[BLE]', m); }
 
-/* ============ Kiểm tra Web Bluetooth ============ */
-if(!navigator.bluetooth){
-  document.getElementById('warnBox').style.display='block';
-  document.getElementById('btnConn').disabled=true;
+function bleUpdateUI(){
+  const st=document.getElementById('bleStatus');
+  const btn=document.getElementById('bleConnBtn');
+  if(bleConnected){
+    st.innerHTML='🟢 Đã kết nối BLE';
+    st.style.color='#28a745';
+    btn.innerText='Ngắt';
+    btn.style.background='#dc3545';
+  } else {
+    st.innerHTML='🔵 Chưa kết nối BLE';
+    st.style.color='#6c757d';
+    btn.innerText='Kết nối';
+    btn.style.background='#17a2b8';
+  }
 }
 
-/* ============ Log ============ */
-function log(msg, cls){
-  const box=document.getElementById('logBox');
-  const t=new Date().toLocaleTimeString('vi-VN');
-  const d=document.createElement('div');
-  d.innerHTML=`<span class="ts">[${t}]</span> <span class="${cls||''}">${escapeHtml(msg)}</span>`;
-  box.appendChild(d);
-  box.scrollTop=box.scrollHeight;
-  while(box.children.length>300) box.removeChild(box.firstChild);
-}
-function clearLog(){ document.getElementById('logBox').innerHTML=''; }
-function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-/* ============ Kết nối BLE ============ */
-async function toggleConnect(){
-  if(isConnected){ disconnectBLE(); return; }
-  await connectBLE();
+async function bleToggle(){
+  if(bleConnected){ bleDisconnect(); return; }
+  await bleConnect();
 }
 
-async function connectBLE(){
+async function bleConnect(){
   try{
-    log('Mở hộp chọn thiết bị...','tx');
+    if(!navigator.bluetooth){ alert('Trình duyệt không hỗ trợ Web Bluetooth.\nDùng Chrome/Edge trên Android hoặc máy tính.'); return; }
+    bleLog('Requesting device...');
     bleDevice=await navigator.bluetooth.requestDevice({
-      filters:[{services:[SERVICE_UUID]}],
-      optionalServices:[SERVICE_UUID, OTA_SERVICE_UUID]
+      filters:[{services:[BLE_SERVICE]}],
+      optionalServices:[BLE_SERVICE, BLE_OTA_SVC]
     });
-    bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-    log('Kết nối GATT...','tx');
+    bleDevice.addEventListener('gattserverdisconnected', ()=>{
+      bleConnected=false;
+      bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
+      bleUpdateUI();
+      bleLog('Disconnected');
+    });
+    bleLog('Connecting GATT...');
     const server=await bleDevice.gatt.connect();
-    const svc=await server.getPrimaryService(SERVICE_UUID);
-
-    txChar=await svc.getCharacteristic(TX_CHAR_UUID);
-    await txChar.startNotifications();
-    txChar.addEventListener('characteristicvaluechanged', onNotify);
-    log('TX notify ON','tx');
-
-    rxChar=await svc.getCharacteristic(RX_CHAR_UUID);
-    log('RX write ON','tx');
-
-    // Khởi tạo OTA service
+    const svc=await server.getPrimaryService(BLE_SERVICE);
+    bleTx=await svc.getCharacteristic(BLE_TX_CHAR);
+    await bleTx.startNotifications();
+    bleTx.addEventListener('characteristicvaluechanged', bleOnNotify);
+    bleRx=await svc.getCharacteristic(BLE_RX_CHAR);
     try{
-      const otaSvc=await server.getPrimaryService(OTA_SERVICE_UUID);
-      otaRxChar=await otaSvc.getCharacteristic(OTA_RX_CHAR_UUID);
-      otaTxChar=await otaSvc.getCharacteristic(OTA_TX_CHAR_UUID);
-      await otaTxChar.startNotifications();
-      otaTxChar.addEventListener('characteristicvaluechanged', onOtaNotify);
-      log('OTA service ON','tx');
-    }catch(e){ log('Không có OTA service: '+e.message,'err'); }
-
-    isConnected=true;
-    updateUI();
-    log('✅ Đã kết nối: '+(bleDevice.name||bleDevice.id),'tx');
-    sendCmd('HELLO');
-
-  }catch(err){
-    log('❌ '+err.message,'err');
-    if(err.name==='NotFoundError') log('Người dùng hủy chọn','err');
-    updateUI();
+      const otaSvc=await server.getPrimaryService(BLE_OTA_SVC);
+      bleOtaRx=await otaSvc.getCharacteristic(BLE_OTA_RX);
+      bleOtaTx=await otaSvc.getCharacteristic(BLE_OTA_TX);
+      await bleOtaTx.startNotifications();
+      bleOtaTx.addEventListener('characteristicvaluechanged', bleOnOtaNotify);
+      bleLog('OTA service ready');
+    }catch(e){ bleLog('No OTA service: '+e.message); }
+    bleConnected=true;
+    bleUpdateUI();
+    bleLog('Connected');
+    // Gửi HELLO để ESP32 gửi status ngay
+    await bleSend('HELLO');
+  }catch(e){
+    alert('Kết nối BLE thất bại: '+e.message);
+    bleLog('Error: '+e.message);
   }
 }
 
-function disconnectBLE(){
-  try{
-    if(txChar) txChar.removeEventListener('characteristicvaluechanged', onNotify);
-    if(bleDevice&&bleDevice.gatt.connected) bleDevice.gatt.disconnect();
-  }catch(e){}
-  isConnected=false; rxChar=null; txChar=null; otaRxChar=null; otaTxChar=null;
-  updateUI();
-  log('🔌 Đã ngắt','tx');
+function bleDisconnect(){
+  try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
+  bleConnected=false;
+  bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
+  bleUpdateUI();
 }
 
-function onDisconnected(){
-  isConnected=false; rxChar=null; txChar=null; otaRxChar=null; otaTxChar=null;
-  updateUI();
-  log('⚠️ Thiết bị ngắt','err');
-}
-
-/* ============ Nhận dữ liệu ============ */
-function onNotify(event){
-  const text=new TextDecoder().decode(event.target.value);
-  rxBuffer+=text;
-  let idx;
-  while((idx=rxBuffer.indexOf('\n'))>=0){
-    const line=rxBuffer.substring(0,idx).trim();
-    rxBuffer=rxBuffer.substring(idx+1);
-    if(line) handleMessage(line);
-  }
-}
-
-function handleMessage(line){
-  let obj=null;
-  try{ obj=JSON.parse(line); }catch(e){}
-  if(!obj){ log('RX: '+line,'rx'); return; }
-
-  if(obj.t==='status'){
-    log('status: soc='+obj.soc+'% v='+obj.v+'V','rx');
-    updateStatus(obj);
-  }else if(obj.t==='log'){
-    log(obj.msg,'rx');
-  }else if(obj.t==='ack'){
-    log('ACK: '+(obj.msg||'OK'),'tx');
-    if(otaAckResolve){ const r=otaAckResolve; otaAckResolve=null; r(); }
-  }else if(obj.t==='err'){
-    log('ERR: '+obj.msg,'err');
-    if(otaAckResolve){ otaAckResolve=null; }
-  }else if(obj.t==='scan'){
-    log('Scan result: '+obj.list.length+' thiết bị','rx');
-    renderScan(obj.list);
-  }else if(obj.t==='presets'){
-    renderPresets(obj.list);
-  }else if(obj.t==='ocv'){
-    renderOcv(obj);
-  }
-}
-
-function updateStatus(d){
-  const soc=clamp(parseInt(d.soc)||0,0,100);
-  document.getElementById('socBar').style.width=soc+'%';
-  document.getElementById('socText').textContent=soc+'%';
-  document.getElementById('volVal').textContent=(d.v!==undefined?Number(d.v).toFixed(2):'--')+' V';
-  document.getElementById('curVal').textContent=(d.i!==undefined?Number(d.i).toFixed(2):'--')+' A';
-  document.getElementById('powVal').textContent=(d.p!==undefined?Number(d.p).toFixed(1):'--')+' W';
-  document.getElementById('cellCnt').textContent=d.n!==undefined?d.n:'--';
-  if(d.mode) setModeUI(d.mode);
-  if(Array.isArray(d.cells)&&d.cells.length>0) renderCells(d.cells);
-  if(d.sim===false){
-    document.getElementById('simSlider').value=soc;
-    document.getElementById('simVal').textContent=soc+'%';
-  }
-  if(d.fw&&d.fw.ver) document.getElementById('fwCurVer').textContent='v'+d.fw.ver;
-  if(d.wifi) document.getElementById('wifiInfo').textContent=
-    d.wifi.sta?`Đã kết nối STA — IP ${d.wifi.ip} | RSSI ${d.wifi.rssi}`:'STA tắt';
-}
-
-function renderCells(cells){
-  const grid=document.getElementById('cellsGrid');
-  grid.innerHTML='';
-  const valid=cells.map((v,i)=>({v:Number(v),i})).filter(x=>x.v>0.5);
-  if(valid.length===0) return;
-  const maxV=Math.max(...valid.map(x=>x.v));
-  const minV=Math.min(...valid.map(x=>x.v));
-  cells.forEach((v,i)=>{
-    const val=Number(v);
-    if(val<=0.5) return;
-    const d=document.createElement('div');
-    d.className='cell';
-    if(Math.abs(val-maxV)<1e-4) d.classList.add('max');
-    else if(Math.abs(val-minV)<1e-4) d.classList.add('min');
-    d.innerHTML=`<div class="cn">C${i+1}</div><div class="cv">${val.toFixed(3)}</div>`;
-    grid.appendChild(d);
-  });
-}
-
-function updateUI(){
-  const btn=document.getElementById('btnConn');
-  const st=document.getElementById('statusText');
-  if(isConnected){
-    btn.textContent='🔴 Ngắt kết nối'; btn.classList.add('connected');
-    st.textContent='Đã kết nối'; st.className='badge ok';
-  }else{
-    btn.textContent='🔵 Kết nối BLE'; btn.classList.remove('connected');
-    st.textContent='Chưa kết nối'; st.className='badge';
-  }
-  document.getElementById('btnOtaOnline').disabled=!isConnected;
-}
-
-/* ============ Gửi lệnh ============ */
-async function sendCmd(cmd){
-  if(!isConnected||!rxChar){ log('❌ Chưa kết nối','err'); return false; }
+async function bleSend(cmd){
+  if(!bleRx){ bleLog('Not connected'); return; }
   try{
     const data=new TextEncoder().encode(cmd+'\n');
-    await rxChar.writeValue(data);
-    log('TX: '+cmd,'tx');
-    return true;
-  }catch(e){
-    log('❌ Ghi lỗi: '+e.message,'err');
-    return false;
+    await bleRx.writeValue(data);
+    bleLog('TX: '+cmd);
+  }catch(e){ bleLog('TX err: '+e.message); }
+}
+
+function bleOnNotify(ev){
+  const text=new TextDecoder().decode(ev.target.value);
+  bleRxBuf+=text;
+  let idx;
+  while((idx=bleRxBuf.indexOf('\n'))>=0){
+    const line=bleRxBuf.substring(0,idx).trim();
+    bleRxBuf=bleRxBuf.substring(idx+1);
+    if(line) bleHandleLine(line);
   }
 }
 
-function onSlide(v){
-  document.getElementById('simVal').textContent=v+'%';
-  sendCmd('SOC:'+v);
+function bleHandleLine(line){
+  bleLog('RX: '+line);
+  let obj=null;
+  try{ obj=JSON.parse(line); }catch(e){ return; }
+  if(obj.t==='status'){ bleLastStatus=obj; resolveBlePending('status', obj); }
+  else if(obj.t==='scan'){ bleLastScan=obj.list||[]; resolveBlePending('scan', obj); }
+  else if(obj.t==='ocv'){ bleLastOcv=obj; resolveBlePending('ocv', obj); }
+  else if(obj.t==='ack'){ bleLastAck=obj; resolveBlePending('ack', obj); }
+  else if(obj.t==='err'){ resolveBlePending('err', obj); }
+  else if(obj.t==='log'){ appendTerminal(obj.msg+'\n'); }
 }
-function setMode(m){
-  setModeUI(m);
-  sendCmd('MODE:'+m);
-}
-function setModeUI(m){
-  const b=document.getElementById('tabBms'), a=document.getElementById('tabAcq');
-  if(m==='ACQ'){ a.classList.add('active'); b.classList.remove('active'); }
-  else{ b.classList.add('active'); a.classList.remove('active'); }
-}
-function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
 
-/* ============ Accordion ============ */
-function toggleAcc(id){
-  const el=document.getElementById(id);
-  if(!el) return;
-  const open=el.classList.contains('open');
-  document.querySelectorAll('.acc.open').forEach(x=>x.classList.remove('open'));
-  if(!open){
-    el.classList.add('open');
-    if(id==='accOcv') loadOcvFromEsp();
+function bleOnOtaNotify(ev){
+  const t=new TextDecoder().decode(ev.target.value);
+  if(t==='ACK' && bleOtaAckResolve){ const r=bleOtaAckResolve; bleOtaAckResolve=null; r(); }
+}
+
+function resolveBlePending(kind, obj){
+  // Gọi tất cả resolver đang chờ 'kind'
+  const remain=[];
+  for(const r of blePendingResolvers){
+    if(r.kind===kind){ r.resolve(obj); }
+    else remain.push(r);
   }
+  blePendingResolvers=remain;
 }
 
-/* ==================================================================
-   TẢI DỮ LIỆU TỪ GITHUB RỒI ĐẨY XUỐNG ESP32 QUA BLE
-   ================================================================== */
-
-/* ---------- Preset vmap ---------- */
-async function fetchPresetsFromGitHub(){
-  try{
-    log('Fetch preset từ GitHub...','tx');
-    const r=await fetch(URL_DATA+'?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    const list=j.presets||[];
-    if(list.length===0){ alert('Không có preset'); return; }
-
-    // Hiển thị danh sách để chọn
-    renderPresets(list.map(p=>({name:p.name,subtitle:p.subtitle,ranges:p.ranges})));
-
-  }catch(e){
-    log('❌ Fetch lỗi: '+e.message,'err');
-    alert('Không tải được data.json: '+e.message);
-  }
-}
-
-function renderPresets(list){
-  const box=document.getElementById('presetList');
-  if(!list||list.length===0){ box.innerHTML='<div class="sub">Không có preset</div>'; return; }
-  box.innerHTML='';
-  list.forEach((p,i)=>{
-    const btn=document.createElement('button');
-    btn.style.cssText='width:100%;margin-bottom:6px;background:#6f42c1;text-align:left;font-size:12px;padding:10px';
-    btn.innerHTML=`<b>${escapeHtml(p.name||('Preset '+(i+1)))}</b>`+
-      (p.subtitle?`<br><small style="opacity:.8">${escapeHtml(p.subtitle)}</small>`:'')+
-      (p.ranges?`<br><small style="opacity:.7;font-family:monospace">${escapeHtml(p.ranges)}</small>`:'');
-    btn.onclick=()=>applyPresetFromGitHub(i);
-    box.appendChild(btn);
+function bleWaitFor(kind, timeoutMs=5000){
+  return new Promise((resolve,reject)=>{
+    const entry={kind, resolve:(v)=>{ clearTimeout(tm); resolve(v); }};
+    const tm=setTimeout(()=>{
+      blePendingResolvers=blePendingResolvers.filter(r=>r!==entry);
+      reject(new Error('BLE timeout: '+kind));
+    }, timeoutMs);
+    blePendingResolvers.push(entry);
   });
 }
 
-let cachedPresets=null;
-async function applyPresetFromGitHub(id){
-  try{
-    if(!cachedPresets){
-      const r=await fetch(URL_DATA+'?t='+Date.now());
-      const j=await r.json();
-      cachedPresets=j.presets||[];
-    }
-    const p=cachedPresets[id];
-    if(!p||!p.entries||p.entries.length===0){ alert('Preset rỗng'); return; }
-    if(!confirm(`Áp dụng preset "${p.name}"?\n${p.entries.length} dải điện áp sẽ được ghi vào ESP32.`)) return;
+// ================================================================
+// URL ROUTER: giả lập fetch cho toàn bộ endpoint HTTP cũ
+// ================================================================
+const _realFetch = window.fetch.bind(window);
+window.fetch = async function(url, opts){
+  if(typeof url!=='string') return _realFetch(url,opts);
+  // Không chặn URL ngoài (github, cdn...)
+  if(url.startsWith('http')) return _realFetch(url,opts);
 
-    // Cú pháp: SET_VMAP:<count>;<s>,<e>,<v>;<s>,<e>,<v>;...
-    let cmd='SET_VMAP:'+p.entries.length;
-    p.entries.forEach(e=>{ cmd+=`;${e.s},${e.e},${e.v.toFixed(3)}`; });
-    await sendCmd(cmd);
-    document.getElementById('activePresetName').textContent='Đã áp dụng: '+p.name;
-    alert('✅ Đã đẩy preset "'+p.name+'" xuống ESP32');
-  }catch(e){
-    log('❌ '+e.message,'err');
-    alert('Lỗi: '+e.message);
+  const u=new URL(url, 'http://x');
+  const path=u.pathname;
+  const q=u.searchParams;
+
+  // Chưa kết nối BLE → trả dummy để UI không bị treo
+  if(!bleConnected){
+    if(path==='/data') return jsonResponse(dummyStatus());
+    return textResponse('BLE_NOT_CONNECTED');
   }
+
+  try{
+    // ---------- /data ----------
+    if(path==='/data'){
+      if(bleLastStatus && Date.now()-bleLastStatus._ts<1500) return jsonResponse(enrichStatus(bleLastStatus));
+      await bleSend('GET_STATUS');
+      const obj=await bleWaitFor('status', 3000);
+      return jsonResponse(enrichStatus(obj));
+    }
+
+    // ---------- /sim ----------
+    if(path==='/sim'){
+      if(q.has('soc')){
+        await bleSend('SOC:'+q.get('soc'));
+        await bleWaitFor('ack', 2000).catch(()=>{});
+        return textResponse('OK');
+      }
+      if(q.has('real')){
+        await bleSend('REAL');
+        await bleWaitFor('ack', 2000).catch(()=>{});
+        return textResponse('OK');
+      }
+      return textResponse('Missing arg');
+    }
+
+    // ---------- /scan ----------
+    if(path==='/scan'){
+      await bleSend('SCAN');
+      const obj=await bleWaitFor('scan', 8000);
+      const list=obj.list||[];
+      if(list.length===0) return htmlResponse("<li style='color:#888;'>Không tìm thấy BMS.</li>");
+      let html='';
+      for(const d of list){
+        const safeName=(d.name||'BMS').replace(/'/g,"\\'");
+        html+="<li><div><strong>🔋 "+d.name+"</strong><br><small style='font-family:monospace'>"+d.mac+"</small></div>";
+        html+="<button style='width:auto;' onclick=\"save('"+d.mac+"','"+safeName+"')\">Kết Nối</button></li>";
+      }
+      return htmlResponse(html);
+    }
+
+    // ---------- /save ----------
+    if(path==='/save'){
+      const mac=q.get('mac')||'';
+      const name=q.get('name')||'';
+      await bleSend('SAVE_MAC:'+mac+':'+name);
+      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      return textResponse(ack?'OK':'TIMEOUT');
+    }
+
+    // ---------- /clearmac ----------
+    if(path==='/clearmac'){
+      await bleSend('CLEAR_MAC');
+      await bleWaitFor('ack',3000).catch(()=>{});
+      return textResponse('OK');
+    }
+
+    // ---------- /toggleacquy ----------
+    if(path==='/toggleacquy'){
+      const en=q.get('en')==='1';
+      await bleSend(en?'MODE:ACQ':'MODE:BMS');
+      await bleWaitFor('ack',3000).catch(()=>{});
+      return textResponse('OK');
+    }
+
+    // ---------- /saveacquycfg ----------
+    if(path==='/saveacquycfg'){
+      const pin=q.get('pin')||32;
+      const r1=q.get('r1')||100;
+      const r2=q.get('r2')||4.7;
+      const gain=q.get('gain')||1;
+      const off=q.get('offset')||0;
+      const bt=q.get('btype')||0;
+      const cells=q.get('cells')||4;
+      await bleSend(`SAVE_ACQ:${pin},${r1},${r2},${gain},${off},${bt},${cells}`);
+      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      return textResponse(ack?'OK':'TIMEOUT');
+    }
+
+    // ---------- /saveout ----------
+    if(path==='/saveout'){
+      const mode=q.get('mode')||1;
+      const pin=q.get('pwmpin')||q.get('dacpin')||14;
+      const freq=q.get('freq')||5000;
+      const res=q.get('res')||10;
+      await bleSend(`SAVE_OUT:${mode},${pin},${freq},${res}`);
+      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      return textResponse(ack?'OK':'TIMEOUT');
+    }
+
+    // ---------- /savevmap ----------
+    if(path==='/savevmap'){
+      const cnt=parseInt(q.get('count')||'0');
+      let cmd='SET_VMAP:'+cnt;
+      for(let i=0;i<cnt;i++){
+        const s=q.get('e'+i+'s')||0;
+        const e=q.get('e'+i+'e')||0;
+        const v=q.get('e'+i+'v')||0;
+        cmd+=`;${s},${e},${v}`;
+      }
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      return textResponse(ack?'OK':'TIMEOUT');
+    }
+
+    // ---------- /saveocvmanual ----------
+    if(path==='/saveocvmanual'){
+      const type=q.get('type')||'lead';
+      const cnt=parseInt(q.get('count')||'0');
+      let cmd='SET_OCV:'+type+':'+cnt;
+      for(let i=0;i<cnt;i++){
+        const v=q.get('e'+i+'v')||0;
+        const s=q.get('e'+i+'s')||0;
+        cmd+=`;${v},${s}`;
+      }
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      return textResponse(ack?('OK|'+cnt):'FAIL');
+    }
+
+    // ---------- /acquyjsoninfo ----------
+    if(path==='/acquyjsoninfo'){
+      await bleSend('GET_OCV');
+      const obj=await bleWaitFor('ocv', 3000).catch(()=>null);
+      if(!obj) return jsonResponse({date:'', leadN:0, lfpN:0, lead:[], lfp:[]});
+      return jsonResponse({
+        date: obj.date||'',
+        leadN: (obj.lead||[]).length,
+        lfpN: (obj.lfp||[]).length,
+        lead: obj.lead||[],
+        lfp: obj.lfp||[]
+      });
+    }
+
+    // ---------- /setlogmodules ----------
+    if(path==='/setlogmodules'){
+      const mask=q.get('mask')||255;
+      await bleSend('SET_LOG:'+mask);
+      await bleWaitFor('ack',2000).catch(()=>{});
+      return textResponse('OK');
+    }
+
+    // ---------- /serial ----------
+    if(path==='/serial') return textResponse('');  // log đi qua notify
+
+    // ---------- /wifi, /preset, /update… → không dùng nữa ----------
+    if(path==='/wifiscan') return htmlResponse("<li style='color:#888'>WiFi không còn hỗ trợ.</li>");
+    if(path==='/savewifi'||path==='/savesta'||path==='/saveapcfg'||path==='/saveaptimeout'||path==='/saveapcfgpanel')
+      return textResponse('OK');
+    if(path==='/presets') return jsonResponse([]);
+    if(path==='/fetchpresets') return textResponse('OK|0|');
+    if(path==='/fetchacquyjson') return textResponse('OK|0|0|BLE');
+    if(path==='/checkupdate') return textResponse('LATEST:4.0');
+    if(path==='/savefwinfo'||path==='/saveautoupdate') return textResponse('OK');
+    if(path==='/getnotes') return htmlResponse('');
+
+    // Fallback
+    return textResponse('OK');
+  }catch(e){
+    bleLog('fetch shim error: '+e.message);
+    if(path==='/data') return jsonResponse(dummyStatus());
+    return textResponse('ERR');
+  }
+};
+
+function enrichStatus(obj){
+  obj._ts=Date.now();
+  // Thêm trường mà UI cũ cần
+  if(obj.aq){
+    obj.aqRawV=obj.aq.raw||0;
+    obj.aqOcvEst=obj.aq.ocv||0;
+    obj.aqStableV=obj.aq.ocv||0;
+    obj.aqSag=obj.aq.sag||0;
+    obj.aqIsStable=obj.aq.stable||false;
+    obj.aqAdcV=obj.aq.adc||0;
+    obj.aqGain=obj.aq.gain||1;
+    obj.aqOffset=obj.aq.offset||0;
+    obj.aqSocRaw=obj.soc;
+    obj.aqSocStable=obj.soc;
+    obj.acquyMode=(obj.mode==='ACQ');
+    obj.battType=obj.battType||0;
+    obj.battCells=obj.battCells||4;
+    obj.aqPin=obj.aqPin||32;
+    obj.aqR1=obj.aqR1||100;
+    obj.aqR2=obj.aqR2||4.7;
+    obj.aqCompFactor=0.7;
+    obj.aqTempC=25;
+    obj.aqOcvComp=obj.aq.ocv||0;
+    obj.aqOvp=false;
+  }
+  obj.totalV=obj.v||0;
+  obj.hasTotalV=(obj.v>0);
+  obj.current=obj.i||0;
+  obj.hasCurrent=(obj.i!==0);
+  obj.power=obj.p||0;
+  obj.hasPower=(obj.p!==0);
+  obj.cellCount=obj.n||0;
+  obj.hasCells=(obj.n>0);
+  obj.realSoc=obj.soc;
+  obj.savedSoc=obj.soc;
+  obj.socFresh=true;
+  obj.socAge=0;
+  obj.manualSim=obj.sim||false;
+  obj.configMode=false;
+  obj.ledMode=1;
+  obj.voltage=0;
+  obj.outMode=obj.outMode||1;
+  obj.dacPin=obj.dacPin||25;
+  obj.pwmPin=obj.pwmPin||14;
+  obj.pwmFreq=obj.pwmFreq||5000;
+  obj.pwmRes=obj.pwmRes||10;
+  obj.hasDac=true;
+  obj.chipName='ESP32';
+  obj.bleAutoScan=true;
+  obj.bleEnabled=true;
+  obj.mac=obj.mac||'';
+  obj.bmsName=obj.bmsName||'';
+  obj.needAutoConnect=false;
+  obj.bmsProto=obj.bmsProto||255;
+  obj.jkVer=obj.jkVer||0;
+  obj.vmapEnabled=true;
+  obj.staEnabled=false;
+  obj.staConnected=false;
+  obj.apTimeout=0;
+  obj.apSSID='';
+  obj.apPass='';
+  obj.apCfgOpen=false;
+  obj.logMask=obj.logMask||255;
+  obj.presetUpdated='';
+  obj.presetInfoLoaded=true;
+  obj.activePresetName=obj.activePresetName||'';
+  obj.fwVersion=obj.fw?.ver||'4.0';
+  obj.fwDate='';
+  obj.fwNotes='';
+  obj.autoUpdate=false;
+  obj.autoUpdateDone=true;
+  obj.apActive=false;
+  return obj;
 }
 
-/* ---------- OCV ---------- */
-let ocvData={lead:[],lfp:[],date:''};
-
-async function fetchOcvFromGitHub(){
-  try{
-    log('Fetch acquy.json từ GitHub...','tx');
-    const r=await fetch(URL_ACQUY+'?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    ocvData.lead=j.lead||[];
-    ocvData.lfp=j.lfp||[];
-    ocvData.date=j.date||'';
-    document.getElementById('ocvDateInfo').textContent=
-      `Lead ${ocvData.lead.length} điểm | LFP ${ocvData.lfp.length} điểm | ${ocvData.date}`;
-
-    // Đẩy xuống ESP32 qua BLE — gửi 2 lệnh riêng
-    if(ocvData.lead.length>=2){
-      let cmd='SET_OCV:lead:'+ocvData.lead.length;
-      ocvData.lead.forEach(e=>{ cmd+=`;${e.v.toFixed(3)},${e.soc}`; });
-      await sendCmd(cmd);
-    }
-    if(ocvData.lfp.length>=2){
-      let cmd='SET_OCV:lfp:'+ocvData.lfp.length;
-      ocvData.lfp.forEach(e=>{ cmd+=`;${e.v.toFixed(3)},${e.soc}`; });
-      await sendCmd(cmd);
-    }
-    alert('✅ Đã tải và đẩy bảng OCV xuống ESP32');
-    renderOcvEditor();
-  }catch(e){
-    log('❌ '+e.message,'err');
-    alert('Lỗi: '+e.message);
-  }
+function dummyStatus(){
+  return enrichStatus({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false,cells:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]});
 }
 
-function showOcvEditor(){
-  document.getElementById('ocvEditor').style.display='block';
-  if(ocvData.lead.length===0&&ocvData.lfp.length===0){
-    // Yêu cầu ESP32 gửi bảng hiện tại
-    sendCmd('GET_OCV');
+function jsonResponse(obj){
+  return new Response(JSON.stringify(obj),{status:200,headers:{'Content-Type':'application/json'}});
+}
+function textResponse(t){
+  return new Response(t,{status:200,headers:{'Content-Type':'text/plain'}});
+}
+function htmlResponse(h){
+  return new Response(h,{status:200,headers:{'Content-Type':'text/html'}});
+}
+
+// ================================================================
+// LOGIC UI CŨ — giữ nguyên, chỉ hoạt động qua fetch shim
+// ================================================================
+function toggleAcc(id){
+  let el=document.getElementById(id);
+  if(!el)return;
+  let wasOpen=el.classList.contains('open');
+  document.querySelectorAll('.accordion.open').forEach(function(a){a.classList.remove('open');});
+  if(!wasOpen){el.classList.add('open');onAccOpen(id);}
+}
+function onAccOpen(id){
+  if(id==='accScan'){
+    setTimeout(checkDivider,100);
+    if(!window.ocvInited){window.ocvInited=true;loadOcvFromServer();}
+  }
+  else if(id==='accOutput'){updateData();}
+  else if(id==='accBms')updateBmsInfo();
+  else if(id==='accTerm')pollSerial();
+}
+
+let isManualSim=false,terminalData='',termPaused=false;
+let currentMode=1;
+let vmapInited=false;
+let activePresetId=-1;
+let activePresetName='';
+const MAX_TERM=8000;
+
+function appendTerminal(t){
+  if(termPaused)return;
+  terminalData+=t;
+  if(terminalData.length>MAX_TERM)terminalData=terminalData.slice(-MAX_TERM);
+  let e=document.getElementById('terminal');
+  if(e){e.innerText=terminalData;e.scrollTop=e.scrollHeight;}
+}
+function pollSerial(){ /* log qua notify — không cần polling */ }
+function clearTerm(){terminalData='';document.getElementById('terminal').innerText='';}
+function toggleTermPause(){termPaused=!termPaused;
+document.getElementById('termBtn').innerText=termPaused?'Tiếp tục':'Tạm dừng';}
+
+function updateLogMask(){
+  let mask=0;
+  if(document.getElementById('logBoot')?.checked)mask|=0x01;
+  if(document.getElementById('logAdc')?.checked)mask|=0x02;
+  if(document.getElementById('logBle')?.checked)mask|=0x04;
+  if(document.getElementById('logWifi')?.checked)mask|=0x08;
+  if(document.getElementById('logOut')?.checked)mask|=0x10;
+  if(document.getElementById('logOta')?.checked)mask|=0x20;
+  mask|=0x40;
+  if(document.getElementById('logSum')?.checked)mask|=0x80;
+  fetch('/setlogmodules?mask='+mask).catch(()=>{});
+}
+
+function applyLogMask(mask){
+  if(document.getElementById('logBoot'))document.getElementById('logBoot').checked=!!(mask&0x01);
+  if(document.getElementById('logAdc'))document.getElementById('logAdc').checked=!!(mask&0x02);
+  if(document.getElementById('logBle'))document.getElementById('logBle').checked=!!(mask&0x04);
+  if(document.getElementById('logWifi'))document.getElementById('logWifi').checked=!!(mask&0x08);
+  if(document.getElementById('logOut'))document.getElementById('logOut').checked=!!(mask&0x10);
+  if(document.getElementById('logOta'))document.getElementById('logOta').checked=!!(mask&0x20);
+  if(document.getElementById('logSum'))document.getElementById('logSum').checked=!!(mask&0x80);
+}
+
+function switchMode(mode){
+  let wantAcquy=(mode==='acquy');
+  fetch('/data').then(r=>r.json()).then(d=>{
+    let cur=d.acquyMode||false;
+    if(wantAcquy===cur){applyModeUI(wantAcquy);return;}
+    let msg=wantAcquy?
+    'Chuyển sang chế độ ẮC QUY?\n\nBLE sẽ TẮT kết nối BMS và ADC bắt đầu đọc chân GPIO.':
+    'Chuyển sang chế độ BMS?\n\nADC sẽ TẮT và BLE bật lại để kết nối BMS.';
+    if(!confirm(msg))return;
+    fetch('/toggleacquy?en='+(wantAcquy?'1':'0'))
+    .then(r=>r.text()).then(t=>{
+      if(t==='OK'){applyModeUI(wantAcquy);updateData();}
+      else alert('Lỗi: '+t);
+    }).catch(e=>alert('Lỗi: '+e.message));
+  }).catch(e=>alert('Lỗi: '+e.message));
+}
+
+function applyModeUI(isAcquy){
+  let swB=document.getElementById('swBms');
+  let swA=document.getElementById('swAcquy');
+  let cfgBox=document.getElementById('acquyConfigBox');
+  let scanArea=document.getElementById('bmsScanArea');
+  if(swB)swB.className='sw-lbl'+(isAcquy?'':' active bms');
+  if(swA)swA.className='sw-lbl'+(isAcquy?' active acquy':'');
+  if(cfgBox)cfgBox.style.display=isAcquy?'block':'none';
+  if(scanArea)scanArea.style.display=isAcquy?'none':'block';
+}
+
+function selectMode(m){
+  currentMode=m;
+  document.getElementById('tabDac').className='mode-tab'+(m===0?' active':'');
+  document.getElementById('tabPwm').className='mode-tab'+(m===1?' active':'');
+  document.getElementById('dacCfg').style.display=(m===0)?'block':'none';
+  document.getElementById('pwmCfg').style.display=(m===1)?'block':'none';
+}
+
+function saveOutput(){
+  let p='mode='+currentMode;
+  if(currentMode===0){p+='&dacpin='+document.getElementById('dacPinSel').value;}
+  else{p+='&pwmpin='+document.getElementById('pwmPinIn').value;
+  p+='&freq='+document.getElementById('pwmFreqIn').value;
+  p+='&res='+document.getElementById('pwmResIn').value;}
+  if(!confirm('Lưu?'))return;
+  fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
+    if(t==='OK')alert('Đã lưu!');else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
+}
+
+function updateData(){
+  fetch('/data').then(r=>r.json()).then(d=>{
+    let s=document.getElementById('conn-status');
+    if(d.acquyMode){s.innerText='Đang đo Ắc quy';s.style.color='#ff9800';}
+    else if(d.connected){s.innerText='Đã kết nối';s.style.color='green';}
+    else{s.innerText='Đang tìm...';s.style.color='red';}
+
+    let sm=document.getElementById('scan-mode');
+    sm.innerText=bleConnected?'BLE đã kết nối':'BLE chưa kết nối';
+    sm.style.color=bleConnected?'#28a745':'#dc3545';
+
+    let lm=document.getElementById('led-mode');
+    lm.innerText='Sáng';lm.style.color='#28a745';
+
+    document.getElementById('soc-text').innerText=d.soc+'%';
+    document.getElementById('soc-bar').style.width=d.soc+'%';
+
+    let b=document.getElementById('soc-badge');let w=document.getElementById('soc-warning');
+    if(d.manualSim){b.innerText='GIẢ LẬP';b.style.background='#ff9800';w.style.display='none';}
+    else if(d.acquyMode){b.innerText='ẮC QUY';b.style.background='#17a2b8';w.style.display='none';}
+    else if(!d.connected){b.innerText='CŨ('+d.savedSoc+'%)';b.style.background='#6c757d';
+    w.style.display='block';w.innerText='Mất kết nối - SOC cũ: '+d.savedSoc+'%';}
+    else if(d.socFresh){b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
+    else{let a=Math.round(d.socAge/1000);b.innerText='CŨ('+a+'s)';b.style.background='#ffc107';
+    w.style.display='block';w.innerText='Dữ liệu cũ '+a+'s';}
+
+    document.getElementById('chip-name').innerText=d.chipName;
+    let ms=(d.outMode===0)?('DAC GPIO'+d.dacPin):('PWM GPIO'+d.pwmPin);
+    document.getElementById('out-current').innerText=ms;
+    document.getElementById('vol-text').innerText='Output: '+d.voltage+' V';
+    if(d.outMode!==currentMode){currentMode=d.outMode;selectMode(currentMode);}
+    activePresetName=d.activePresetName||'';
+
+    isManualSim=d.manualSim;
+    let rb=document.getElementById('realBtn');
+    if(isManualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
+    else{rb.innerText=(d.acquyMode||d.connected)?'Đang chạy Tự động':'Đang dùng SOC cũ';rb.className='btn-success';
+    document.getElementById('simSlider').value=d.soc;
+    document.getElementById('slider-val').innerText=d.soc+'%';}
+
+    let accOut=document.getElementById('accOutput');
+    let outOpen=accOut&&accOut.classList.contains('open');
+    if(outOpen&&!vmapInited&&d.vmap!==undefined){vmapInited=true;renderVmap(d.vmap||[]);}
+
+    let curMacEl=document.getElementById('curMacText');
+    if(curMacEl){curMacEl.innerText=d.mac||'Chưa có';}
+    let curNameEl=document.getElementById('curBmsName');
+    if(curNameEl){curNameEl.innerText=d.bmsName?('📛 '+d.bmsName):'';}
+
+    let modeInit=document.getElementById('swBms');
+    if(modeInit&&!modeInit.dataset.inited){
+      modeInit.dataset.inited='1';
+      applyModeUI(d.acquyMode||false);
+      document.getElementById('battType').value=d.battType||0;
+      onBattTypeChange();
+      let bt=d.battType||0;
+      if(bt===0){document.getElementById('battCells').value=d.battCells||4;}
+      else{document.getElementById('battCellsInput').value=d.battCells||16;}
+      updateBattInfo();
+      document.getElementById('aqR1').value=d.aqR1||100;
+      document.getElementById('aqR2').value=d.aqR2||4.7;
+      document.getElementById('aqGain').value=d.aqGain||1;
+      document.getElementById('aqOffset').value=d.aqOffset||0;
+      document.getElementById('aqPin').value=d.aqPin||32;
+      checkDivider();
+    }
+
+    if(!window.logMaskInited&&d.logMask!==undefined){
+      window.logMaskInited=true;
+      applyLogMask(d.logMask);
+    }
+
+    if(d.acquyMode){
+      let rv=document.getElementById('aqRawV');if(rv)rv.innerText=(d.aqRawV||0).toFixed(2)+' V';
+      let rs=document.getElementById('aqSocRaw');if(rs)rs.innerText=(d.aqSocRaw||0)+'%';
+      let sv=document.getElementById('aqStableV');if(sv)sv.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+      let ss=document.getElementById('aqSocStable');if(ss)ss.innerText=(d.aqSocStable||0)+'%';
+      let av=document.getElementById('aqAdcV');if(av)av.innerText=(d.aqAdcV||0).toFixed(2)+'V';
+      let stt=document.getElementById('aqStableStatus');
+      if(stt){
+        if(d.aqIsStable){stt.innerText='✅ Ổn định';stt.style.color='#28a745';}
+        else{let sag=d.aqSag||0;
+        if(sag<1.0){stt.innerText='⚠️ Tải nhẹ';stt.style.color='#ff9800';}
+        else if(sag<2.0){stt.innerText='⚠️ Tải vừa';stt.style.color='#ff9800';}
+        else{stt.innerText='🔥 TẢI NẶNG';stt.style.color='#dc3545';}}
+      }
+      let dg=document.getElementById('dispGain');if(dg)dg.innerText=(d.aqGain||1).toFixed(4);
+      let dO=document.getElementById('dispOffset');if(dO)dO.innerText=(d.aqOffset||0).toFixed(3);
+      let ovp=document.getElementById('ovpAlert');if(ovp)ovp.style.display='none';
+    }
+
+    let bmsNameEl=document.getElementById('bms-name-text');
+    if(bmsNameEl){
+      if(d.acquyMode){bmsNameEl.innerText='Chế độ Ắc quy ('+(d.battType===1?'LFP':'Chì')+' '+d.battCells+(d.battType===1?' cell':' bình')+')';bmsNameEl.style.color='#17a2b8';}
+      else{
+        let dn=d.bmsName||'';
+        let dm=d.mac||'';
+        if(dn&&dn.indexOf('BMS '+dm)<0){
+          if(d.connected){bmsNameEl.innerText=dn+' ('+dm+')';bmsNameEl.style.color='#28a745';}
+          else{bmsNameEl.innerText=dn+' — chưa kết nối';bmsNameEl.style.color='#ff9800';}
+        } else if(dm){bmsNameEl.innerText='Chưa có tên — MAC: '+dm;bmsNameEl.style.color='#6c757d';}
+        else{bmsNameEl.innerText='--';bmsNameEl.style.color='#6c757d';}
+      }
+    }
+
+    let typeBadge=document.getElementById('bms-type-badge');
+    if(typeBadge){
+      if(d.acquyMode){typeBadge.style.display='none';}
+      else if(d.connected&&d.mac&&d.mac.length>0&&d.bmsProto!==undefined){
+        if(d.bmsProto===1){
+          let vTag='';
+          if(d.jkVer===2)vTag=' 32S';
+          else if(d.jkVer===1)vTag=' 24S';
+          typeBadge.innerText='⚡ JiKong'+vTag;
+          typeBadge.style.background='#6f42c1';typeBadge.style.color='#fff';typeBadge.style.display='inline-block';
+        }else if(d.bmsProto===0){
+          typeBadge.innerText='🔋 BMS MOVE';typeBadge.style.background='#007bff';typeBadge.style.color='#fff';typeBadge.style.display='inline-block';
+        }else{
+          typeBadge.innerText='⏳ Đang nhận diện...';typeBadge.style.background='#ffc107';typeBadge.style.color='#333';typeBadge.style.display='inline-block';
+        }
+      }else{typeBadge.style.display='none';}
+    }
+  }).catch(e=>{});
+}
+
+let pollTimer=null;
+function startPoll(){
+  if(!pollTimer)pollTimer=setInterval(function(){
+    if(document.hidden)return;
+    if(bleConnected)updateData();
+  },2000);
+}
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden){updateData();startPoll();}
+  else{clearInterval(pollTimer);pollTimer=null;}
+});
+startPoll();updateData();
+
+function sendSim(v){
+  document.getElementById('slider-val').innerText=v+'%';
+  fetch('/sim?soc='+v).catch(e=>{});
+}
+function setRealSoc(){fetch('/sim?real=1').catch(e=>{});}
+
+function onBattTypeChange(){
+  let t=parseInt(document.getElementById('battType').value);
+  let leadBox=document.getElementById('leadOptions');
+  let lfpBox=document.getElementById('lfpOptions');
+  if(t===0){if(leadBox)leadBox.style.display='block';if(lfpBox)lfpBox.style.display='none';}
+  else{if(leadBox)leadBox.style.display='none';if(lfpBox)lfpBox.style.display='block';}
+  updateBattInfo();
+}
+
+function updateBattInfo(){
+  let t=parseInt(document.getElementById('battType').value);
+  let vE,vF,vW;
+  if(t===0){
+    let c=parseInt(document.getElementById('battCells').value);
+    vE=11.31*c; vF=12.73*c; vW=14.4*c;
   }else{
-    renderOcvEditor();
+    let c=parseInt(document.getElementById('battCellsInput').value)||0;
+    vE=2.80*c; vF=3.45*c; vW=3.65*c;
+  }
+  let info=document.getElementById('battInfoText');
+  if(info){
+    info.innerHTML='OCV cạn: <b>'+vE.toFixed(1)+'V</b>'
+    +' | OCV đầy: <b>'+vF.toFixed(1)+'V</b>'
+    +' | OVP: <b>'+vW.toFixed(1)+'V</b>';
+  }
+  checkDivider();
+}
+
+function checkDivider(){
+  let r1=parseFloat(document.getElementById('aqR1').value);
+  let r2=parseFloat(document.getElementById('aqR2').value);
+  let warnBox=document.getElementById('dividerWarn');
+  if(!warnBox)return;
+  if(!r1||!r2||r1<=0||r2<=0){warnBox.style.display='none';return;}
+  let t=parseInt(document.getElementById('battType').value);
+  let vMax;
+  if(t===0){let c=parseInt(document.getElementById('battCells').value)||1;vMax=14.4*c;}
+  else{let c=parseInt(document.getElementById('battCellsInput').value)||1;vMax=3.65*c;}
+  let vadc=vMax*r2/(r1+r2);
+  let ratio=(r1+r2)/r2;
+  if(vadc>3.30){
+    warnBox.style.display='block';
+    warnBox.style.background='#f8d7da';warnBox.style.border='1px solid #f5c2c7';
+    warnBox.style.color='#721c24';
+    warnBox.innerHTML='❌ <b>NGUY HIỂM</b> — V_ADC max = <b>'+vadc.toFixed(3)+'V</b> vượt 3.3V!';
+  }else if(vadc>3.10){
+    warnBox.style.display='block';
+    warnBox.style.background='#fff3cd';warnBox.style.border='1px solid #ffeeba';
+    warnBox.style.color='#856404';
+    warnBox.innerHTML='⚠️ V_ADC max = '+vadc.toFixed(3)+'V (sát ngưỡng)';
+  }else{
+    warnBox.style.display='block';
+    warnBox.style.background='#d4edda';warnBox.style.border='1px solid #c3e6cb';
+    warnBox.style.color='#155724';
+    warnBox.innerHTML='✅ V_ADC max = '+vadc.toFixed(3)+'V — chia '+ratio.toFixed(2)+'×';
   }
 }
 
-function renderOcv(msg){
-  ocvData.lead=msg.lead||[];
-  ocvData.lfp=msg.lfp||[];
-  ocvData.date=msg.date||'';
-  document.getElementById('ocvDateInfo').textContent=
-    `Lead ${ocvData.lead.length} điểm | LFP ${ocvData.lfp.length} điểm | ${ocvData.date}`;
-  renderOcvEditor();
+function quickCalibrate(){
+  let vRef=parseFloat(document.getElementById('calRefV').value);
+  let msg=document.getElementById('calMsg');
+  if(!vRef||vRef<1){msg.innerText='❌ Nhập V thực > 1V';msg.style.color='#dc3545';return;}
+  fetch('/data').then(r=>r.json()).then(d=>{
+    let vMeas=d.aqRawV||0;
+    if(vMeas<1){msg.innerText='❌ Chưa đọc được ADC';msg.style.color='#dc3545';return;}
+    let g=parseFloat(document.getElementById('aqGain').value)||1;
+    let off=parseFloat(document.getElementById('aqOffset').value)||0;
+    let gNew=(vRef-off)/((vMeas-off)/g);
+    if(gNew<0.5||gNew>2){msg.innerText='❌ Hệ số ngoài phạm vi';msg.style.color='#dc3545';return;}
+    document.getElementById('aqGain').value=gNew.toFixed(4);
+    msg.innerText='✅ Gain mới: '+gNew.toFixed(4);
+    msg.style.color='#28a745';
+  }).catch(e=>{msg.innerText='❌ Timeout';msg.style.color='#dc3545';});
 }
 
+function saveAcquyCfg(){
+  let pin=document.getElementById('aqPin').value;
+  let r1=document.getElementById('aqR1').value;
+  let r2=document.getElementById('aqR2').value;
+  let gain=document.getElementById('aqGain').value;
+  let offset=document.getElementById('aqOffset').value;
+  let t=parseInt(document.getElementById('battType').value);
+  let c=0;
+  if(t===0)c=document.getElementById('battCells').value;
+  else c=document.getElementById('battCellsInput').value;
+  let p='pin='+pin+'&r1='+r1+'&r2='+r2+'&gain='+gain+'&offset='+offset+'&btype='+t+'&cells='+c;
+  fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{
+    if(t==='OK')alert('Đã lưu cấu hình Ắc quy!');else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
+}
+
+// ===== OCV =====
 let ocvTab='lead';
 function switchOcvTab(t){
   ocvTab=t;
-  const bl=document.getElementById('ocvListLead');
-  const bf=document.getElementById('ocvListLfp');
-  const tl=document.getElementById('tabOcvLead');
-  const tf=document.getElementById('tabOcvLfp');
-  if(t==='lead'){
-    bl.style.display='block'; bf.style.display='none';
-    tl.className='btn-purple'; tf.className='btn-gray';
-  }else{
-    bl.style.display='none'; bf.style.display='block';
-    tf.className='btn-purple'; tl.className='btn-gray';
-  }
+  document.getElementById('ocvTabLead').className=(t==='lead'?'active':'');
+  document.getElementById('ocvTabLfp').className=(t==='lfp'?'active':'');
+  document.getElementById('ocvEditorLead').style.display=(t==='lead'?'block':'none');
+  document.getElementById('ocvEditorLfp').style.display=(t==='lfp'?'block':'none');
+  updateOcvPreview();
 }
-
-function renderOcvEditor(){
-  ['lead','lfp'].forEach(t=>{
-    const box=document.getElementById(t==='lead'?'ocvListLead':'ocvListLfp');
-    box.innerHTML='';
-    const arr=ocvData[t]||[];
-    if(arr.length===0){
-      box.innerHTML='<div class="sub" style="padding:10px;text-align:center">Chưa có dữ liệu</div>';
-      return;
-    }
-    arr.forEach((e,i)=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;gap:6px;margin-bottom:5px';
-      row.innerHTML=`
-        <input type="number" step="0.001" value="${e.v}" style="flex:1;font-size:12px;padding:6px" data-k="v" data-i="${i}">
-        <input type="number" min="0" max="100" value="${e.soc}" style="width:60px;font-size:12px;padding:6px;text-align:center" data-k="soc" data-i="${i}">
-        <button class="btn-danger" style="width:34px;padding:6px 0;font-size:12px" onclick="this.parentNode.remove();">✕</button>`;
-      box.appendChild(row);
-    });
-  });
+function addOcvRow(type,v,s){
+  let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');
+  if(box.children.length>=32){alert('Tối đa 32 điểm');return;}
+  let row=document.createElement('div');
+  row.className='ocv-row';
+  row.innerHTML="<input class='v' type='number' step='0.001' placeholder='"+(type==='lead'?'12.730':'3.450')+"' value='"+(v!==undefined?v:'')+"'>"
+  +"<input class='s' type='number' min='0' max='100' placeholder='100' value='"+(s!==undefined?s:'')+"'>"
+  +"<button onclick='this.parentNode.remove();updateOcvPreview()'>✕</button>";
+  row.querySelectorAll('input').forEach(i=>i.addEventListener('input',updateOcvPreview));
+  box.appendChild(row);
+  updateOcvPreview();
 }
-
-async function saveOcvToEsp(){
-  // Đọc từ DOM hiện tại
-  const lead=getOcvRows('ocvListLead');
-  const lfp=getOcvRows('ocvListLfp');
-  if(lead.length<2&&lfp.length<2){ alert('Cần ít nhất 2 điểm mỗi loại'); return; }
-
-  if(lead.length>=2){
-    lead.sort((a,b)=>b.v-a.v);
-    let cmd='SET_OCV:lead:'+lead.length;
-    lead.forEach(e=>{ cmd+=`;${e.v.toFixed(3)},${e.soc}`; });
-    await sendCmd(cmd);
+function renderOcvTable(type,arr){
+  let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');
+  box.innerHTML='';
+  if(!arr||arr.length===0){
+    if(type==='lead'){addOcvRow('lead',12.730,100);addOcvRow('lead',11.310,0);}
+    else{addOcvRow('lfp',3.450,100);addOcvRow('lfp',2.500,0);}
+    return;
   }
-  if(lfp.length>=2){
-    lfp.sort((a,b)=>b.v-a.v);
-    let cmd='SET_OCV:lfp:'+lfp.length;
-    lfp.forEach(e=>{ cmd+=`;${e.v.toFixed(3)},${e.soc}`; });
-    await sendCmd(cmd);
-  }
-  alert('✅ Đã lưu bảng OCV xuống ESP32');
+  for(let i=0;i<arr.length;i++)addOcvRow(type,arr[i].v,arr[i].soc);
 }
-
-function getOcvRows(boxId){
-  const rows=[];
-  document.querySelectorAll('#'+boxId+' input[data-k="v"]').forEach(inp=>{
-    const i=inp.dataset.i;
-    const v=parseFloat(inp.value);
-    const s=parseInt(document.querySelector(`#${boxId} input[data-k="soc"][data-i="${i}"]`).value);
-    if(!isNaN(v)&&!isNaN(s)) rows.push({v,soc:s});
+function getOcvRows(type){
+  let box=document.getElementById(type==='lead'?'ocvListLead':'ocvListLfp');
+  let rows=[];
+  box.querySelectorAll('.ocv-row').forEach(r=>{
+    let v=parseFloat(r.querySelector('.v').value);
+    let s=parseInt(r.querySelector('.s').value);
+    if(!isNaN(v)&&!isNaN(s))rows.push({v:v,soc:s});
   });
   return rows;
 }
-
-async function loadOcvFromEsp(){
-  if(!isConnected) return;
-  sendCmd('GET_OCV');
+function updateOcvPreview(){
+  let rows=getOcvRows(ocvTab);
+  let el=document.getElementById('ocvPreview');
+  if(!el)return;
+  if(rows.length<2){el.innerText='Cần ít nhất 2 điểm để tính SOC';return;}
+  rows.sort((a,b)=>b.v-a.v);
+  let testV=ocvTab==='lead'?12.2:3.25;
+  let soc=interpSoc(rows,testV);
+  let minV=rows[rows.length-1].v,maxV=rows[0].v;
+  el.innerHTML='📊 Preview: '+rows.length+' điểm | V ['+minV.toFixed(3)+' → '+maxV.toFixed(3)+'] | Test '+testV.toFixed(2)+'V → <b>'+soc+'%</b>';
 }
-
-/* ---------- Cấu hình acquy ---------- */
-async function saveAcqCfg(){
-  const p=[
-    document.getElementById('aqPin').value,
-    document.getElementById('aqR1').value,
-    document.getElementById('aqR2').value,
-    document.getElementById('aqGain').value,
-    document.getElementById('aqOffset').value,
-    document.getElementById('battType').value,
-    document.getElementById('battCells').value
-  ].join(',');
-  if(await sendCmd('SAVE_ACQ:'+p)) alert('✅ Đã lưu');
-}
-function onBattTypeChange(){}
-
-/* ---------- WiFi ---------- */
-async function saveWifi(){
-  const s=document.getElementById('staSSID').value.trim();
-  const p=document.getElementById('staPass').value;
-  if(!s){ alert('Nhập SSID'); return; }
-  if(await sendCmd('SAVE_WIFI:'+s+'|'+p+'|1')) alert('✅ Đã lưu WiFi');
-}
-
-/* ==================================================================
-   OTA QUA BLE (không cần ESP32 có WiFi)
-   ================================================================== */
-async function checkUpdate(){
-  try{
-    log('Fetch update.json...','tx');
-    const r=await fetch(URL_UPDATE+'?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    document.getElementById('fwSrvVer').textContent='v'+(j.version||'?');
-    window._remoteUpdate=j;
-    log('Server version: v'+j.version,'rx');
-    if(j.notes) log('Notes: '+j.notes.replace(/\\n/g,' '),'rx');
-    return j;
-  }catch(e){
-    log('❌ '+e.message,'err');
-    alert('Không tải được update.json: '+e.message);
-  }
-}
-
-async function otaFromGitHub(){
-  try{
-    if(!isConnected||!otaRxChar){ alert('Chưa kết nối BLE hoặc không có OTA service'); return; }
-    let info=window._remoteUpdate;
-    if(!info){
-      info=await checkUpdate();
-      if(!info) return;
+function interpSoc(table,v){
+  if(table.length<2)return 0;
+  if(v>=table[0].v)return table[0].soc;
+  if(v<=table[table.length-1].v)return table[table.length-1].soc;
+  for(let i=0;i<table.length-1;i++){
+    if(v<=table[i].v&&v>=table[i+1].v){
+      let v1=table[i].v,s1=table[i].soc,v2=table[i+1].v,s2=table[i+1].soc;
+      let t=(v-v2)/(v1-v2);
+      return Math.round(s2+t*(s1-s2));
     }
-    if(!info.url){ alert('update.json thiếu URL firmware'); return; }
-    if(!confirm(`Tải & nạp firmware v${info.version} từ GitHub?\nKhông tắt màn hình trong khi nạp.`)) return;
-
-    document.getElementById('otaStatus').textContent='Đang tải firmware...';
-    log('Tải '+info.url,'tx');
-    const r=await fetch(info.url);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const buf=await r.arrayBuffer();
-    await pushFirmware(buf);
-
-  }catch(e){
-    log('❌ OTA lỗi: '+e.message,'err');
-    document.getElementById('otaStatus').textContent='❌ '+e.message;
-    document.getElementById('otaStatus').style.color='#dc3545';
   }
+  return 0;
+}
+function loadOcvFromServer(){
+  fetch('/acquyjsoninfo').then(r=>r.json()).then(d=>{
+    renderOcvTable('lead',d.lead||[]);
+    renderOcvTable('lfp',d.lfp||[]);
+    let di=document.getElementById('ocvDateInfo');
+    if(di){let src=(d.leadN>=2||d.lfpN>=2)?('Nguồn: '+(d.date||'NVS')):'Chưa có dữ liệu';
+    di.innerText='Lead '+d.leadN+' | LFP '+d.lfpN+' | '+src;}
+    updateOcvPreview();
+  }).catch(e=>{});
+}
+function resetOcvEditor(){
+  if(!confirm('Tải lại bảng từ bộ nhớ (bỏ thay đổi chưa lưu)?'))return;
+  loadOcvFromServer();
+}
+function saveOcvManual(){
+  let rows=getOcvRows(ocvTab);
+  if(rows.length<2){alert('Cần ít nhất 2 điểm');return;}
+  rows.sort((a,b)=>b.v-a.v);
+  for(let i=1;i<rows.length;i++){
+    if(rows[i].soc>rows[i-1].soc){alert('SOC phải giảm dần khi V giảm (dòng '+(i+1)+')');return;}
+  }
+  let p='type='+ocvTab+'&count='+rows.length;
+  for(let i=0;i<rows.length;i++)p+='&e'+i+'v='+rows[i].v+'&e'+i+'s='+rows[i].soc;
+  if(!confirm('Lưu bảng '+(ocvTab==='lead'?'Chì':'LFP')+' ('+rows.length+' điểm)?'))return;
+  fetch('/saveocvmanual?'+p).then(r=>r.text()).then(t=>{
+    if(t.startsWith('OK|')){alert('✅ Đã lưu '+t.split('|')[1]+' điểm');loadOcvFromServer();}
+    else alert('❌ '+t);
+  }).catch(e=>alert('❌ '+e.message));
 }
 
-async function otaFromFile(){
+// ===== SCAN =====
+function scan(){
+  let s=document.getElementById('status'),r=document.getElementById('results');
+  s.innerText='Đang quét...';r.innerHTML='';
+  fetch('/scan').then(x=>x.text()).then(h=>{
+    s.innerText='';
+    if(h.length<10)r.innerHTML='<li>Không có kết quả</li>';
+    else r.innerHTML=h;
+  }).catch(e=>{s.innerText='Lỗi: '+e.message;});
+}
+
+function save(mac,name){
+  if(!mac||mac.length!==17){alert('MAC không hợp lệ');return;}
+  mac=mac.trim().toUpperCase();name=name||'';
+  if(!confirm('Kết nối tới BMS:\n'+mac+' ?'))return;
+  fetch('/save?mac='+encodeURIComponent(mac)+'&name='+encodeURIComponent(name))
+  .then(r=>r.text()).then(t=>{
+    if(t==='OK'){
+      let el=document.getElementById('manualMac');if(el)el.value=mac;
+      alert('Đã lưu '+mac);
+    }else alert('Lỗi: '+t);
+  }).catch(e=>alert('Lỗi: '+e.message));
+}
+
+function saveManualMac(){
+  let el=document.getElementById('manualMac');
+  let msg=document.getElementById('manualMacMsg');
+  let mac=el.value.trim().toUpperCase();
+  let re=/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/;
+  if(!re.test(mac)){msg.innerText='❌ MAC không hợp lệ!';msg.style.color='#dc3545';return;}
+  msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';
+  fetch('/save?mac='+mac).then(r=>r.text()).then(t=>{
+    if(t==='OK'){msg.innerText='✅ Đã lưu '+mac;msg.style.color='#28a745';el.value=mac;}
+    else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}
+  }).catch(e=>{msg.innerText='❌ Timeout';msg.style.color='#dc3545';});
+}
+
+function clearMac(){
+  if(!confirm('🗑️ Xóa MAC hiện tại?'))return;
+  fetch('/clearmac').then(r=>r.text()).then(t=>{
+    if(t==='OK'){
+      let el=document.getElementById('curMacText');if(el)el.innerText='Chưa có';
+      let ne=document.getElementById('curBmsName');if(ne)ne.innerText='';
+      let m=document.getElementById('manualMac');if(m)m.value='';
+    }else alert('Lỗi: '+t);
+  }).catch(e=>alert('Lỗi: '+e.message));
+}
+
+function switchMacTab(which){
+  let ts=document.getElementById('subTabScan');
+  let tm=document.getElementById('subTabManualMac');
+  let cs=document.getElementById('macSubScan');
+  let cm=document.getElementById('macSubManual');
+  if(which==='scan'){ts.classList.add('active');tm.classList.remove('active');
+  cs.style.display='block';cm.style.display='none';}
+  else{tm.classList.add('active');ts.classList.remove('active');
+  cm.style.display='block';cs.style.display='none';}
+}
+
+function switchSubTab(which){
+  let tp=document.getElementById('subTabPreset');
+  let tm=document.getElementById('subTabManual');
+  let cp=document.getElementById('subPreset');
+  let cm=document.getElementById('subManual');
+  if(which==='preset'){tp.classList.add('active');tm.classList.remove('active');
+  cp.style.display='block';cm.style.display='none';}
+  else{tm.classList.add('active');tp.classList.remove('active');
+  cm.style.display='block';cp.style.display='none';}
+}
+
+function addVmapRow(s,e,v){
+  let list=document.getElementById('vmapList');
+  let row=document.createElement('div');row.className='vmap-row';
+  row.innerHTML="<input class='pct' type='number' min='0' max='100' value='"+(s!==undefined?s:0)+"'>"
+  +"<span style='width:14px;text-align:center;color:#888'>→</span>"
+  +"<input class='pct' type='number' min='0' max='100' value='"+(e!==undefined?e:100)+"'>"
+  +"<input class='volt' type='number' min='0' max='3.3' step='0.01' value='"+(v!==undefined?v.toFixed(2):'0.00')+"'>"
+  +"<button onclick='this.parentNode.remove()'>✕</button>";
+  list.appendChild(row);
+}
+function renderVmap(arr){
+  document.getElementById('vmapList').innerHTML='';
+  if(!arr||arr.length===0){addVmapRow(0,20,0.7);addVmapRow(21,40,0.8);return;}
+  for(let i=0;i<arr.length;i++)addVmapRow(arr[i].s,arr[i].e,arr[i].v);
+}
+function saveVmap(){
+  let rows=document.querySelectorAll('#vmapList .vmap-row');
+  let p='enabled=1&count='+rows.length;
+  for(let i=0;i<rows.length;i++){
+    let inp=rows[i].querySelectorAll('input');
+    let s=parseInt(inp[0].value)||0;let e=parseInt(inp[1].value)||0;let v=parseFloat(inp[2].value)||0;
+    p+='&e'+i+'s='+s+'&e'+i+'e='+e+'&e'+i+'v='+v;
+  }
+  fetch('/savevmap?'+p).then(r=>r.text()).then(t=>{
+    if(t==='OK'){alert('Đã lưu bảng điện áp!');
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+    activePresetId=-1;activePresetName='';}
+    else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
+}
+
+// ===== BMS INFO =====
+function updateBmsInfo(){
+  fetch('/data').then(r=>r.json()).then(d=>{
+    let titleEl=document.getElementById('accBmsTitle');
+    let headEl=document.getElementById('accBmsHead');
+    if(titleEl&&headEl){
+      if(d.acquyMode){titleEl.innerText='🔋 Chi Tiết Điện Áp / Ắc Quy';headEl.style.color='#ff9800';}
+      else{titleEl.innerText='🔋 Chi Tiết Điện Áp / BMS';headEl.style.color='#17a2b8';}
+    }
+    let vc=0,maxV=-1,minV=999,mi=0,ni=0;
+    for(let i=0;i<16;i++){let v=(d.cells&&d.cells[i])||0;
+    if(v>0.5){vc++;if(v>maxV){maxV=v;mi=i}if(v<minV){minV=v;ni=i}}}
+    let hasAny=d.hasTotalV||d.hasCurrent||d.hasPower||d.hasCells;
+    document.getElementById('bms-empty').style.display=hasAny?'none':'block';
+    let boxTV=document.getElementById('bms-box-totalv');
+    let boxRaw=document.getElementById('aq-box-raw');
+    let boxStable=document.getElementById('aq-box-stable');
+    if(d.acquyMode){
+      if(boxTV)boxTV.style.display='none';
+      if(boxRaw){boxRaw.style.display='block';
+      let rvEl=document.getElementById('aq-totalv-raw');
+      if(rvEl){rvEl.innerText=(d.aqRawV||0).toFixed(2)+' V';
+      let diff=Math.abs((d.aqRawV||0)-(d.aqOcvEst||0));
+      rvEl.style.color=(diff>0.3)?'#ff9800':'#6c757d';}}
+      if(boxStable){boxStable.style.display='block';
+      let svEl=document.getElementById('aq-totalv-stable');
+      if(svEl){svEl.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+      svEl.style.color=d.aqIsStable?'#28a745':'#6c757d';}}
+    }else{
+      if(boxRaw)boxRaw.style.display='none';
+      if(boxStable)boxStable.style.display='none';
+      if(d.hasTotalV){if(boxTV){boxTV.style.display='block';
+      document.getElementById('bms-totalv').innerText=d.totalV.toFixed(2)+' V';}}
+      else{if(boxTV)boxTV.style.display='none';}
+    }
+
+    let irBox=document.getElementById('irBox');
+    if(irBox)irBox.style.display=d.acquyMode?'block':'none';
+    if(d.acquyMode){
+      let irRaw=document.getElementById('ir-raw');if(irRaw)irRaw.innerText=(d.aqRawV||0).toFixed(2)+' V';
+      let irOcv=document.getElementById('ir-ocv');if(irOcv)irOcv.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+      let irSag=document.getElementById('ir-sag');if(irSag)irSag.innerText=(d.aqSag||0).toFixed(2)+' V';
+      let irComp=document.getElementById('ir-comp');if(irComp)irComp.innerText=(d.aqCompFactor||0).toFixed(3);
+      let irTemp=document.getElementById('ir-temp');if(irTemp)irTemp.innerText=(d.aqTempC||25).toFixed(1)+'°C';
+      let irOcvComp=document.getElementById('ir-ocvcomp');if(irOcvComp)irOcvComp.innerText=(d.aqOcvComp||0).toFixed(2)+' V';
+      let sagBar=document.getElementById('sag-bar');
+      let sagLabel=document.getElementById('sag-label');
+      if(sagBar){let sagPct=Math.min(100,(d.aqSag||0)*50);sagBar.style.width=sagPct+'%';}
+      if(sagLabel){let sag=d.aqSag||0;
+      if(sag<0.3)sagLabel.innerText='Không tải ('+sag.toFixed(2)+'V)';
+      else if(sag<1.0)sagLabel.innerText='Tải nhẹ ('+sag.toFixed(2)+'V)';
+      else if(sag<2.0)sagLabel.innerText='Tải vừa ('+sag.toFixed(2)+'V)';
+      else sagLabel.innerText='🔥 TẢI NẶNG ('+sag.toFixed(2)+'V)';}
+    }
+
+    let statusLine=document.getElementById('aq-status-line');
+    let statusText=document.getElementById('bms-aq-status-text');
+    let adcVEl=document.getElementById('bms-aq-adc-v');
+    let pinLabelEl=document.getElementById('bms-aq-pin-label');
+    let ovpBadge=document.getElementById('bms-aq-ovp-badge');
+    let gainEl=document.getElementById('bms-aq-gain');
+    let offsetEl=document.getElementById('bms-aq-offset');
+    if(statusLine&&statusText){
+      if(d.acquyMode){
+        statusLine.style.display='block';
+        if(pinLabelEl)pinLabelEl.innerText='GPIO'+(d.aqPin||'--');
+        if(adcVEl)adcVEl.innerText=(d.aqAdcV||0).toFixed(3)+' V';
+        if(gainEl)gainEl.innerText=(d.aqGain||1).toFixed(4);
+        if(offsetEl)offsetEl.innerText=(d.aqOffset||0).toFixed(3);
+        if(d.aqIsStable){statusText.innerText='✅ Ổn định';statusText.style.color='#28a745';}
+        else{let sag=d.aqSag||0;
+        if(sag<0.3){statusText.innerText='⏳ Đang chờ ổn định...';statusText.style.color='#6c757d';}
+        else if(sag<1.0){statusText.innerText='⚠️ Tải nhẹ ('+sag.toFixed(2)+'V)';statusText.style.color='#ff9800';}
+        else if(sag<2.0){statusText.innerText='⚠️ Tải vừa ('+sag.toFixed(2)+'V)';statusText.style.color='#ff9800';}
+        else{statusText.innerText='🔥 TẢI NẶNG ('+sag.toFixed(2)+'V)';statusText.style.color='#dc3545';}}
+        if(ovpBadge)ovpBadge.style.display='none';
+      }else{statusLine.style.display='none';}
+    }
+
+    let boxCC=document.getElementById('bms-box-cellcount');
+    if(d.hasCells){boxCC.style.display='block';document.getElementById('bms-cellcount').innerText=vc;}else{boxCC.style.display='none';}
+    let boxCur=document.getElementById('bms-box-current');
+    if(d.hasCurrent){boxCur.style.display='block';
+    let cur=d.current||0;let curEl=document.getElementById('bms-current');
+    curEl.innerText=cur.toFixed(2)+' A';
+    curEl.style.color=cur<0?'#28a745':(cur>0?'#dc3545':'#ff9800');}else{boxCur.style.display='none';}
+    let boxPow=document.getElementById('bms-box-power');
+    if(d.hasPower){boxPow.style.display='block';
+    document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';}else{boxPow.style.display='none';}
+    let stats=document.getElementById('bms-cellstats');
+    if(d.hasCells&&vc>0){
+      stats.style.display='flex';
+      document.getElementById('bms-cellmax').innerText='C'+(mi+1)+' - '+maxV.toFixed(3)+'V';
+      document.getElementById('bms-cellmin').innerText='C'+(ni+1)+' - '+minV.toFixed(3)+'V';
+      let diff=maxV-minV;let diffEl=document.getElementById('bms-celldiff');
+      diffEl.innerText=(diff*1000).toFixed(0)+' mV';
+      diffEl.style.color=diff>0.05?'#dc3545':(diff>0.03?'#ff9800':'#28a745');
+    }else{stats.style.display='none';}
+    let wrap=document.getElementById('bms-cells-wrap');
+    if(d.hasCells&&vc>0){
+      wrap.style.display='block';let grid=document.getElementById('bms-cells-grid');let html='';
+      for(let i=0;i<16;i++){let v=(d.cells&&d.cells[i])||0;
+      if(v>0.5){
+        let color='#333';let bg='#f8f9fa';
+        if(i===mi){color='#fff';bg='#dc3545';}else if(i===ni){color='#fff';bg='#28a745';}
+        html+='<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">';
+        html+='<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>';
+        html+='<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
+      }}
+      grid.innerHTML=html;
+    }else{wrap.style.display='none';}
+  }).catch(e=>{});
+}
+setInterval(function(){let acc=document.getElementById('accBms');if(acc&&acc.classList.contains('open'))updateBmsInfo();},2000);
+
+// ===== OTA QUA BLE =====
+async function bleOtaFile(){
   const f=document.getElementById('fwFile').files[0];
-  if(!f){ alert('Chọn file .bin'); return; }
-  if(!f.name.endsWith('.bin')){ alert('Chỉ nhận .bin'); return; }
-  if(!isConnected||!otaRxChar){ alert('Chưa kết nối BLE'); return; }
-  if(!confirm(`Nạp ${f.name} (${(f.size/1024).toFixed(0)}KB)?`)) return;
+  if(!f){alert('Chọn file .bin');return;}
+  if(!f.name.endsWith('.bin')){alert('Chỉ nhận .bin');return;}
+  if(!bleConnected||!bleOtaRx){alert('Chưa kết nối BLE hoặc OTA service không có');return;}
+  if(!confirm('Nạp '+f.name+' ('+(f.size/1024).toFixed(0)+'KB) qua BLE?'))return;
   const buf=await f.arrayBuffer();
-  await pushFirmware(buf);
+  await blePushFirmware(buf);
 }
 
-async function pushFirmware(arrayBuffer){
-  if(otaInProgress){ alert('Đang nạp rồi'); return; }
-  otaInProgress=true;
+function bleOtaWriteChunk(chunk){
+  return new Promise(async(resolve,reject)=>{
+    const tm=setTimeout(()=>{bleOtaAckResolve=null;reject(new Error('Timeout ACK'));},3000);
+    bleOtaAckResolve=()=>{clearTimeout(tm);resolve();};
+    try{await bleOtaRx.writeValue(chunk);}
+    catch(e){clearTimeout(tm);bleOtaAckResolve=null;reject(e);}
+  });
+}
+
+async function blePushFirmware(arrayBuffer){
   const total=arrayBuffer.byteLength;
   const CHUNK=180;
+  const bar=document.getElementById('fwProgress');
+  const st=document.getElementById('fwStatus');
   try{
-    document.getElementById('otaBar').style.width='0%';
-    document.getElementById('otaStatus').textContent='Bắt đầu...';
-    document.getElementById('otaStatus').style.color='#6c757d';
-
-    await otaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
-    log('OTA_START size='+total,'tx');
-
+    bar.style.width='0%';
+    st.innerText='Bắt đầu...';st.style.color='#6c757d';
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
     let offset=0;
     while(offset<total){
       const end=Math.min(offset+CHUNK,total);
       const chunk=new Uint8Array(arrayBuffer,offset,end-offset);
-      await otaWriteChunk(chunk);
+      await bleOtaWriteChunk(chunk);
       offset=end;
       const pct=Math.round(offset/total*100);
-      document.getElementById('otaBar').style.width=pct+'%';
-      document.getElementById('otaStatus').textContent=
-        `Đang nạp ${pct}% (${(offset/1024).toFixed(0)}/${(total/1024).toFixed(0)} KB)`;
+      bar.style.width=pct+'%';
+      st.innerText='Đang nạp '+pct+'% ('+(offset/1024).toFixed(0)+'/'+(total/1024).toFixed(0)+' KB)';
       if(offset%(CHUNK*10)===0) await new Promise(r=>setTimeout(r,10));
     }
-    await otaWriteChunk(new TextEncoder().encode('OTA_END\n'));
-    document.getElementById('otaStatus').textContent='✅ Xong! ESP32 restart...';
-    document.getElementById('otaStatus').style.color='#28a745';
-    log('OTA hoàn tất','tx');
-    setTimeout(()=>{ disconnectBLE(); },5000);
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
+    st.innerText='✅ Xong! ESP32 restart...';st.style.color='#28a745';
+    setTimeout(()=>{bleDisconnect();},3000);
   }catch(e){
-    log('❌ '+e.message,'err');
-    document.getElementById('otaStatus').textContent='❌ '+e.message;
-    document.getElementById('otaStatus').style.color='#dc3545';
-  }finally{
-    otaInProgress=false;
+    st.innerText='❌ '+e.message;st.style.color='#dc3545';
   }
 }
 
-function otaWriteChunk(chunk){
-  return new Promise(async(resolve,reject)=>{
-    const to=setTimeout(()=>{ otaAckResolve=null; reject(new Error('Timeout ACK')); },3000);
-    otaAckResolve=()=>{ clearTimeout(to); resolve(); };
-    try{ await otaRxChar.writeValue(chunk); }
-    catch(e){ clearTimeout(to); otaAckResolve=null; reject(e); }
-  });
-}
-
-function onOtaNotify(event){
-  const t=new TextDecoder().decode(event.target.value);
-  if(t==='ACK'&&otaAckResolve){ const r=otaAckResolve; otaAckResolve=null; r(); }
-  else if(t==='ERR'){ log('OTA ERR từ ESP32','err'); }
-}
-
-/* ============ Scan BMS ============ */
-function renderScan(list){
-  if(!list||list.length===0){ alert('Không tìm thấy BMS'); return; }
-  if(list.length===1){
-    if(confirm(`Tìm thấy: ${list[0].name}\nMAC: ${list[0].mac}\nKết nối?`)){
-      sendCmd(`SAVE_MAC:${list[0].mac}:${list[0].name}`);
-    }
-    return;
-  }
-  // nhiều thiết bị — hiển thị chọn
-  let msg='Chọn BMS:\n';
-  list.forEach((d,i)=>{ msg+=`${i+1}. ${d.name} (${d.mac})\n`; });
-  const pick=parseInt(prompt(msg+'Nhập số:'));
-  if(pick>=1&&pick<=list.length){
-    const d=list[pick-1];
-    sendCmd(`SAVE_MAC:${d.mac}:${d.name}`);
-  }
-}
-
-/* Polling status định kỳ */
-setInterval(()=>{
-  if(isConnected&&!otaInProgress) sendCmd('GET_STATUS');
-},2000);
+// Khởi tạo UI
+bleUpdateUI();
 </script>
-</body>
-</html>
+</body></html>
