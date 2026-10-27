@@ -1,11 +1,9 @@
 <!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
-<meta name='apple-mobile-web-app-capable' content='yes'>
-<meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v5.1</title><style>
+<title>BMS & ACQUY Controller v5.2</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
-h2,h3{margin-top:0;color:#333;font-size:18px}
+h2{font-size:18px;margin:0 0 10px}
 .battery-bg{background:#e0e0e0;border-radius:8px;height:20px;overflow:hidden;margin-top:8px}
 .battery-bar{background:#28a745;height:100%;width:0;transition:width .3s}
 button{padding:10px 15px;width:100%;cursor:pointer;font-size:15px;background:#007bff;color:#fff;border:none;border-radius:5px;margin-top:10px}
@@ -15,42 +13,35 @@ button{padding:10px 15px;width:100%;cursor:pointer;font-size:15px;background:#00
 .stat-box{background:#f8f9fa;border:1px solid #e9ecef;padding:10px;border-radius:8px;text-align:center}
 .stat-box div:first-child{font-size:13px;color:#6c757d;font-weight:bold}
 .stat-val{font-size:20px;font-weight:bold;color:#007bff;margin-top:5px}
-input[type=number],input[type=text],input[type=password],select{width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;box-sizing:border-box}
-textarea{font-family:inherit}
+input[type=number],input[type=text],select{width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;box-sizing:border-box}
 input[type=range]{width:100%;margin:12px 0}
 .input-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
 .input-row label{flex:0 0 110px}
 .input-row input,.input-row select{flex:1}
-.input-with-icon{flex:1;position:relative;display:flex;align-items:center;min-width:0}
-.input-with-icon input{width:100%;padding-right:44px !important;margin:0}
-.input-with-icon .icon-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:32px;margin:0;padding:0;background:transparent;color:#6c757d;border:none;border-radius:6px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
 ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd}
 .mode-tabs{display:flex;gap:8px;margin-bottom:12px}
 .mode-tab{flex:1;padding:12px;text-align:center;border-radius:8px;cursor:pointer;border:2px solid #ccc;background:#f8f9fa;font-weight:bold}
 .mode-tab.active{border-color:#007bff;background:#e7f3ff;color:#007bff}
-.mode-tab.disabled{opacity:.4;cursor:not-allowed}
 .accordion{padding:0;overflow:hidden}
-.acc-head{display:flex;justify-content:space-between;align-items:center;padding:15px;cursor:pointer;user-select:none;margin:0;font-size:18px;font-weight:bold;transition:background .2s}
-.acc-head:hover{background:#f8f9fa}
-.acc-head .arrow{font-size:14px;transition:transform .3s;color:#888;flex-shrink:0;margin-left:6px}
+.acc-head{display:flex;justify-content:space-between;align-items:center;padding:15px;cursor:pointer;user-select:none;font-size:18px;font-weight:bold}
+.acc-head .arrow{font-size:14px;transition:transform .3s;color:#888}
 .accordion.open .acc-head .arrow{transform:rotate(180deg)}
 .acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease;padding:0 15px}
 .accordion.open .acc-body{max-height:20000px;padding:0 15px 15px 15px}
-.acc-head.green{color:#28a745;border-bottom:1px solid #e9ecef}
 .acc-head.blue{color:#007bff;border-bottom:1px solid #e9ecef}
+.acc-head.green{color:#28a745;border-bottom:1px solid #e9ecef}
 .acc-head.red{color:#dc3545;border-bottom:1px solid #e9ecef}
 .acc-head.dark{color:#444;border-bottom:1px solid #e9ecef}
+.sub-tabs{display:flex;gap:6px;margin-bottom:12px;background:#f0f2f5;padding:4px;border-radius:8px}
+.sub-tab{flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;color:#6c757d}
+.sub-tab.active{background:#fff;color:#6f42c1;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .vmap-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
 .vmap-row input{padding:6px;font-size:13px;text-align:center;min-width:0}
 .vmap-row input.pct{width:52px}
 .vmap-row input.volt{width:72px}
 .vmap-row button{width:auto;padding:6px 10px;margin:0;font-size:14px;background:#dc3545}
-.vmap-head{display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px}
-.vmap-head span{text-align:center}
-.vmap-head .h1{width:52px}.vmap-head .h2{width:14px}.vmap-head .h3{width:52px}
-.vmap-head .h4{width:72px}.vmap-head .h5{width:34px}
 .ocv-tab{display:flex;gap:6px;margin-bottom:10px;background:#f0f2f5;padding:4px;border-radius:8px}
-.ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;transition:all .2s;user-select:none}
+.ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;user-select:none}
 .ocv-tab div.active{background:#fff;color:#17a2b8;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .ocv-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
 .ocv-row input{padding:6px;font-size:12px;text-align:center;min-width:0;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}
@@ -60,46 +51,23 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 .ocv-preview{background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px;font-size:11px;margin-top:8px;font-family:monospace;color:#1b5e20}
 #ocvListLead,#ocvListLfp{max-height:320px;overflow-y:auto;padding-right:2px}
 .preset-btn{width:100%;padding:12px;margin-bottom:8px;background:#fff;color:#333;border:2px solid #6f42c1;border-radius:10px;text-align:left;cursor:pointer;font-size:15px;transition:all .2s;font-family:inherit}
-.preset-btn:hover{background:#f5f0ff}
 .preset-btn.active{background:#6f42c1;color:#fff;border-color:#28a745}
 .preset-btn .p-title{font-size:16px;font-weight:bold;color:#6f42c1;margin-bottom:2px}
 .preset-btn.active .p-title{color:#fff}
 .preset-btn .p-sub{font-size:11px;color:#6c757d;margin-bottom:6px}
-.preset-btn.active .p-sub{color:#e0d4f7}
 .preset-btn .p-ranges{font-size:11px;font-family:monospace;background:#f8f9fa;padding:5px 7px;border-radius:5px;color:#495057;line-height:1.5;word-break:break-word}
-.sub-tabs{display:flex;gap:6px;margin-bottom:12px;background:#f0f2f5;padding:4px;border-radius:8px}
-.sub-tab{flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;color:#6c757d;transition:all .2s;user-select:none}
-.sub-tab.active{background:#fff;color:#6f42c1;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.ir-box{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);border:2px solid #4caf50;border-radius:8px;padding:12px;margin:12px 0}
-.ir-box h4{margin:0 0 8px 0;font-size:14px;color:#2e7d32}
-.ir-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
-.ir-val{font-family:monospace;font-weight:bold;font-size:14px;color:#1b5e20}
-.sag-bar-bg{background:#e0e0e0;border-radius:5px;height:10px;margin-top:6px;overflow:hidden}
-.sag-bar{background:linear-gradient(90deg,#4caf50,#ff9800,#f44336);height:100%;width:0;transition:width .3s}
-.acc-head .title-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px}
-.acc-head .mode-switch-mini{display:flex;align-items:center;background:#f0f2f5;border-radius:16px;padding:3px;margin-left:6px;font-size:10px;font-weight:bold;gap:2px;flex-shrink:0}
-.mode-switch-mini .sw-lbl{padding:5px 8px;border-radius:13px;cursor:pointer;transition:all .25s;color:#6c757d;user-select:none;white-space:nowrap;font-size:10px;line-height:1.2}
+.mode-switch-mini{display:flex;align-items:center;background:#f0f2f5;border-radius:16px;padding:3px;margin-left:6px;font-size:10px;font-weight:bold;gap:2px}
+.mode-switch-mini .sw-lbl{padding:5px 8px;border-radius:13px;cursor:pointer;color:#6c757d;user-select:none;font-size:10px}
 .mode-switch-mini .sw-lbl.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}
 .mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}
-.tgl-switch{position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0}
-.tgl-switch input{opacity:0;width:0;height:0}
-.tgl-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;transition:.3s;border-radius:26px}
-.tgl-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;background:white;transition:.3s;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.tgl-switch input:checked + .tgl-slider{background:#28a745}
-.tgl-warn input:checked + .tgl-slider{background:#ff9800}
-.tgl-switch input:checked + .tgl-slider:before{transform:translateX(22px)}
-.log-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#fff;border:1px solid #dee2e6;border-radius:5px}
-.log-row span:first-child{font-weight:bold;font-size:13px}
-.log-row .tgl-switch{transform:scale(0.75);transform-origin:right center}
-.log-err{background:#f8d7da;border-color:#dc3545}
-.log-err span:first-child{color:#721c24}
-@media (max-width:380px){.acc-head .title-text{font-size:13px}.mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}.acc-head{padding:12px}}
-#bleBar{position:fixed;bottom:0;left:0;right:0;padding:10px;background:#fff;border-top:2px solid #007bff;box-shadow:0 -2px 8px rgba(0,0,0,.1);z-index:9999;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto}
+#bleBar{position:fixed;bottom:0;left:0;right:0;padding:10px;background:#fff;border-top:2px solid #007bff;z-index:9999;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto}
 #bleBar button{margin:0;padding:10px;font-size:14px;width:auto}
 #bleBar .status{flex:1;font-size:12px;font-weight:bold;color:#6c757d}
 #debugLog{background:#1e1e1e;color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:8px;height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 #debugLog .rx{color:#4fc3f7}#debugLog .tx{color:#ffd54f}#debugLog .err{color:#ff5252}#debugLog .info{color:#b0bec5}
+.ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
+.ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
 </style></head><body>
 
 <div id="bleBar">
@@ -108,10 +76,9 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.1</span></h2>
-<div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
-<div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
-<div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.2</span></h2>
+<div>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
+<div style='font-size:12px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='margin-top:10px;display:flex;align-items:center;gap:8px'>
 <strong>SOC:</strong><span id='soc-text' style='font-size:18px;font-weight:bold'>0%</span>
 <span id='soc-badge' style='font-size:11px;padding:3px 8px;border-radius:10px;background:#999;color:#fff;font-weight:bold'>--</span></div>
@@ -130,7 +97,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <div class='card accordion' id='accScan' style='border:2px solid #007bff'>
 <div class='acc-head blue' onclick='toggleAcc("accScan")'>
-<span class='title-text'>🔍 Nguồn Dữ Liệu</span>
+<span>🔍 Nguồn Dữ Liệu</span>
 <div class='mode-switch-mini' onclick='event.stopPropagation()'>
 <span class='sw-lbl active bms' id='swBms' onclick='switchMode("bms")'>🔋 BMS</span>
 <span class='sw-lbl' id='swAcquy' onclick='switchMode("acquy")'>⚡ ẮC QUY</span>
@@ -138,93 +105,41 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <span class='arrow'>▼</span>
 </div>
 <div class='acc-body'>
-<div id='bmsScanArea' style='margin-top:12px'>
-<div style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:10px 12px;border-radius:5px;font-size:12px;color:#004085;margin-bottom:10px;line-height:1.5'>
-🔋 <b>Chế độ BMS</b> — ESP32 kết nối BMS qua Bluetooth để đọc SOC, dòng, cell.</div>
-<div style='display:flex;justify-content:space-between;align-items:center;gap:8px'>
-<div style='flex:1;min-width:0'>
-<div style='font-size:13px'><strong>MAC hiện tại:</strong></div>
-<div id='curMacText' style='font-family:monospace;font-size:12px;color:#007bff;word-break:break-all;margin-top:2px'>Chưa có</div>
-<div id='curBmsName' style='font-size:11px;color:#6c757d;margin-top:2px'></div>
-</div>
-<button onclick='clearMac()' style='width:auto;margin:0;padding:8px 12px;font-size:12px;background:#dc3545'>🗑️ Xóa MAC</button>
-</div>
-<div class='sub-tabs'>
-<div class='sub-tab active' id='subTabScan' onclick='switchMacTab("scan")'>📡 Quét Tự Động</div>
-<div class='sub-tab' id='subTabManualMac' onclick='switchMacTab("manual")'>⌨️ Nhập Thủ Công</div>
-</div>
-<div id='macSubScan'>
-<button onclick='scan()'>🔍 Bắt đầu quét Bluetooth</button>
-<div id='status' style='color:red;margin-top:10px'></div>
+<div id='bmsScanArea'>
+<div style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:10px;border-radius:5px;font-size:12px;margin-bottom:10px'>
+🔋 <b>Chế độ BMS</b> — ESP32 tự scan và kết nối BMS.</div>
+<div><strong>MAC hiện tại:</strong></div>
+<div id='curMacText' style='font-family:monospace;font-size:12px;color:#007bff;margin-bottom:8px'>Chưa có</div>
+<div id='curBmsName' style='font-size:11px;color:#6c757d;margin-bottom:8px'></div>
+<button onclick='clearMac()' style='background:#dc3545;font-size:12px;padding:8px'>🗑️ Xóa MAC</button>
+<div style='margin-top:12px'>
+<button onclick='scan()' style='margin-top:6px'>🔍 Quét và chọn BMS</button>
+<div id='status' style='color:red;margin-top:8px'></div>
 <ul id='results'></ul>
 </div>
-<div id='macSubManual' style='display:none'>
-<div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin-bottom:12px'>
-<div style='font-size:13px;font-weight:bold;color:#007bff;margin-bottom:8px'>⌨️ Nhập MAC thủ công</div>
-<input type='text' id='manualMac' placeholder='AA:BB:CC:DD:EE:FF' maxlength='17' style='font-family:monospace;text-transform:uppercase;letter-spacing:1px'>
-<button class='btn-success' style='margin-top:8px' onclick='saveManualMac()'>💾 Lưu & Kết nối</button>
-<div id='manualMacMsg' style='font-size:12px;margin-top:6px'></div>
-</div>
+<div style='margin-top:12px'>
+<input type='text' id='manualMac' placeholder='AA:BB:CC:DD:EE:FF' maxlength='17' style='font-family:monospace;text-transform:uppercase'>
+<button class='btn-success' style='margin-top:6px;font-size:12px;padding:8px' onclick='saveManualMac()'>💾 Lưu MAC thủ công</button>
 </div>
 </div>
 
-<div id='acquyConfigBox' style='display:none;margin-top:12px'>
-<div style='background:#fff3cd;border-left:3px solid #ff9800;padding:10px 12px;border-radius:5px;font-size:12px;color:#856404;margin-bottom:10px;line-height:1.5'>
-⚡ <b>Chế độ Ắc quy</b> — ESP32 đọc ADC chân GPIO.</div>
-<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px'>
-<div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
-<div style='font-size:11px;color:#6c757d;font-weight:bold'>⚡ TỨC THỜI</div>
-<div style='font-size:18px;font-weight:bold;color:#ff9800;margin-top:4px' id='aqRawV'>-- V</div>
-<div style='font-size:11px;color:#ff9800;margin-top:2px' id='aqSocRaw'>--%</div>
-</div>
-<div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
-<div style='font-size:11px;color:#6c757d;font-weight:bold'>📊 OCV (dùng cho SOC)</div>
-<div style='font-size:18px;font-weight:bold;color:#28a745;margin-top:4px' id='aqStableV'>-- V</div>
-<div style='font-size:11px;color:#28a745;margin-top:2px' id='aqSocStable'>--%</div>
-</div>
-</div>
-<div class='input-row'><label><strong>Loại bình:</strong></label>
+<div id='acquyConfigBox' style='display:none'>
+<div style='background:#fff3cd;padding:10px;border-radius:5px;font-size:12px;margin-bottom:10px'>⚡ Chế độ Ắc quy</div>
+<div class='input-row'><label>Loại bình:</label>
 <select id='battType' onchange='onBattTypeChange()'>
-<option value='0'>Ắc quy chì</option>
-<option value='1'>LFP (LiFePO4)</option>
-</select></div>
-<div id='leadOptions' style='display:block'>
-<div class='input-row'><label><strong>Số bình:</strong></label>
-<select id='battCells' onchange='updateBattInfo()'>
-<option value='1'>1 bình (12V)</option>
-<option value='2'>2 bình (24V)</option>
-<option value='3'>3 bình (36V)</option>
-<option value='4' selected>4 bình (48V)</option>
-<option value='5'>5 bình (60V)</option>
-<option value='6'>6 bình (72V)</option>
-</select></div>
-</div>
-<div id='lfpOptions' style='display:none'>
-<div class='input-row'><label><strong>Số cell:</strong></label>
-<input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo()'></div>
-</div>
-<div class='input-row'><label><strong>Điện trở R1 (kΩ):</strong></label>
-<input type='number' id='aqR1' step='0.1' placeholder='Vd: 100'></div>
-<div class='input-row'><label><strong>Điện trở R2 (kΩ):</strong></label>
-<input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7'></div>
-<div style='border-top:1px dashed #dee2e6;padding-top:10px;margin-top:10px'>
-<div style='font-size:12px;font-weight:bold;color:#007bff;margin-bottom:8px'>🎯 Hiệu chuẩn điện áp</div>
-<div class='input-row'><label><strong>Hệ số nhân:</strong></label>
-<input type='number' id='aqGain' step='0.0001' min='0.5' max='2' placeholder='1.0000'></div>
-<div class='input-row'><label><strong>Bù lệch (V):</strong></label>
-<input type='number' id='aqOffset' step='0.01' min='-5' max='5' placeholder='0.00'></div>
-<div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:5px;padding:10px;margin-bottom:10px'>
-<div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⚡ Hiệu chuẩn nhanh</div>
-<div class='input-row' style='margin:0 0 8px 0'>
-<label style='font-size:12px'><strong>V thực tế:</strong></label>
-<input type='number' id='calRefV' step='0.1' placeholder='Đo bằng VOM'></div>
-<button class='btn-warn' style='margin:0;font-size:13px;padding:8px' onclick='quickCalibrate()'>🎯 Tính Gain</button>
-<div id='calMsg' style='font-size:11px;margin-top:6px'></div>
-</div>
-</div>
+<option value='0'>Chì</option><option value='1'>LFP</option></select></div>
+<div class='input-row'><label>Số bình/cell:</label><input type='number' id='battCells' min='1' max='32' value='4'></div>
+<div class='input-row'><label>GPIO ADC:</label><input type='number' id='aqPin' min='0' max='39' value='32'></div>
+<div class='input-row'><label>R1 (kΩ):</label><input type='number' id='aqR1' step='0.1' value='100'></div>
+<div class='input-row'><label>R2 (kΩ):</label><input type='number' id='aqR2' step='0.1' value='4.7'></div>
+<div class='input-row'><label>Gain:</label><input type='number' id='aqGain' step='0.0001' value='1'></div>
+<div class='input-row'><label>Offset:</label><input type='number' id='aqOffset' step='0.01' value='0'></div>
+<button class='btn-warn' onclick='saveAcquyCfg()'>💾 Lưu thông số</button>
+
+<!-- ===== BẢNG OCV → SOC CHO ẮC QUY ===== -->
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
-<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
+<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC (Ắc quy)</div>
 <div style='font-size:10px;color:#6c757d' id='ocvDateInfo'>--</div>
 </div>
 <div class='ocv-tab'>
@@ -245,58 +160,24 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>
 </div>
 </div>
-<button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>
-<div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>
-<div style='font-size:13px;font-weight:bold;color:#004085;margin-bottom:8px'>📌 Chân ADC</div>
-<div class='input-row' style='margin:0'><label><strong>GPIO:</strong></label>
-<input type='number' id='aqPin' min='0' max='39' value='32'></div>
-</div>
+<!-- ===== HẾT BẢNG OCV ===== -->
+
 </div>
 </div></div>
 
 <div class='card accordion' id='accBms' style='border:2px solid #17a2b8'>
-<div class='acc-head' id='accBmsHead' style='color:#17a2b8;border-bottom:1px solid #e9ecef' onclick='toggleAcc("accBms")'>
-<span id='accBmsTitle'>🔋 Chi Tiết Điện Áp / BMS</span><span class='arrow'>▼</span>
+<div class='acc-head blue' onclick='toggleAcc("accBms")'>
+<span>🔋 Chi Tiết BMS</span><span class='arrow'>▼</span>
 </div>
 <div class='acc-body'>
-<div id='bms-name-box' style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:8px 12px;border-radius:5px;font-size:13px;margin:12px 0 8px 0'>
-📛 <b>Thiết bị:</b> <span id='bms-name-text'>--</span>
+<div>Thiết bị: <span id='bms-name-text'>--</span></div>
+<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0'>
+<div class='stat-box'><div>Điện áp tổng</div><div class='stat-val' id='bms-totalv'>-- V</div></div>
+<div class='stat-box'><div>Số cell</div><div class='stat-val' id='bms-cellcount'>--</div></div>
+<div class='stat-box'><div>Dòng</div><div class='stat-val' id='bms-current'>-- A</div></div>
+<div class='stat-box'><div>Công suất</div><div class='stat-val' id='bms-power'>-- W</div></div>
 </div>
-<div id='bms-empty' style='display:none;text-align:center;padding:20px;color:#888;font-size:13px'>📭 Chưa có dữ liệu chi tiết</div>
-<div id='bms-overview' style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0'>
-<div class='stat-box' id='bms-box-totalv'>
-<div>Điện áp tổng</div><div class='stat-val' id='bms-totalv'>-- V</div></div>
-<div class='stat-box' id='bms-box-cellcount'>
-<div>Số cell</div><div class='stat-val' id='bms-cellcount'>--</div></div>
-<div class='stat-box' id='bms-box-current'>
-<div>Dòng điện</div><div class='stat-val' id='bms-current'>-- A</div></div>
-<div class='stat-box' id='bms-box-power'>
-<div>Công suất</div><div class='stat-val' id='bms-power'>-- W</div></div>
-</div>
-<div id='bms-cellstats' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px;justify-content:space-around;font-size:13px'>
-<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MAX</div>
-<div id='bms-cellmax' style='color:#dc3545;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
-<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MIN</div>
-<div id='bms-cellmin' style='color:#28a745;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
-<div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CHÊNH LỆCH</div>
-<div id='bms-celldiff' style='color:#ff9800;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
-</div>
-<div id='bms-cells-wrap' style='display:none'>
-<div style='font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>📊 Điện áp từng cell</div>
 <div id='bms-cells-grid' style='display:grid;grid-template-columns:repeat(4,1fr);gap:5px'></div>
-</div>
-</div></div>
-
-<div class='card accordion' id='accTerm' style='border:2px solid #444'>
-<div class='acc-head dark' onclick='toggleAcc("accTerm")'>
-<span>💻 Terminal</span><span class='arrow'>▼</span>
-</div>
-<div class='acc-body'>
-<div style='display:flex;gap:8px;margin:12px 0 8px 0'>
-<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='clearTerm()'>Xóa</button>
-<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='toggleTermPause()' id='termBtn'>Tạm dừng</button>
-</div>
-<div id='terminal' style='background:#1e1e1e;color:#0f0;padding:10px;border-radius:5px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:250px;overflow-y:auto'>-- Chờ BLE --&#10;</div>
 </div></div>
 
 <div class='card accordion' id='accOutput' style='border:2px solid #28a745'>
@@ -305,57 +186,86 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 <div class='acc-body'>
 <div style='text-align:center;font-size:20px;font-weight:bold;color:#28a745;margin-top:12px' id='vol-text'>0.000 V</div>
-<div style='text-align:center;font-size:12px;color:#6c757d;margin-top:4px'>Chip: <span id='chip-name'>--</span></div>
-<div style='margin-top:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef'>
-<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>
-<label style='margin:0;font-size:13px'><strong>🎚️ Giả lập % pin:</strong></label>
-<span id='slider-val' style='font-size:16px;font-weight:bold;color:#ff9800'>50%</span>
+<div style='margin-top:14px;padding:12px;background:#f8f9fa;border-radius:8px'>
+<div style='display:flex;justify-content:space-between'>
+<label><strong>🎚️ Giả lập SOC:</strong></label>
+<span id='slider-val' style='font-weight:bold;color:#ff9800'>50%</span>
 </div>
 <input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)'>
 <button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>
 </div>
-<div id='vmapBox' style='margin-top:15px'>
+
+<!-- ===== BẢNG ĐIỆN ÁP THEO % ===== -->
+<div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>
+<label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>
+<button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;flex-shrink:0'>🔄 Cập nhật</button>
+</div>
+
+<div id='vmapBox'>
 <div class='sub-tabs'>
 <div class='sub-tab active' id='subTabPreset' onclick='switchSubTab("preset")'>⚡ Có sẵn</div>
 <div class='sub-tab' id='subTabManual' onclick='switchSubTab("manual")'>✏️ Thủ công</div>
 </div>
 <div id='subPreset'>
+<div id='presetUpdatedBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:6px 10px;border-radius:5px;font-size:11px;margin-bottom:8px'>
+📅 Cập nhật: <b><span id='presetUpdatedText'>--</span></b></div>
 <div id='presetList'></div>
+<div id='presetListMsg' style='font-size:11px;color:#6c757d;text-align:center;margin-top:8px;display:none'></div>
 </div>
 <div id='subManual' style='display:none'>
-<div class='vmap-head'><span class='h1'>Từ %</span><span class='h2'></span><span class='h3'>Đến %</span><span class='h4'>Điện áp (V)</span><span class='h5'></span></div>
+<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px'>
+<span style='width:52px;text-align:center'>Từ %</span><span style='width:14px'></span>
+<span style='width:52px;text-align:center'>Đến %</span>
+<span style='width:72px;text-align:center'>V</span><span style='width:34px'></span>
+</div>
 <div id='vmapList'></div>
 <button onclick='addVmapRow()' style='background:#17a2b8;margin-top:8px'>+ Thêm dải</button>
 <button class='btn-success' onclick='saveVmap()'>Lưu bảng</button>
 </div>
 </div>
-<div class='mode-tabs' style='margin-top:16px'>
+<hr>
+
+<div class='mode-tabs' style='margin-top:5px'>
 <div class='mode-tab' id='tabDac' onclick='selectMode(0)'>DAC</div>
 <div class='mode-tab active' id='tabPwm' onclick='selectMode(1)'>PWM</div></div>
 <div id='dacCfg' style='display:none'>
-<div class='input-row'><label><strong>Chân DAC:</strong></label><select id='dacPinSel'>
-<option value='25'>GPIO 25</option><option value='26'>GPIO 26</option>
-</select></div></div>
+<div class='input-row'><label>Chân DAC:</label><select id='dacPinSel'>
+<option value='25'>GPIO 25</option><option value='26'>GPIO 26</option></select></div></div>
 <div id='pwmCfg'>
-<div class='input-row'><label><strong>Chân PWM:</strong></label><input type='number' id='pwmPinIn' value='14'></div>
-<div class='input-row'><label><strong>Tần số:</strong></label><input type='number' id='pwmFreqIn' value='5000'></div>
-<div class='input-row'><label><strong>Độ phân giải:</strong></label><select id='pwmResIn'>
+<div class='input-row'><label>Chân PWM:</label><input type='number' id='pwmPinIn' value='14'></div>
+<div class='input-row'><label>Tần số:</label><input type='number' id='pwmFreqIn' value='5000'></div>
+<div class='input-row'><label>Độ phân giải:</label><select id='pwmResIn'>
 <option value='8'>8-bit</option><option value='10' selected>10-bit</option><option value='12'>12-bit</option>
 </select></div></div>
 <button class='btn-warn' style='margin-top:12px' onclick='saveOutput()'>Lưu Output</button>
 <div style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'>Hiện tại: <span id='out-current'>--</span></div>
 </div></div>
 
+<!-- ===== OTA ONLINE + LOCAL ===== -->
 <div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
 <div class='acc-head red' onclick='toggleAcc("accOta")'>
-<span>⬆️ Cập nhật Firmware (BLE OTA)</span><span class='arrow'>▼</span>
+<span>⬆️ Cập nhật Firmware</span><span class='arrow'>▼</span>
 </div>
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
-<div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.1</div>
+<div><strong>📌 Firmware hiện tại</strong></div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-top:4px'>v5.2</div>
 </div>
-<div id='otaLocalBox' style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
+
+<div class='ota-box'>
+<div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (từ GitHub)</div>
+<button style='margin:0;background:#ff9800' onclick='checkUpdate()'>🔍 Kiểm tra phiên bản</button>
+<div id='updateInfoBox' class='ota-info'>
+<div style='font-size:13px;color:#e65100;font-weight:bold'>🆕 <span id='newVersionText'>--</span></div>
+<div style='font-size:11px;color:#6c757d;margin:6px 0'>📅 <span id='newDateText'>--</span></div>
+<div style='font-size:12px;background:#f8f9fa;padding:8px;border-radius:5px;margin-bottom:10px;line-height:1.5' id='notesText'>--</div>
+<button class='btn-danger' onclick='otaOnline()'>🚀 Nạp Firmware Online</button>
+</div>
+<div id='onlineMsg' style='font-size:12px;margin-top:8px'></div>
+<div class='battery-bg' style='margin-top:10px'><div id='onlineProgress' class='battery-bar' style='width:0%;background:#ff9800'></div></div>
+</div>
+
+<div style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
 <input type='file' id='fwFile' accept='.bin' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box'>
 <button class='btn-danger' style='margin-top:10px' onclick='bleOtaFile()'>🚀 Nạp qua BLE</button>
@@ -366,7 +276,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE SHIM v5.1
+// BLE SHIM v5.2
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -375,11 +285,15 @@ const BLE_OTA_SVC='0000ff00-0000-1000-8000-00805f9b34fb';
 const BLE_OTA_RX='0000ff01-0000-1000-8000-00805f9b34fb';
 const BLE_OTA_TX='0000ff02-0000-1000-8000-00805f9b34fb';
 
+const GITHUB_BASE='https://bjendaik.github.io/hienthipin/';
+const URL_DATA=GITHUB_BASE+'data.json';
+const URL_UPDATE=GITHUB_BASE+'update.json';
+
 let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
 let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
-let bleLastStatus=null, bleLastAck=null, bleOtaAckResolve=null;
+let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
-let currentMode=1, isManualSim=false, activePresetName='', ocvTab='lead';
+let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 
 function bleDbg(msg, cls){
   console.log('[BLE]', msg);
@@ -396,24 +310,18 @@ function bleDbg(msg, cls){
 function bleUpdateUI(){
   const st=document.getElementById('bleStatus');
   const btn=document.getElementById('bleConnBtn');
-  if(!st||!btn) return;
   if(bleConnected){
     st.innerHTML='🟢 Đã kết nối (RX:'+bleNotifyCount+')';
     st.style.color='#28a745';
-    btn.innerText='Ngắt';
-    btn.style.background='#dc3545';
+    btn.innerText='Ngắt'; btn.style.background='#dc3545';
   } else {
     st.innerHTML='🔵 Chưa kết nối BLE';
     st.style.color='#6c757d';
-    btn.innerText='Kết nối';
-    btn.style.background='#17a2b8';
+    btn.innerText='Kết nối'; btn.style.background='#17a2b8';
   }
 }
 
-async function bleToggle(){
-  if(bleConnected){ bleDisconnect(); return; }
-  await bleConnect();
-}
+async function bleToggle(){ if(bleConnected){ bleDisconnect(); return; } await bleConnect(); }
 
 async function bleConnect(){
   try{
@@ -423,28 +331,21 @@ async function bleConnect(){
       filters:[{services:[BLE_SERVICE]}],
       optionalServices:[BLE_SERVICE, BLE_OTA_SVC]
     });
-    bleDbg('Device: '+(bleDevice.name||bleDevice.id));
     bleDevice.addEventListener('gattserverdisconnected', ()=>{
       bleDbg('⚠️ GATT disconnected','err');
       bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
       bleUpdateUI();
     });
-    bleDbg('Connecting GATT...');
     const server=await bleDevice.gatt.connect();
     bleDbg('✅ GATT connected');
     const svc=await server.getPrimaryService(BLE_SERVICE);
-    bleDbg('✅ Service OK');
-    bleDbg('Getting TX...');
     bleTx=await svc.getCharacteristic(BLE_TX_CHAR);
-    bleDbg('✅ TX: '+bleTx.uuid);
-    bleDbg('Starting notifications...');
     await bleTx.startNotifications();
     bleTx.addEventListener('characteristicvaluechanged', bleOnNotify);
     bleDbg('✅ Notifications ON');
     await new Promise(r => setTimeout(r, 500));
-    bleDbg('Getting RX...');
     bleRx=await svc.getCharacteristic(BLE_RX_CHAR);
-    bleDbg('✅ RX: '+bleRx.uuid);
+    bleDbg('✅ RX ready');
     try{
       const osvc=await server.getPrimaryService(BLE_OTA_SVC);
       bleOtaRx=await osvc.getCharacteristic(BLE_OTA_RX);
@@ -455,7 +356,6 @@ async function bleConnect(){
     }catch(e){ bleDbg('⚠️ No OTA: '+e.message,'err'); }
     bleConnected=true; bleNotifyCount=0;
     bleUpdateUI();
-    bleDbg('🚀 Sending HELLO...');
     await bleSend('HELLO');
   }catch(e){
     bleDbg('❌ '+e.message,'err');
@@ -474,44 +374,36 @@ function bleDisconnect(){
 async function bleSend(cmd){
   if(!bleRx){ bleDbg('❌ bleRx null: '+cmd,'err'); return false; }
   try{
-    const data=new TextEncoder().encode(cmd+'\n');
-    await bleRx.writeValue(data);
+    await bleRx.writeValue(new TextEncoder().encode(cmd+'\n'));
     bleDbg('TX: '+cmd,'tx');
     return true;
   }catch(e){
     bleDbg('❌ TX: '+e.message,'err');
-    try{
-      await bleRx.writeValueWithoutResponse(new TextEncoder().encode(cmd+'\n'));
-      bleDbg('TX (noresp): '+cmd,'tx');
-      return true;
-    }catch(e2){ return false; }
+    try{ await bleRx.writeValueWithoutResponse(new TextEncoder().encode(cmd+'\n')); return true; }
+    catch(e2){ return false; }
   }
 }
 
 function bleOnNotify(ev){
   if(!ev.target.value) return;
   bleNotifyCount++;
-  const text=new TextDecoder().decode(ev.target.value);
-  bleRxBuf += text;
-  bleDbg('RX chunk ('+text.length+'b, buf='+bleRxBuf.length+')','rx');
+  bleRxBuf += new TextDecoder().decode(ev.target.value);
   let idx;
   while((idx=bleRxBuf.indexOf('\n'))>=0){
     const line=bleRxBuf.substring(0,idx).trim();
     bleRxBuf=bleRxBuf.substring(idx+1);
-    if(line){ bleDbg('RX line: '+line.substring(0,100),'rx'); bleHandleLine(line); }
+    if(line) bleHandleLine(line);
   }
 }
 
 function bleHandleLine(line){
   let obj=null;
-  try{ obj=JSON.parse(line); }catch(e){ bleDbg('Non-JSON: '+line.substring(0,60),'err'); return; }
-  bleDbg('JSON t='+obj.t,'rx');
+  try{ obj=JSON.parse(line); }catch(e){ return; }
   if(obj.t==='status'){ bleLastStatus=obj; bleLastStatus._ts=Date.now(); resolvePending('status',obj); }
-  else if(obj.t==='ack'){ bleLastAck=obj; resolvePending('ack',obj); }
+  else if(obj.t==='ack'){ resolvePending('ack',obj); }
   else if(obj.t==='err'){ resolvePending('err',obj); }
   else if(obj.t==='scan'){ resolvePending('scan',obj); }
   else if(obj.t==='ocv'){ resolvePending('ocv',obj); }
-  else if(obj.t==='log'){ appendTerminal(obj.msg+'\n'); }
 }
 
 function bleOnOtaNotify(ev){
@@ -563,11 +455,8 @@ window.fetch = async function(url, opts){
       if(q.has('real')){ await bleSend('REAL'); await bleWaitFor('ack',2000).catch(()=>{}); return textResponse('OK'); }
     }
     if(path==='/scan'){
-      bleDbg('→ SCAN request','info');
       await bleSend('SCAN');
-      bleDbg('Waiting scan (15s)...','info');
       const obj=await bleWaitFor('scan', 15000);
-      bleDbg('✅ Scan: '+(obj.list||[]).length+' BMS','info');
       const list=obj.list||[];
       if(list.length===0) return htmlResponse("<li style='color:#888;'>Không tìm thấy BMS.</li>");
       let html='';
@@ -580,10 +469,8 @@ window.fetch = async function(url, opts){
     }
     if(path==='/save'){
       const mac=q.get('mac')||'', name=q.get('name')||'';
-      bleDbg('→ SAVE_MAC: '+mac+' | '+name,'info');
       await bleSend('SAVE_MAC:'+mac+'|'+name);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      bleDbg('→ SAVE_MAC ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/clearmac'){ await bleSend('CLEAR_MAC'); await bleWaitFor('ack',3000).catch(()=>{}); return textResponse('OK'); }
@@ -595,21 +482,15 @@ window.fetch = async function(url, opts){
     if(path==='/saveacquycfg'){
       const p=q.get('pin')||32, r1=q.get('r1')||100, r2=q.get('r2')||4.7;
       const g=q.get('gain')||1, o=q.get('offset')||0, bt=q.get('btype')||0, c=q.get('cells')||4;
-      const cmd=`SAVE_ACQ:${p},${r1},${r2},${g},${o},${bt},${c}`;
-      bleDbg('→ '+cmd,'info');
-      await bleSend(cmd);
+      await bleSend(`SAVE_ACQ:${p},${r1},${r2},${g},${o},${bt},${c}`);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      bleDbg('→ SAVE_ACQ ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/saveout'){
       const m=q.get('mode')||1, p=q.get('pwmpin')||q.get('dacpin')||14;
       const f=q.get('freq')||5000, r=q.get('res')||10;
-      const cmd=`SAVE_OUT:${m},${p},${f},${r}`;
-      bleDbg('→ '+cmd,'info');
-      await bleSend(cmd);
+      await bleSend(`SAVE_OUT:${m},${p},${f},${r}`);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      bleDbg('→ SAVE_OUT ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/savevmap'){
@@ -635,13 +516,6 @@ window.fetch = async function(url, opts){
       return jsonResponse({date:obj.date||'', leadN:(obj.lead||[]).length, lfpN:(obj.lfp||[]).length, lead:obj.lead||[], lfp:obj.lfp||[]});
     }
     if(path==='/setlogmodules'){ await bleSend('SET_LOG:'+(q.get('mask')||255)); return textResponse('OK'); }
-    if(path==='/presets') return jsonResponse([]);
-    if(path==='/fetchpresets') return textResponse('OK|0|');
-    if(path==='/fetchacquyjson') return textResponse('OK|0|0|BLE');
-    if(path==='/checkupdate') return textResponse('LATEST:5.1');
-    if(path==='/savefwinfo'||path==='/saveautoupdate') return textResponse('OK');
-    if(path==='/wifiscan') return htmlResponse("<li style='color:#888'>WiFi không hỗ trợ</li>");
-    if(path==='/serial') return textResponse('');
     return textResponse('OK');
   }catch(e){
     bleDbg('fetch '+path+': '+e.message,'err');
@@ -688,24 +562,19 @@ function enrich(o){
   o.mac=o.mac||''; o.bmsName=o.bmsName||'';
   o.needAutoConnect=false;
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
-  o.jkVer=o.jkVer||0; o.vmap=o.vmap||[];
-  o.staEnabled=false; o.staConnected=false;
-  o.apTimeout=0; o.apSSID=''; o.apPass=''; o.apCfgOpen=false;
-  o.logMask=o.logMask||255;
-  o.presetUpdated=''; o.presetInfoLoaded=true;
-  o.activePresetName=o.activePresetName||'';
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.1';
-  o.fwDate=''; o.fwNotes='';
-  o.autoUpdate=false; o.autoUpdateDone=true; o.apActive=false;
+  o.jkVer=o.jkVer||0;
+  o.vmap=Array.isArray(o.vmap)?o.vmap:[];
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.2';
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
 function jsonResponse(o){ return new Response(JSON.stringify(o),{headers:{'Content-Type':'application/json'}}); }
 function textResponse(t){ return new Response(t,{headers:{'Content-Type':'text/plain'}}); }
 function htmlResponse(h){ return new Response(h,{headers:{'Content-Type':'text/html'}}); }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ================================================================
-// UI LOGIC
+// UI
 // ================================================================
 function toggleAcc(id){
   let el=document.getElementById(id);
@@ -734,13 +603,6 @@ function applyModeUI(isAcquy){
   document.getElementById('bmsScanArea').style.display=isAcquy?'none':'block';
 }
 
-function switchMacTab(which){
-  let ts=document.getElementById('subTabScan'), tm=document.getElementById('subTabManualMac');
-  let cs=document.getElementById('macSubScan'), cm=document.getElementById('macSubManual');
-  if(which==='scan'){ts.classList.add('active');tm.classList.remove('active');cs.style.display='block';cm.style.display='none';}
-  else{tm.classList.add('active');ts.classList.remove('active');cm.style.display='block';cs.style.display='none';}
-}
-
 function switchSubTab(which){
   let tp=document.getElementById('subTabPreset'), tm=document.getElementById('subTabManual');
   let cp=document.getElementById('subPreset'), cm=document.getElementById('subManual');
@@ -766,7 +628,6 @@ function saveOutput(){
   }
   bleDbg('→ SAVE_OUT: '+p,'info');
   fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
-    bleDbg('→ SAVE_OUT result: '+t,'info');
     if(t==='OK'){alert('Đã lưu Output!');updateData();}
     else alert('Lỗi: '+t);
   }).catch(e=>alert('Timeout'));
@@ -781,8 +642,6 @@ function updateData(){
     else{s.innerText='Đang tìm BMS...';s.style.color='red';}
     document.getElementById('scan-mode').innerText=bleConnected?'BLE đã kết nối':'BLE chưa kết nối';
     document.getElementById('scan-mode').style.color=bleConnected?'#28a745':'#dc3545';
-    document.getElementById('led-mode').innerText='Sáng';
-    document.getElementById('led-mode').style.color='#28a745';
     document.getElementById('soc-text').innerText=d.soc+'%';
     document.getElementById('soc-bar').style.width=d.soc+'%';
     let b=document.getElementById('soc-badge'), w=document.getElementById('soc-warning');
@@ -790,9 +649,7 @@ function updateData(){
     else if(d.acquyMode){b.innerText='ẮC QUY';b.style.background='#17a2b8';w.style.display='none';}
     else if(!d.connected){b.innerText='CŨ('+d.savedSoc+'%)';b.style.background='#6c757d';w.style.display='block';w.innerText='Mất kết nối - SOC cũ';}
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
-    document.getElementById('chip-name').innerText=d.chipName;
-    
-    // ★ OUT config
+    document.getElementById('chip-name');
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
@@ -805,26 +662,19 @@ function updateData(){
       if(d.pwmFreq !== undefined) document.getElementById('pwmFreqIn').value = d.pwmFreq;
       if(d.pwmRes !== undefined) document.getElementById('pwmResIn').value = d.pwmRes;
     }
-    
-    // ★ ACQ config
     if(d.battType !== undefined){
       document.getElementById('battType').value = d.battType;
-      document.getElementById('leadOptions').style.display = (d.battType === 0) ? 'block' : 'none';
-      document.getElementById('lfpOptions').style.display = (d.battType === 1) ? 'block' : 'none';
+      document.getElementById('leadOptions') && (document.getElementById('leadOptions').style.display = (d.battType === 0) ? 'block' : 'none');
     }
-    if(d.battCells !== undefined){
-      if(d.battType === 0) document.getElementById('battCells').value = d.battCells;
-      else document.getElementById('battCellsInput').value = d.battCells;
-    }
+    if(d.battCells !== undefined) document.getElementById('battCells').value = d.battCells;
     if(d.aqPin !== undefined) document.getElementById('aqPin').value = d.aqPin;
     if(d.aqR1 !== undefined) document.getElementById('aqR1').value = d.aqR1;
     if(d.aqR2 !== undefined) document.getElementById('aqR2').value = d.aqR2;
     if(d.aqGain !== undefined) document.getElementById('aqGain').value = d.aqGain;
     if(d.aqOffset !== undefined) document.getElementById('aqOffset').value = d.aqOffset;
     
-    isManualSim=d.manualSim;
     let rb=document.getElementById('realBtn');
-    if(isManualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
+    if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
@@ -835,10 +685,10 @@ function updateData(){
       applyModeUI(d.acquyMode);
     }
     if(d.acquyMode){
-      document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
-      document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
-      document.getElementById('aqStableV').innerText=(d.aqOcvEst||0).toFixed(2)+' V';
-      document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%';
+      document.getElementById('aqRawV') && (document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V');
+      document.getElementById('aqSocRaw') && (document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%');
+      document.getElementById('aqStableV') && (document.getElementById('aqStableV').innerText=(d.aqOcvEst||0).toFixed(2)+' V');
+      document.getElementById('aqSocStable') && (document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%');
     }
     let bmsNameEl=document.getElementById('bms-name-text');
     if(d.acquyMode){bmsNameEl.innerText='Chế độ Ắc quy';bmsNameEl.style.color='#17a2b8';}
@@ -849,31 +699,16 @@ function updateData(){
     document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';
     document.getElementById('bms-cellcount').innerText=d.cellCount||0;
     let grid=document.getElementById('bms-cells-grid');
-    let vc=0,maxV=-1,minV=999,mi=0,ni=0;
     let html='';
     for(let i=0;i<16;i++){
       let v=(d.cells&&d.cells[i])||0;
-      if(v>0.5){vc++;if(v>maxV){maxV=v;mi=i}if(v<minV){minV=v;ni=i}}
-    }
-    for(let i=0;i<16;i++){
-      let v=(d.cells&&d.cells[i])||0;
       if(v>0.5){
-        let color='#333',bg='#f8f9fa';
-        if(i===mi){color='#fff';bg='#dc3545';}else if(i===ni){color='#fff';bg='#28a745';}
-        html+='<div style="background:'+bg+';color:'+color+';padding:6px;text-align:center;border-radius:5px;border:1px solid #dee2e6">';
-        html+='<div style="font-size:10px">C'+(i+1)+'</div>';
+        html+='<div style="background:#f8f9fa;border:1px solid #dee2e6;padding:6px;text-align:center;border-radius:5px">';
+        html+='<div style="font-size:10px;color:#999">C'+(i+1)+'</div>';
         html+='<div style="font-size:13px;font-weight:bold">'+v.toFixed(3)+'</div></div>';
       }
     }
     grid.innerHTML=html;
-    document.getElementById('bms-cells-wrap').style.display=vc>0?'block':'none';
-    let stats=document.getElementById('bms-cellstats');
-    if(vc>0){
-      stats.style.display='flex';
-      document.getElementById('bms-cellmax').innerText=maxV.toFixed(3)+'V';
-      document.getElementById('bms-cellmin').innerText=minV.toFixed(3)+'V';
-      document.getElementById('bms-celldiff').innerText=((maxV-minV)*1000).toFixed(0)+' mV';
-    } else stats.style.display='none';
   }).catch(e=>{});
 }
 
@@ -885,11 +720,7 @@ function sendSim(v){
 }
 function setRealSoc(){ fetch('/sim?real=1'); }
 
-function onBattTypeChange(){
-  let t=parseInt(document.getElementById('battType').value);
-  document.getElementById('leadOptions').style.display=(t===0)?'block':'none';
-  document.getElementById('lfpOptions').style.display=(t===1)?'block':'none';
-}
+function onBattTypeChange(){}
 function updateBattInfo(){}
 
 function saveAcquyCfg(){
@@ -899,32 +730,15 @@ function saveAcquyCfg(){
   p+='&gain='+document.getElementById('aqGain').value;
   p+='&offset='+document.getElementById('aqOffset').value;
   p+='&btype='+document.getElementById('battType').value;
-  let t=parseInt(document.getElementById('battType').value);
-  p+='&cells='+(t===0?document.getElementById('battCells').value:document.getElementById('battCellsInput').value);
+  p+='&cells='+document.getElementById('battCells').value;
   bleDbg('→ SAVE_ACQ: '+p,'info');
   fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{
-    bleDbg('→ SAVE_ACQ result: '+t,'info');
     if(t==='OK'){alert('Đã lưu cấu hình Ắc quy!');updateData();}
     else alert('Lỗi: '+t);
   }).catch(e=>alert('Timeout'));
 }
 
-function quickCalibrate(){
-  let vRef=parseFloat(document.getElementById('calRefV').value);
-  let msg=document.getElementById('calMsg');
-  if(!vRef||vRef<1){msg.innerText='❌ Nhập V thực > 1V';msg.style.color='#dc3545';return;}
-  fetch('/data').then(r=>r.json()).then(d=>{
-    let vMeas=d.aqRawV||0;
-    if(vMeas<1){msg.innerText='❌ Chưa đọc được ADC';msg.style.color='#dc3545';return;}
-    let g=parseFloat(document.getElementById('aqGain').value)||1;
-    let off=parseFloat(document.getElementById('aqOffset').value)||0;
-    let gNew=(vRef-off)/((vMeas-off)/g);
-    if(gNew<0.5||gNew>2){msg.innerText='❌ Ngoài phạm vi';msg.style.color='#dc3545';return;}
-    document.getElementById('aqGain').value=gNew.toFixed(4);
-    msg.innerText='✅ Gain: '+gNew.toFixed(4);msg.style.color='#28a745';
-  });
-}
-
+// ============ BẢNG OCV ============
 function switchOcvTab(t){
   ocvTab=t;
   document.getElementById('ocvTabLead').className=(t==='lead'?'active':'');
@@ -978,10 +792,103 @@ function saveOcvManual(){
   });
 }
 
+// ============ BẢNG ĐIỆN ÁP ============
+function addVmapRow(s,e,v){
+  let list=document.getElementById('vmapList');
+  let row=document.createElement('div');row.className='vmap-row';
+  row.innerHTML="<input class='pct' type='number' value='"+(s||0)+"'>"
+  +"<span style='width:14px'>→</span>"
+  +"<input class='pct' type='number' value='"+(e||100)+"'>"
+  +"<input class='volt' type='number' step='0.01' value='"+(v||0)+"'>"
+  +"<button onclick='this.parentNode.remove()'>✕</button>";
+  list.appendChild(row);
+}
+function saveVmap(){
+  let rows=document.querySelectorAll('#vmapList .vmap-row');
+  let p='count='+rows.length;
+  for(let i=0;i<rows.length;i++){
+    let inp=rows[i].querySelectorAll('input');
+    p+='&e'+i+'s='+inp[0].value+'&e'+i+'e='+inp[1].value+'&e'+i+'v='+inp[2].value;
+  }
+  fetch('/savevmap?'+p).then(r=>r.text()).then(t=>{if(t==='OK')alert('Đã lưu!');});
+}
+
+// ============ PRESET từ GitHub ============
+async function fetchPresets(){
+  const msg=document.getElementById('presetListMsg');
+  const box=document.getElementById('presetList');
+  if(!navigator.onLine){ 
+    if(msg){msg.style.display='block';msg.innerText='❌ Không có internet';msg.style.color='#dc3545';}
+    return;
+  }
+  if(box) box.innerHTML='<div style="text-align:center;padding:15px;color:#6c757d;font-size:13px">⏳ Đang tải...</div>';
+  if(msg){msg.style.display='block';msg.innerText='⏳ Đang tải từ GitHub...';msg.style.color='#6c757d';}
+  
+  try{
+    bleDbg('→ Fetch '+URL_DATA,'info');
+    const r=await fetch(URL_DATA+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    cachedPresets=j.presets||[];
+    bleDbg('✅ Loaded '+cachedPresets.length+' presets','info');
+    
+    if(cachedPresets.length===0){
+      if(box) box.innerHTML='<div style="text-align:center;padding:15px;color:#888;font-size:13px">Không có preset</div>';
+      if(msg){msg.innerText='⚠️ File rỗng';msg.style.color='#ff9800';}
+      return;
+    }
+    
+    if(box) box.innerHTML='';
+    for(let i=0;i<cachedPresets.length;i++){
+      const p=cachedPresets[i];
+      const btn=document.createElement('button');
+      btn.className='preset-btn';
+      btn.innerHTML='<div class="p-title">'+escapeHtml(p.name||('Preset '+(i+1)))+'</div>'+
+        (p.subtitle?'<div class="p-sub">'+escapeHtml(p.subtitle)+'</div>':'')+
+        (p.ranges?'<div class="p-ranges">'+escapeHtml(p.ranges)+'</div>':'');
+      btn.onclick=(function(idx){return function(){applyPreset(idx);};})(i);
+      box.appendChild(btn);
+    }
+    
+    if(j.date){
+      const ub=document.getElementById('presetUpdatedBox');
+      const ut=document.getElementById('presetUpdatedText');
+      if(ub&&ut){ub.style.display='block';ut.innerText=j.date;}
+    }
+    
+    if(msg){msg.innerText='✅ Đã tải '+cachedPresets.length+' preset';msg.style.color='#28a745';}
+  }catch(e){
+    bleDbg('❌ '+e.message,'err');
+    if(box) box.innerHTML='<div style="text-align:center;padding:15px;color:#dc3545;font-size:13px">❌ Tải thất bại</div>';
+    if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
+  }
+}
+
+async function applyPreset(id){
+  if(!cachedPresets||!cachedPresets[id]){alert('Preset không tồn tại');return;}
+  const p=cachedPresets[id];
+  if(!p.entries||p.entries.length===0){alert('Preset rỗng');return;}
+  if(!confirm('Áp dụng preset "'+(p.name||id)+'"?\n'+p.entries.length+' dải sẽ được ghi vào ESP32.'))return;
+  
+  let cmd='SET_VMAP:'+p.entries.length;
+  p.entries.forEach(e=>{ cmd+=';'+e.s+','+e.e+','+e.v.toFixed(3); });
+  
+  bleDbg('→ '+cmd,'info');
+  await bleSend(cmd);
+  const ack=await bleWaitFor('ack',5000).catch(()=>null);
+  if(ack){
+    alert('✅ Đã áp dụng: '+(p.name||id));
+    updateData();
+  } else {
+    alert('❌ Timeout');
+  }
+}
+
+// ============ SCAN ============
 function scan(){
   let s=document.getElementById('status'),r=document.getElementById('results');
   if(!bleConnected){s.innerText='❌ Chưa kết nối BLE';return;}
-  s.innerText='⏳ Đang quét (4 giây)...';r.innerHTML='';
+  s.innerText='⏳ Đang quét...';r.innerHTML='';
   fetch('/scan').then(x=>x.text()).then(h=>{
     s.innerText='';
     if(h.length<10)r.innerHTML='<li>Không có kết quả</li>';
@@ -1004,11 +911,10 @@ function saveManualMac(){
   let el=document.getElementById('manualMac');
   let msg=document.getElementById('manualMacMsg');
   let mac=el.value.trim().toUpperCase();
-  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)){msg.innerText='MAC không hợp lệ';msg.style.color='#dc3545';return;}
-  msg.innerText='Đang lưu...';msg.style.color='#007bff';
+  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)){alert('MAC không hợp lệ');return;}
   fetch('/save?mac='+mac).then(r=>r.text()).then(t=>{
-    if(t==='OK'){msg.innerText='✅ '+mac;msg.style.color='#28a745';}
-    else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}
+    if(t==='OK'){alert('✅ Đã lưu '+mac);updateData();}
+    else alert('❌ '+t);
   });
 }
 
@@ -1023,36 +929,89 @@ function clearMac(){
   });
 }
 
-let terminalData='',termPaused=false;
-function appendTerminal(t){
-  if(termPaused)return;
-  terminalData+=t;
-  if(terminalData.length>8000)terminalData=terminalData.slice(-8000);
-  let e=document.getElementById('terminal');
-  if(e){e.innerText=terminalData;e.scrollTop=e.scrollHeight;}
-}
-function clearTerm(){terminalData='';document.getElementById('terminal').innerText='';}
-function toggleTermPause(){termPaused=!termPaused;
-  document.getElementById('termBtn').innerText=termPaused?'Tiếp tục':'Tạm dừng';}
+// ============ OTA ONLINE ============
+let remoteUpdateInfo=null;
 
-function addVmapRow(s,e,v){
-  let list=document.getElementById('vmapList');
-  let row=document.createElement('div');row.className='vmap-row';
-  row.innerHTML="<input class='pct' type='number' value='"+(s||0)+"'>"
-  +"<span style='width:14px'>→</span>"
-  +"<input class='pct' type='number' value='"+(e||100)+"'>"
-  +"<input class='volt' type='number' step='0.01' value='"+(v||0)+"'>"
-  +"<button onclick='this.parentNode.remove()'>✕</button>";
-  list.appendChild(row);
-}
-function saveVmap(){
-  let rows=document.querySelectorAll('#vmapList .vmap-row');
-  let p='count='+rows.length;
-  for(let i=0;i<rows.length;i++){
-    let inp=rows[i].querySelectorAll('input');
-    p+='&e'+i+'s='+inp[0].value+'&e'+i+'e='+inp[1].value+'&e'+i+'v='+inp[2].value;
+async function checkUpdate(){
+  const msg=document.getElementById('onlineMsg');
+  const box=document.getElementById('updateInfoBox');
+  if(!navigator.onLine){
+    if(msg){msg.innerText='❌ Không có internet';msg.style.color='#dc3545';}
+    return;
   }
-  fetch('/savevmap?'+p).then(r=>r.text()).then(t=>{if(t==='OK')alert('Đã lưu!');});
+  if(msg){msg.innerText='🔍 Đang kiểm tra...';msg.style.color='#007bff';}
+  if(box) box.style.display='none';
+  
+  try{
+    bleDbg('→ Fetch '+URL_UPDATE,'info');
+    const r=await fetch(URL_UPDATE+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    remoteUpdateInfo=j;
+    bleDbg('✅ update.json: v'+j.version,'info');
+    
+    const curVer='5.2';
+    const isNewer=(j.version && j.version !== curVer);
+    
+    if(!isNewer){
+      if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
+      return;
+    }
+    
+    if(msg){msg.innerText='🆕 Có bản mới v'+j.version;msg.style.color='#e65100';}
+    document.getElementById('newVersionText').innerText='Phiên bản v'+j.version;
+    document.getElementById('newDateText').innerText=j.date||'--';
+    document.getElementById('notesText').innerText=(j.notes||'(không có mô tả)').replace(/\\n/g,'\n');
+    if(box) box.style.display='block';
+  }catch(e){
+    bleDbg('❌ '+e.message,'err');
+    if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
+  }
+}
+
+async function otaOnline(){
+  if(!bleConnected){ alert('Chưa kết nối BLE'); return; }
+  if(!remoteUpdateInfo || !remoteUpdateInfo.url){
+    alert('Bấm "Kiểm tra phiên bản" trước'); return;
+  }
+  if(!confirm('Nạp firmware v'+remoteUpdateInfo.version+' từ GitHub?'))return;
+  
+  const msg=document.getElementById('onlineMsg');
+  const bar=document.getElementById('onlineProgress');
+  
+  try{
+    if(msg){msg.innerText='⏳ Đang tải firmware...';msg.style.color='#007bff';}
+    if(bar) bar.style.width='0%';
+    
+    bleDbg('→ Download '+remoteUpdateInfo.url,'info');
+    const r=await fetch(remoteUpdateInfo.url+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const buf=await r.arrayBuffer();
+    const total=buf.byteLength;
+    bleDbg('✅ Downloaded '+total+' bytes','info');
+    
+    if(!bleOtaRx){ alert('OTA service không khả dụng'); return; }
+    
+    if(msg){msg.innerText='⏳ Đang nạp ('+(total/1024).toFixed(0)+' KB)...';msg.style.color='#007bff';}
+    
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
+    let off=0;
+    const CHUNK=180;
+    while(off<total){
+      const end=Math.min(off+CHUNK,total);
+      await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
+      off=end;
+      const pct=Math.round(off/total*100);
+      if(bar) bar.style.width=pct+'%';
+      if(msg) msg.innerText='Đang nạp '+pct+'%';
+    }
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
+    if(msg){msg.innerText='✅ Xong! ESP32 restart...';msg.style.color='#28a745';}
+    setTimeout(()=>{ bleDisconnect(); }, 3000);
+  }catch(e){
+    bleDbg('❌ '+e.message,'err');
+    if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
+  }
 }
 
 async function bleOtaFile(){
@@ -1080,6 +1039,7 @@ async function bleOtaFile(){
     st.innerText='✅ Xong! ESP32 restart...';
   }catch(e){st.innerText='❌ '+e.message;}
 }
+
 function bleOtaWriteChunk(chunk){
   return new Promise(async(resolve,reject)=>{
     const tm=setTimeout(()=>{bleOtaAckResolve=null;reject(new Error('Timeout'));},3000);
@@ -1089,6 +1049,9 @@ function bleOtaWriteChunk(chunk){
   });
 }
 
+// ================================================================
+// INIT
+// ================================================================
 bleUpdateUI();
 loadOcvFromServer();
 </script>
