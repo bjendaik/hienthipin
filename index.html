@@ -2,7 +2,7 @@
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v5.6</title><style>
+<title>BMS & ACQUY Controller v5.7</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
@@ -94,7 +94,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.6</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.7</span></h2>
 <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
@@ -430,7 +430,7 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.6</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.7</div>
 <div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>BLE-only firmware</div>
 </div>
 <div class='ota-box'>
@@ -456,7 +456,7 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 
 <script>
 // ================================================================
-// BLE SHIM v5.6
+// BLE SHIM v5.7
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -622,7 +622,6 @@ window.fetch = async function(url, opts){
       return jsonResponse(enrich(obj));
     }
     if(path==='/getvmap'){
-      // Lấy vmap từ status hiện tại
       let obj = null;
       if(bleLastStatus && bleLastStatus.vmap) obj = bleLastStatus;
       else {
@@ -702,7 +701,7 @@ window.fetch = async function(url, opts){
     }
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
-    if(path==='/checkupdate') return textResponse('LATEST:5.6');
+    if(path==='/checkupdate') return textResponse('LATEST:5.7');
     return textResponse('OK');
   }catch(e){
     if(path==='/data') return jsonResponse(dummyStatus());
@@ -736,7 +735,7 @@ function enrich(o){
   }
   o.realSoc=o.soc||0; o.savedSoc=o.soc||0;
   o.socFresh=true; o.socAge=0; o.manualSim=o.sim||false;
-  o.configMode=false; o.ledMode=1; o.voltage=0;
+  o.configMode=false; o.ledMode=1;
   o.outMode = (o.outMode !== undefined) ? o.outMode : 1;
   o.dacPin = (o.dacPin !== undefined) ? o.dacPin : 25;
   o.pwmPin = (o.pwmPin !== undefined) ? o.pwmPin : 14;
@@ -750,7 +749,26 @@ function enrich(o){
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.6';
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.7';
+
+  // ★ TÍNH VOLTAGE hiển thị — ưu tiên firmware gửi, fallback tính từ vmap
+  if(o.voltage === undefined || o.voltage === 0 || o.voltage === null){
+    let mv = -1;
+    const vmapArr = o.vmap;
+    if(vmapArr.length > 0){
+      const soc = o.soc || 0;
+      for(const e of vmapArr){
+        if(soc >= e.s && soc <= e.e){ mv = e.v; break; }
+      }
+      if(mv < 0){
+        if(soc < vmapArr[0].s) mv = vmapArr[0].v;
+        else mv = vmapArr[vmapArr.length-1].v;
+      }
+    }
+    if(mv >= 0) o.voltage = parseFloat(mv.toFixed(2));
+    else o.voltage = parseFloat(((o.soc||0)/100*3.3).toFixed(2));
+  }
+
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
@@ -778,7 +796,6 @@ function onAccOpen(id){
   else if(id==='accOutput'){
     if(!cachedPresets && navigator.onLine) fetchPresets();
     if(!configLoaded) updateData();
-    // ★ Load vmap từ ESP32 vào bảng thủ công (1 lần)
     if(!vmapLoaded) setTimeout(loadVmapFromServer, 400);
   }
   else if(id==='accOta'){
@@ -874,7 +891,8 @@ function updateData(){
     document.getElementById('chip-name').innerText=d.chipName;
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
-    document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
+    // ★ Hiển thị Output V + chân
+    document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V (' + outText + ')';
     let rb=document.getElementById('realBtn');
     if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
@@ -1193,7 +1211,6 @@ function addVmapRow(s,e,v){
   list.appendChild(row);
 }
 
-// ★ Load vmap hiện tại từ ESP32 → đổ vào bảng thủ công
 function loadVmapFromServer(){
   fetch('/getvmap').then(r=>r.json()).then(d=>{
     const list=document.getElementById('vmapList');
@@ -1201,7 +1218,6 @@ function loadVmapFromServer(){
     list.innerHTML='';
     const arr=d.vmap||[];
     if(arr.length===0){
-      // ESP32 chưa có vmap → thêm mặc định để user thấy
       addVmapRow(0, 50, 1.65);
       addVmapRow(51, 100, 3.30);
       console.log('[VMAP] ESP32 chưa có bảng → tạo mặc định 2 dải');
@@ -1294,7 +1310,6 @@ async function applyPreset(id){
     document.querySelectorAll('.preset-btn').forEach((b,i)=>{
       b.classList.toggle('active', i===activePresetIdx);
     });
-    // ★ Đồng bộ bảng thủ công theo preset vừa áp
     const list=document.getElementById('vmapList');
     if(list){
       list.innerHTML='';
@@ -1491,7 +1506,7 @@ async function checkUpdate(){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
     remoteUpdateInfo=j;
-    const curVer='5.6';
+    const curVer='5.7';
     const isNewer=(j.version && j.version !== curVer);
     if(!isNewer){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
