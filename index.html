@@ -1064,8 +1064,8 @@ function updateData(){
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
-    let macText = d.mac||'Chưa có';
-    document.getElementById('curBmsName').innerText=d.bmsName?('📛 '+d.bmsName):'';
+    document.getElementById('curMacText').innerText = d.mac || 'Chưa có';
+    document.getElementById('curBmsName').innerText = d.bmsName ? ('📛 '+d.bmsName) : '';
     if(d.acquyMode){
       document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
       document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
