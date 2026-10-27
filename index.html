@@ -183,14 +183,14 @@ Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
 </div>
 
 <div class='input-row'><label><strong>Loại bình:</strong></label>
-<select id='battType' onchange='onBattTypeChange()'>
+<select id='battType' onchange='onBattTypeChange();markDirty()'>
 <option value='0'>Ắc quy chì</option>
 <option value='1'>LFP (LiFePO4)</option>
 </select></div>
 
 <div id='leadOptions' style='display:block'>
 <div class='input-row'><label><strong>Số bình:</strong></label>
-<select id='battCells' onchange='updateBattInfo()'>
+<select id='battCells' onchange='updateBattInfo();markDirty()'>
 <option value='1'>1 bình (12V)</option>
 <option value='2'>2 bình (24V)</option>
 <option value='3'>3 bình (36V)</option>
@@ -202,7 +202,7 @@ Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
 
 <div id='lfpOptions' style='display:none'>
 <div class='input-row'><label><strong>Số cell:</strong></label>
-<input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo()'></div>
+<input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo();markDirty()'></div>
 </div>
 
 <div id='battInfoBox' style='background:#e7f3ff;border-left:3px solid #007bff;padding:8px 10px;border-radius:5px;font-size:11px;margin-bottom:10px;color:#004085'>
@@ -210,17 +210,17 @@ Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
 </div>
 
 <div class='input-row'><label><strong>Điện trở R1 (kΩ):</strong></label>
-<input type='number' id='aqR1' step='0.1' placeholder='Vd: 100' oninput='checkDivider()'></div>
+<input type='number' id='aqR1' step='0.1' placeholder='Vd: 100' oninput='checkDivider();markDirty()'></div>
 <div class='input-row'><label><strong>Điện trở R2 (kΩ):</strong></label>
-<input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7' oninput='checkDivider()'></div>
+<input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7' oninput='checkDivider();markDirty()'></div>
 <div id='dividerWarn' style='display:none;border-radius:5px;padding:10px;font-size:12px;margin-bottom:10px;line-height:1.6'></div>
 
 <div style='border-top:1px dashed #dee2e6;padding-top:10px;margin-top:10px'>
 <div style='font-size:12px;font-weight:bold;color:#007bff;margin-bottom:8px'>🎯 Hiệu chuẩn điện áp</div>
 <div class='input-row'><label><strong>Hệ số nhân:</strong></label>
-<input type='number' id='aqGain' step='0.0001' min='0.5' max='2' placeholder='1.0000'></div>
+<input type='number' id='aqGain' step='0.0001' min='0.5' max='2' placeholder='1.0000' oninput='markDirty()'></div>
 <div class='input-row'><label><strong>Bù lệch (V):</strong></label>
-<input type='number' id='aqOffset' step='0.01' min='-5' max='5' placeholder='0.00'></div>
+<input type='number' id='aqOffset' step='0.01' min='-5' max='5' placeholder='0.00' oninput='markDirty()'></div>
 
 <div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:5px;padding:10px;margin-bottom:10px'>
 <div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⚡ Hiệu chuẩn nhanh</div>
@@ -268,11 +268,12 @@ Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
 </div>
 
 <button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>
+<button style='margin-top:8px;background:#6c757d' onclick='reloadConfig()'>🔄 Tải lại từ ESP32</button>
 
 <div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>
 <div style='font-size:13px;font-weight:bold;color:#004085;margin-bottom:8px'>📌 Chân ADC đo Ắc quy</div>
 <div class='input-row' style='margin:0'><label><strong>GPIO:</strong></label>
-<input type='number' id='aqPin' min='0' max='39' value='32'></div>
+<input type='number' id='aqPin' min='0' max='39' value='32' oninput='markDirty()'></div>
 <div style='font-size:11px;color:#6c757d;margin-top:6px'>Ưu tiên ADC1: GPIO32/33/34/35</div>
 </div>
 
@@ -333,7 +334,10 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <div id='aq-status-line' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:8px 12px;font-size:12px;color:#495057;margin-bottom:10px'>
 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
 <span>📌 <b>Chân ADC:</b> <span id='bms-aq-pin-label' style='font-family:monospace;color:#007bff'>GPIO--</span></span>
-<span><b style='font-family:monospace' id='bms-aq-adc-v'>0.000 V</b></span>
+<span style='display:flex;gap:6px;align-items:center'>
+  <b style='font-family:monospace' id='bms-aq-adc-v'>0.000 V</b>
+  <button onclick='updateBmsInfo()' style='width:auto;margin:0;padding:4px 10px;font-size:11px;background:#17a2b8'>🔄</button>
+</span>
 </div>
 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
 <span>Trạng thái: <b><span id='bms-aq-status-text'>--</span></b></span>
@@ -403,14 +407,14 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <div class='mode-tab' id='tabDac' onclick='selectMode(0)'>DAC</div>
 <div class='mode-tab active' id='tabPwm' onclick='selectMode(1)'>PWM</div></div>
 <div id='dacCfg' style='display:none'>
-<div class='input-row'><label><strong>Chân DAC:</strong></label><select id='dacPinSel'>
+<div class='input-row'><label><strong>Chân DAC:</strong></label><select id='dacPinSel' onchange='markOutputTouched()'>
 <option value='25'>GPIO 25</option>
 <option value='26'>GPIO 26</option>
 </select></div></div>
 <div id='pwmCfg'>
-<div class='input-row'><label><strong>Chân PWM:</strong></label><input type='number' id='pwmPinIn' min='0' max='48' value='14'></div>
-<div class='input-row'><label><strong>Tần số:</strong></label><input type='number' id='pwmFreqIn' value='5000'></div>
-<div class='input-row'><label><strong>Độ phân giải:</strong></label><select id='pwmResIn'>
+<div class='input-row'><label><strong>Chân PWM:</strong></label><input type='number' id='pwmPinIn' min='0' max='48' value='14' oninput='markOutputTouched()'></div>
+<div class='input-row'><label><strong>Tần số:</strong></label><input type='number' id='pwmFreqIn' value='5000' oninput='markOutputTouched()'></div>
+<div class='input-row'><label><strong>Độ phân giải:</strong></label><select id='pwmResIn' onchange='markOutputTouched()'>
 <option value='8'>8-bit</option>
 <option value='10' selected>10-bit</option>
 <option value='12'>12-bit</option>
@@ -472,6 +476,16 @@ let bleNotifyCount=0;
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
 
+// ===== CONFIG SNAPSHOT FLAGS =====
+let configLoaded = false;      // đã load config acquy từ ESP32 chưa
+let configDirty = false;       // user đã sửa input acquy chưa
+let outputTouched = false;     // user đã chọn DAC/PWM chưa
+let activePresetIdx = -1;      // preset đang active
+let _lastAcquyMode = false;
+
+function markDirty(){ configDirty = true; }
+function markOutputTouched(){ outputTouched = true; }
+
 function bleUpdateUI(){
   const st=document.getElementById('bleStatus');
   const btn=document.getElementById('bleConnBtn');
@@ -497,6 +511,7 @@ async function bleConnect(){
     });
     bleDevice.addEventListener('gattserverdisconnected', ()=>{
       bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
+      configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false;
       bleUpdateUI();
     });
     const server=await bleDevice.gatt.connect();
@@ -516,6 +531,8 @@ async function bleConnect(){
     bleConnected=true; bleNotifyCount=0;
     bleUpdateUI();
     await bleSend('HELLO');
+    // ★ Fetch config 1 lần sau khi connect
+    setTimeout(()=>updateData(), 300);
   }catch(e){
     alert('Kết nối thất bại: '+e.message);
     bleUpdateUI();
@@ -525,6 +542,7 @@ async function bleConnect(){
 function bleDisconnect(){
   try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
   bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
+  configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false;
   bleUpdateUI();
 }
 
@@ -746,7 +764,9 @@ function onAccOpen(id){
     if(!window.ocvInited){ window.ocvInited=true; loadOcvFromServer(); }
   }
   else if(id==='accOutput'){
-    updateData();
+    // ★ Không gọi updateData() — tránh ghi đè config đang sửa
+    if(!cachedPresets && navigator.onLine) fetchPresets();
+    if(!configLoaded) updateData();
   }
   else if(id==='accOta'){
     checkUpdate();
@@ -760,7 +780,13 @@ function switchMode(mode){
     if(wantAcquy===cur){applyModeUI(wantAcquy);return;}
     if(!confirm('Chuyển sang '+(wantAcquy?'ẮC QUY':'BMS')+'?'))return;
     fetch('/toggleacquy?en='+(wantAcquy?'1':'0')).then(r=>r.text()).then(t=>{
-      if(t==='OK'){applyModeUI(wantAcquy);updateData();}
+      if(t==='OK'){
+        applyModeUI(wantAcquy);
+        // Reset config load — vì mode thay đổi → load config mới
+        configLoaded=false;
+        outputTouched=false;
+        updateData();
+      }
     });
   });
 }
@@ -788,6 +814,7 @@ function switchMacTab(which){
 
 function selectMode(m){
   currentMode=m;
+  outputTouched=true;   // ★ user chọn → không cho updateData ghi đè
   document.getElementById('tabDac').className='mode-tab'+(m===0?' active':'');
   document.getElementById('tabPwm').className='mode-tab'+(m===1?' active':'');
   document.getElementById('dacCfg').style.display=(m===0)?'block':'none';
@@ -803,14 +830,22 @@ function saveOutput(){
     p+='&res='+document.getElementById('pwmResIn').value;
   }
   fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
-    if(t==='OK'){alert('Đã lưu Output!');updateData();}
+    if(t==='OK'){
+      alert('Đã lưu Output!');
+      outputTouched=false;   // ★ reset — ESP32 đã khớp UI
+      // KHÔNG gọi updateData()
+    }
     else alert('Lỗi: '+t);
   }).catch(e=>alert('Timeout'));
 }
 
+// ★ Hàm updateData MỚI — chỉ ghi config 1 lần
 function updateData(){
   if(!bleConnected) return;
   fetch('/data').then(r=>r.json()).then(d=>{
+    _lastAcquyMode = !!d.acquyMode;
+
+    // ===== PHẦN A: STATUS ĐỘNG — luôn cập nhật =====
     let s=document.getElementById('conn-status');
     if(d.acquyMode){s.innerText='Đang đo Ắc quy';s.style.color='#ff9800';}
     else if(d.connected){s.innerText='Đã kết nối';s.style.color='green';}
@@ -830,28 +865,6 @@ function updateData(){
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
-    if(d.outMode !== currentMode){ currentMode = d.outMode; selectMode(currentMode); }
-    if(d.outMode === 0 && d.dacPin !== undefined){
-      document.getElementById('dacPinSel').value = d.dacPin;
-    }
-    if(d.outMode === 1){
-      if(d.pwmPin !== undefined) document.getElementById('pwmPinIn').value = d.pwmPin;
-      if(d.pwmFreq !== undefined) document.getElementById('pwmFreqIn').value = d.pwmFreq;
-      if(d.pwmRes !== undefined) document.getElementById('pwmResIn').value = d.pwmRes;
-    }
-    if(d.battType !== undefined){
-      document.getElementById('battType').value = d.battType;
-      onBattTypeChange();
-    }
-    if(d.battCells !== undefined){
-      if(d.battType === 0) document.getElementById('battCells').value = d.battCells;
-      else document.getElementById('battCellsInput').value = d.battCells;
-    }
-    if(d.aqPin !== undefined) document.getElementById('aqPin').value = d.aqPin;
-    if(d.aqR1 !== undefined) document.getElementById('aqR1').value = d.aqR1;
-    if(d.aqR2 !== undefined) document.getElementById('aqR2').value = d.aqR2;
-    if(d.aqGain !== undefined) document.getElementById('aqGain').value = d.aqGain;
-    if(d.aqOffset !== undefined) document.getElementById('aqOffset').value = d.aqOffset;
     let rb=document.getElementById('realBtn');
     if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
@@ -859,10 +872,6 @@ function updateData(){
       document.getElementById('slider-val').innerText=d.soc+'%';}
     document.getElementById('curMacText').innerText=d.mac||'Chưa có';
     document.getElementById('curBmsName').innerText=d.bmsName?('📛 '+d.bmsName):'';
-    if(!document.getElementById('swBms').dataset.inited){
-      document.getElementById('swBms').dataset.inited='1';
-      applyModeUI(d.acquyMode);
-    }
     if(d.acquyMode){
       document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
       document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
@@ -888,10 +897,74 @@ function updateData(){
       }
     }
     grid.innerHTML=html;
+
+    // ===== PHẦN B: CONFIG TĨNH — chỉ ghi 1 lần =====
+    if(!configLoaded){
+      loadConfigFromStatus(d);
+      configLoaded = true;
+      console.log('[CFG] Loaded config snapshot (1 lần)');
+    }
   }).catch(e=>{});
 }
 
-setInterval(()=>{ if(bleConnected && !document.hidden) updateData(); }, 2000);
+// ★ Hàm load config 1 lần — KHÔNG dùng cho phần status động
+function loadConfigFromStatus(d){
+  // --- Output mode (chỉ nếu user chưa chạm) ---
+  if(!outputTouched){
+    if(d.outMode !== undefined && d.outMode !== currentMode){
+      currentMode = d.outMode;
+      document.getElementById('tabDac').className='mode-tab'+(currentMode===0?' active':'');
+      document.getElementById('tabPwm').className='mode-tab'+(currentMode===1?' active':'');
+      document.getElementById('dacCfg').style.display=(currentMode===0)?'block':'none';
+      document.getElementById('pwmCfg').style.display=(currentMode===1)?'block':'none';
+    }
+    if(d.outMode === 0 && d.dacPin !== undefined){
+      document.getElementById('dacPinSel').value = d.dacPin;
+    }
+    if(d.outMode === 1){
+      if(d.pwmPin !== undefined) document.getElementById('pwmPinIn').value = d.pwmPin;
+      if(d.pwmFreq !== undefined) document.getElementById('pwmFreqIn').value = d.pwmFreq;
+      if(d.pwmRes !== undefined) document.getElementById('pwmResIn').value = d.pwmRes;
+    }
+  }
+  // --- Acquy config ---
+  if(d.battType !== undefined){
+    document.getElementById('battType').value = d.battType;
+    onBattTypeChange();
+  }
+  if(d.battCells !== undefined){
+    if(d.battType === 0) document.getElementById('battCells').value = d.battCells;
+    else document.getElementById('battCellsInput').value = d.battCells;
+  }
+  if(d.aqPin !== undefined) document.getElementById('aqPin').value = d.aqPin;
+  if(d.aqR1 !== undefined) document.getElementById('aqR1').value = d.aqR1;
+  if(d.aqR2 !== undefined) document.getElementById('aqR2').value = d.aqR2;
+  if(d.aqGain !== undefined) document.getElementById('aqGain').value = d.aqGain;
+  if(d.aqOffset !== undefined) document.getElementById('aqOffset').value = d.aqOffset;
+  // --- Mode UI ---
+  if(!document.getElementById('swBms').dataset.inited){
+    document.getElementById('swBms').dataset.inited='1';
+    applyModeUI(d.acquyMode);
+  }
+}
+
+// ★ Reload config thủ công từ ESP32
+function reloadConfig(){
+  if(!confirm('Tải lại cấu hình từ ESP32? Các thay đổi chưa lưu sẽ mất.')) return;
+  configLoaded = false;
+  outputTouched = false;
+  configDirty = false;
+  updateData();
+  loadOcvFromServer();
+  if(navigator.onLine) fetchPresets();
+}
+
+// ★ Auto-poll status: chỉ khi KHÔNG phải acquyMode
+setInterval(()=>{
+  if(!bleConnected || document.hidden) return;
+  if(_lastAcquyMode) return;
+  updateData();
+}, 2000);
 
 function sendSim(v){
   document.getElementById('slider-val').innerText=v+'%';
@@ -962,6 +1035,7 @@ function quickCalibrate(){
     let gNew=(vRef-off)/((vMeas-off)/g);
     if(gNew<0.5||gNew>2){msg.innerText='❌ Ngoài phạm vi';msg.style.color='#dc3545';return;}
     document.getElementById('aqGain').value=gNew.toFixed(4);
+    markDirty();
     msg.innerText='✅ Gain: '+gNew.toFixed(4);msg.style.color='#28a745';
   });
 }
@@ -976,7 +1050,12 @@ function saveAcquyCfg(){
   let t=parseInt(document.getElementById('battType').value);
   p+='&cells='+(t===0?document.getElementById('battCells').value:document.getElementById('battCellsInput').value);
   fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{
-    if(t==='OK'){alert('Đã lưu!');updateData();}
+    if(t==='OK'){
+      alert('Đã lưu!');
+      configDirty=false;
+      configLoaded=true;   // ★ giữ nguyên UI, không ghi đè
+      // KHÔNG gọi updateData()
+    }
     else alert('Lỗi: '+t);
   }).catch(e=>alert('Timeout'));
 }
@@ -1121,7 +1200,12 @@ function saveVmap(){
     p+='&e'+i+'s='+s+'&e'+i+'e='+e+'&e'+i+'v='+v;
   }
   fetch('/savevmap?'+p).then(r=>r.text()).then(t=>{
-    if(t==='OK')alert('Đã lưu bảng điện áp!');
+    if(t==='OK'){
+      alert('Đã lưu bảng điện áp!');
+      activePresetIdx = -1;
+      document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+      // KHÔNG gọi updateData()
+    }
     else alert('Lỗi: '+t);
   }).catch(e=>alert('Timeout'));
 }
@@ -1130,7 +1214,7 @@ function saveVmap(){
 async function fetchPresets(){
   const msg=document.getElementById('presetListMsg');
   const box=document.getElementById('presetList');
-  if(!navigator.onLine){ 
+  if(!navigator.onLine){
     if(msg){msg.style.display='block';msg.innerText='❌ Không có internet';msg.style.color='#dc3545';}
     return;
   }
@@ -1157,6 +1241,11 @@ async function fetchPresets(){
       btn.onclick=(function(idx){return function(){applyPreset(idx);};})(i);
       box.appendChild(btn);
     }
+    // ★ Khôi phục active preset
+    if(activePresetIdx >= 0){
+      const btns = box.querySelectorAll('.preset-btn');
+      if(btns[activePresetIdx]) btns[activePresetIdx].classList.add('active');
+    }
     if(j.date){
       const ub=document.getElementById('presetUpdatedBox');
       const ut=document.getElementById('presetUpdatedText');
@@ -1178,7 +1267,14 @@ async function applyPreset(id){
   p.entries.forEach(e=>{ cmd+=';'+e.s+','+e.e+','+e.v.toFixed(3); });
   await bleSend(cmd);
   const ack=await bleWaitFor('ack',5000).catch(()=>null);
-  if(ack){ alert('✅ Đã áp dụng: '+(p.name||id)); updateData(); }
+  if(ack){
+    activePresetIdx = id;
+    document.querySelectorAll('.preset-btn').forEach((b,i)=>{
+      b.classList.toggle('active', i===activePresetIdx);
+    });
+    alert('✅ Đã áp dụng: '+(p.name||id));
+    // KHÔNG gọi updateData()
+  }
   else alert('❌ Timeout');
 }
 
@@ -1349,7 +1445,13 @@ function updateBmsInfo(){
     }else{wrap.style.display='none';}
   }).catch(e=>{});
 }
-setInterval(function(){let acc=document.getElementById('accBms');if(acc&&acc.classList.contains('open'))updateBmsInfo();},2000);
+// ★ Auto-poll BMS info: chỉ khi panel mở VÀ không phải acquyMode
+setInterval(function(){
+  let acc=document.getElementById('accBms');
+  if(!acc || !acc.classList.contains('open')) return;
+  if(_lastAcquyMode) return;
+  updateBmsInfo();
+},2000);
 
 // ============ OTA ============
 async function checkUpdate(){
