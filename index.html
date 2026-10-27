@@ -3,7 +3,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
 <title>BMS & ACQUY Controller v5.7</title><style>
-body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
+body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:30px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
 .battery-bg{background:#e0e0e0;border-radius:8px;height:20px;overflow:hidden;margin-top:8px}
@@ -81,20 +81,40 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 .mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}
 .mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}
 @media (max-width:380px){.acc-head .title-text{font-size:13px}.mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}.acc-head{padding:12px}.ocv-tab div{font-size:11px;padding:6px 2px}}
-#bleBar{position:fixed;bottom:0;left:0;right:0;padding:10px;background:#fff;border-top:2px solid #007bff;box-shadow:0 -2px 8px rgba(0,0,0,.1);z-index:9999;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto}
-#bleBar button{margin:0;padding:10px;font-size:14px;width:auto}
-#bleBar .status{flex:1;font-size:12px;font-weight:bold;color:#6c757d}
+/* Nút BLE cạnh tiêu đề MONITOR */
+.ble-inline{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.ble-inline .status{
+  font-size:11px;font-weight:bold;color:#6c757d;
+  line-height:1.3;flex-basis:100%;text-align:right;
+  margin-bottom:2px;
+}
+.ble-inline button{
+  margin:0;padding:7px 11px;font-size:12px;width:auto;
+  flex-shrink:0;border-radius:6px;
+}
+.ble-inline button.forget{
+  padding:7px 9px;background:#6c757d;font-size:11px;
+}
+@media (max-width:420px){
+  .ble-inline .status{font-size:10px}
+  .ble-inline button{padding:6px 9px;font-size:11px}
+}
 .ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
 .ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
 </style></head><body>
 
-<div id="bleBar">
-  <div class="status" id="bleStatus">🔵 Chưa kết nối BLE</div>
-  <button id="bleConnBtn" onclick="bleToggle()" style="background:#17a2b8">Kết nối</button>
-</div>
-
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.7</span></h2>
+<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px'>
+  <h2 style='margin:0;flex-shrink:0'>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.7</span></h2>
+  <div class='ble-inline'>
+    <div class='status' id='bleStatus'>🔵 Chưa kết nối BLE</div>
+    <button id='bleForgetBtn' class='forget' onclick='bleForget()' style='display:none'>Quên</button>
+    <button id='bleConnBtn' onclick='bleToggle()' style='background:#17a2b8'>Kết nối</button>
+  </div>
+</div>
 <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
@@ -473,6 +493,12 @@ let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
 let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
 let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
+
+// ★ Lưu device đã dùng để reconnect nhanh
+let savedDeviceId = localStorage.getItem('bleDeviceId') || '';
+let savedDeviceName = localStorage.getItem('bleDeviceName') || '';
+let autoReconnecting = false;
+
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
 
@@ -488,52 +514,119 @@ function markOutputTouched(){ outputTouched = true; }
 function bleUpdateUI(){
   const st=document.getElementById('bleStatus');
   const btn=document.getElementById('bleConnBtn');
+  const forgetBtn=document.getElementById('bleForgetBtn');
+  if(!btn) return;
+
   if(bleConnected){
-    st.innerHTML='🟢 Đã kết nối (RX:'+bleNotifyCount+')';
-    st.style.color='#28a745';
+    if(st){
+      st.innerHTML='🟢 Đã kết nối'+(savedDeviceName?' — <b>'+savedDeviceName+'</b>':'')+
+                   ' <span style="font-weight:normal;color:#888">(RX:'+bleNotifyCount+')</span>';
+      st.style.color='#28a745';
+    }
     btn.innerText='Ngắt'; btn.style.background='#dc3545';
+    if(forgetBtn) forgetBtn.style.display='none';
+  } else if(autoReconnecting){
+    if(st){ st.innerHTML='⏳ Đang tự kết nối lại...'; st.style.color='#007bff'; }
+    btn.innerText='Hủy'; btn.style.background='#ff9800';
+    if(forgetBtn) forgetBtn.style.display='none';
+  } else if(savedDeviceId){
+    if(st){
+      st.innerHTML='🔵 Sẵn sàng: <b>'+savedDeviceName+'</b>';
+      st.style.color='#6c757d';
+    }
+    btn.innerText='Kết nối lại';
+    btn.style.background='#28a745';
+    if(forgetBtn) forgetBtn.style.display='inline-block';
   } else {
-    st.innerHTML='🔵 Chưa kết nối BLE';
-    st.style.color='#6c757d';
+    if(st){ st.innerHTML='🔵 Chưa kết nối BLE'; st.style.color='#6c757d'; }
     btn.innerText='Kết nối'; btn.style.background='#17a2b8';
+    if(forgetBtn) forgetBtn.style.display='none';
   }
 }
 
-async function bleToggle(){ if(bleConnected){ bleDisconnect(); return; } await bleConnect(); }
+async function bleToggle(){
+  if(bleConnected){ bleDisconnect(); return; }
+  if(autoReconnecting){ autoReconnecting=false; bleUpdateUI(); return; }
+  await bleConnect();
+}
 
 async function bleConnect(){
   try{
     if(!navigator.bluetooth){ alert('Không hỗ trợ Web Bluetooth'); return; }
-    bleDevice=await navigator.bluetooth.requestDevice({
-      filters:[{services:[BLE_SERVICE]}],
-      optionalServices:[BLE_SERVICE, BLE_OTA_SVC]
-    });
+
+    let device=null;
+
+    // ① Thử lấy lại device đã lưu (Chrome 122+, không cần popup)
+    if(savedDeviceId && typeof navigator.bluetooth.getDevices === 'function'){
+      try{
+        autoReconnecting=true; bleUpdateUI();
+        const devices = await navigator.bluetooth.getDevices();
+        device = devices.find(d => d.id === savedDeviceId) || null;
+        autoReconnecting=false;
+      }catch(e){
+        autoReconnecting=false;
+        console.warn('[BLE] getDevices() thất bại:', e.message);
+      }
+    }
+
+    // ② Nếu không lấy được → popup chọn device
+    if(!device){
+      bleUpdateUI();
+      device = await navigator.bluetooth.requestDevice({
+        filters:[{services:[BLE_SERVICE]}],
+        optionalServices:[BLE_SERVICE, BLE_OTA_SVC]
+      });
+    }
+
+    bleDevice = device;
+
+    // ③ Lưu ID + tên
+    if(device.id){
+      savedDeviceId = device.id;
+      savedDeviceName = device.name || 'BMS_Controller';
+      localStorage.setItem('bleDeviceId', savedDeviceId);
+      localStorage.setItem('bleDeviceName', savedDeviceName);
+    }
+
     bleDevice.addEventListener('gattserverdisconnected', ()=>{
       bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
       configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
       bleUpdateUI();
     });
-    const server=await bleDevice.gatt.connect();
-    const svc=await server.getPrimaryService(BLE_SERVICE);
-    bleTx=await svc.getCharacteristic(BLE_TX_CHAR);
+
+    // ④ Kết nối GATT
+    const server = await bleDevice.gatt.connect();
+    const svc = await server.getPrimaryService(BLE_SERVICE);
+    bleTx = await svc.getCharacteristic(BLE_TX_CHAR);
     await bleTx.startNotifications();
     bleTx.addEventListener('characteristicvaluechanged', bleOnNotify);
     await new Promise(r => setTimeout(r, 500));
-    bleRx=await svc.getCharacteristic(BLE_RX_CHAR);
+
+    bleRx = await svc.getCharacteristic(BLE_RX_CHAR);
+
     try{
-      const osvc=await server.getPrimaryService(BLE_OTA_SVC);
-      bleOtaRx=await osvc.getCharacteristic(BLE_OTA_RX);
-      bleOtaTx=await osvc.getCharacteristic(BLE_OTA_TX);
+      const osvc = await server.getPrimaryService(BLE_OTA_SVC);
+      bleOtaRx = await osvc.getCharacteristic(BLE_OTA_RX);
+      bleOtaTx = await osvc.getCharacteristic(BLE_OTA_TX);
       await bleOtaTx.startNotifications();
       bleOtaTx.addEventListener('characteristicvaluechanged', bleOnOtaNotify);
     }catch(e){}
-    bleConnected=true; bleNotifyCount=0;
+
+    bleConnected = true;
+    bleNotifyCount = 0;
     bleUpdateUI();
+
     await bleSend('HELLO');
     setTimeout(()=>updateData(), 300);
+
   }catch(e){
-    alert('Kết nối thất bại: '+e.message);
+    autoReconnecting = false;
     bleUpdateUI();
+    if(e.name === 'NotFoundError'){
+      console.log('[BLE] User cancelled device selection');
+    } else {
+      alert('Kết nối thất bại: '+e.message);
+    }
   }
 }
 
@@ -542,6 +635,35 @@ function bleDisconnect(){
   bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
   configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
   bleUpdateUI();
+}
+
+function bleForget(){
+  if(!confirm('Quên thiết bị BLE đã lưu?\nLần sau sẽ phải chọn lại từ popup.')) return;
+  localStorage.removeItem('bleDeviceId');
+  localStorage.removeItem('bleDeviceName');
+  savedDeviceId=''; savedDeviceName='';
+  bleDevice=null;
+  bleUpdateUI();
+}
+
+async function bleAutoReconnect(){
+  if(!savedDeviceId) return;
+  if(!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function'){
+    console.log('[BLE] Trình duyệt không hỗ trợ auto-reconnect, cần bấm nút.');
+    return;
+  }
+  try{
+    const devices = await navigator.bluetooth.getDevices();
+    const dev = devices.find(d => d.id === savedDeviceId);
+    if(!dev){
+      console.log('[BLE] Device đã lưu không còn trong danh sách được cấp quyền.');
+      return;
+    }
+    console.log('[BLE] Auto-reconnecting to', savedDeviceName);
+    await bleConnect();
+  }catch(e){
+    console.log('[BLE] Auto-reconnect thất bại:', e.message);
+  }
 }
 
 async function bleSend(cmd){
@@ -751,7 +873,6 @@ function enrich(o){
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
   o.fwVersion=(o.fw&&o.fw.ver)||'5.7';
 
-  // ★ TÍNH VOLTAGE hiển thị — ưu tiên firmware gửi, fallback tính từ vmap
   if(o.voltage === undefined || o.voltage === 0 || o.voltage === null){
     let mv = -1;
     const vmapArr = o.vmap;
@@ -891,7 +1012,6 @@ function updateData(){
     document.getElementById('chip-name').innerText=d.chipName;
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
-    // ★ Hiển thị Output V + chân
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V (' + outText + ')';
     let rb=document.getElementById('realBtn');
     if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
@@ -1598,5 +1718,12 @@ function bleOtaWriteChunk(chunk){
 // ================================================================
 bleUpdateUI();
 loadOcvFromServer();
+
+// Tự reconnect nếu đã từng kết nối (Chrome 122+)
+setTimeout(()=>{
+  if(savedDeviceId && !bleConnected){
+    bleAutoReconnect();
+  }
+}, 800);
 </script>
 </body></html>
