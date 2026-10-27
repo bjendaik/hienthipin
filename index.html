@@ -86,11 +86,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 #bleBar .status{flex:1;font-size:12px;font-weight:bold;color:#6c757d}
 .ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
 .ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
-.out-live-box{background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%);border:2px solid #2196f3;border-radius:8px;padding:12px;margin:12px 0}
-.out-live-box h4{margin:0 0 8px 0;font-size:14px;color:#0d47a1}
-.out-live-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
-.out-live-val{font-family:monospace;font-weight:bold;font-size:16px;color:#0d47a1}
-.dac-test-box{background:#fff3e0;border:2px solid #ff9800;border-radius:8px;padding:12px;margin:12px 0}
 </style></head><body>
 
 <div id="bleBar">
@@ -374,46 +369,16 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <span>⚡ Output Analog</span><span class='arrow'>▼</span>
 </div>
 <div class='acc-body'>
-
-<!-- ★ LIVE STATUS — hiển thị mode + giá trị DAC thô -->
-<div class='out-live-box'>
-<h4>📡 TRẠNG THÁI OUTPUT (LIVE)</h4>
-<div class='out-live-grid'>
-<div>Mode ESP32: <span class='out-live-val' id='out-live-mode'>--</span></div>
-<div>Chân: <span class='out-live-val' id='out-live-pin'>--</span></div>
-<div>DAC thô (0-255): <span class='out-live-val' id='out-live-dac'>--</span></div>
-<div>Điện áp ra: <span class='out-live-val' id='out-live-volt'>--</span></div>
-</div>
-<div style='font-size:11px;color:#0d47a1;margin-top:6px'>
-Nếu DAC thô thay đổi khi kéo slider → ESP32 nhận lệnh OK. Nếu không → BLE chưa kết nối.</div>
-</div>
-
 <div style='text-align:center;font-size:20px;font-weight:bold;color:#28a745;margin-top:12px' id='vol-text'>0.000 V</div>
-<div style='text-align:center;font-size:12px;color:#6c757d;margin-top:4px'>Chip: <span id='chip-name'>--</span> | <span id='out-current'>--</span></div>
-
+<div style='text-align:center;font-size:12px;color:#6c757d;margin-top:4px'>Chip: <span id='chip-name'>--</span></div>
 <div style='margin-top:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef'>
 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>
 <label style='margin:0;font-size:13px'><strong>🎚️ Giả lập % pin:</strong></label>
 <span id='slider-val' style='font-size:16px;font-weight:bold;color:#ff9800'>50%</span>
 </div>
-<input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)' onchange='sendSim(this.value)'>
+<input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)'>
 <button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>
-<div id='simMsg' style='font-size:11px;text-align:center;margin-top:6px;color:#6c757d'></div>
 </div>
-
-<!-- ★ TEST DAC trực tiếp -->
-<div class='dac-test-box'>
-<div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🧪 Test DAC trực tiếp</div>
-<div style='display:flex;gap:6px;align-items:center;margin-bottom:6px'>
-<label style='font-size:12px;min-width:80px'><strong>DAC value:</strong></label>
-<input type='range' id='dacTestSlider' min='0' max='255' value='128' style='flex:1;margin:0' oninput='document.getElementById("dacTestVal").innerText=this.value'>
-<span id='dacTestVal' style='font-family:monospace;font-weight:bold;min-width:36px;text-align:center;color:#e65100'>128</span>
-</div>
-<button class='btn-warn' style='margin:0;font-size:13px;padding:8px' onclick='testDacRaw()'>⚡ Gửi DAC thô</button>
-<div style='font-size:11px;color:#6c757d;margin-top:6px'>Đo chân GPIO25/26 — nếu không có áp, chip không hỗ trợ DAC hoặc sai chân.</div>
-<div id='dacTestMsg' style='font-size:11px;margin-top:6px'></div>
-</div>
-
 <div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>
 <label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>
 <button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;flex-shrink:0'>🔄 Cập nhật</button>
@@ -454,8 +419,8 @@ Nếu DAC thô thay đổi khi kéo slider → ESP32 nhận lệnh OK. Nếu kh�
 <option value='10' selected>10-bit</option>
 <option value='12'>12-bit</option>
 </select></div></div>
-<button class='btn-warn' style='margin-top:12px' onclick='saveOutput()'>💾 Lưu Output</button>
-<div id='saveOutMsg' style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'></div>
+<button class='btn-warn' style='margin-top:12px' onclick='saveOutput()'>Lưu Output</button>
+<div style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'>Hiện tại: <span id='out-current'>--</span></div>
 </div></div>
 
 <div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
@@ -466,6 +431,26 @@ Nếu DAC thô thay đổi khi kéo slider → ESP32 nhận lệnh OK. Nếu kh�
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
 <div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.6</div>
+<div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>BLE-only firmware</div>
+</div>
+<div class='ota-box'>
+<div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (từ GitHub)</div>
+<button style='margin:0;background:#ff9800' onclick='checkUpdate()'>🔍 Kiểm tra phiên bản</button>
+<div id='updateInfoBox' class='ota-info'>
+<div style='font-size:13px;color:#e65100;font-weight:bold;margin-bottom:6px'>🆕 <span id='newVersionText'>--</span></div>
+<div style='font-size:11px;color:#6c757d;margin-bottom:6px'>📅 <span id='newDateText'>--</span></div>
+<div style='font-size:12px;color:#333;background:#f8f9fa;padding:8px;border-radius:5px;margin-bottom:10px;line-height:1.5' id='notesText'>--</div>
+<button class='btn-danger' style='margin:0;background:#dc3545;font-weight:bold' onclick='otaOnline()'>🚀 Nạp Firmware Online</button>
+</div>
+<div id='onlineMsg' style='font-size:12px;margin-top:8px'></div>
+<div class='battery-bg' style='margin-top:10px'><div id='onlineProgress' class='battery-bar' style='width:0%;background:#ff9800'></div></div>
+</div>
+<div style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
+<div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
+<input type='file' id='fwFile' accept='.bin' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box'>
+<button class='btn-danger' style='margin-top:10px' onclick='bleOtaFile()'>🚀 Nạp qua BLE</button>
+<div class='battery-bg' style='margin-top:12px'><div id='fwProgress' class='battery-bar' style='width:0%;background:#dc3545'></div></div>
+<div id='fwStatus' style='text-align:center;font-size:13px;margin-top:8px;color:#6c757d'>Chưa nạp</div>
 </div>
 </div></div>
 
@@ -488,13 +473,14 @@ let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
 let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
 let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
-let currentMode=1, cachedPresets=null, ocvTab='lead';
+let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
 
 let configLoaded = false;
 let configDirty = false;
 let outputTouched = false;
 let activePresetIdx = -1;
+let vmapLoaded = false;
 
 function markDirty(){ configDirty = true; }
 function markOutputTouched(){ outputTouched = true; }
@@ -524,7 +510,7 @@ async function bleConnect(){
     });
     bleDevice.addEventListener('gattserverdisconnected', ()=>{
       bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
-      configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false;
+      configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
       bleUpdateUI();
     });
     const server=await bleDevice.gatt.connect();
@@ -554,7 +540,7 @@ async function bleConnect(){
 function bleDisconnect(){
   try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
   bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
-  configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false;
+  configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
   bleUpdateUI();
 }
 
@@ -635,15 +621,20 @@ window.fetch = async function(url, opts){
       const obj=await bleWaitFor('status', 5000);
       return jsonResponse(enrich(obj));
     }
+    if(path==='/getvmap'){
+      // Lấy vmap từ status hiện tại
+      let obj = null;
+      if(bleLastStatus && bleLastStatus.vmap) obj = bleLastStatus;
+      else {
+        await bleSend('GET_STATUS');
+        obj = await bleWaitFor('status', 3000).catch(()=>null);
+      }
+      const vmap = (obj && Array.isArray(obj.vmap)) ? obj.vmap : [];
+      return jsonResponse({vmap: vmap});
+    }
     if(path==='/sim'){
       if(q.has('soc')){ await bleSend('SOC:'+q.get('soc')); await bleWaitFor('ack',2000).catch(()=>{}); return textResponse('OK'); }
       if(q.has('real')){ await bleSend('REAL'); await bleWaitFor('ack',2000).catch(()=>{}); return textResponse('OK'); }
-    }
-    if(path==='/testdac'){
-      const v=q.get('v')||128;
-      await bleSend('SOC:'+Math.round(v/255*100));
-      const ack=await bleWaitFor('ack',2000).catch(()=>null);
-      return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/scan'){
       await bleSend('SCAN');
@@ -683,7 +674,6 @@ window.fetch = async function(url, opts){
       if(m=='0') p=q.get('dacpin')||25;
       else p=q.get('pwmpin')||14;
       const f=q.get('freq')||5000, r=q.get('res')||10;
-      console.log('[saveout] mode='+m+' pin='+p+' freq='+f+' res='+r);
       await bleSend(`SAVE_OUT:${m},${p},${f},${r}`);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
       return textResponse(ack?'OK':'TIMEOUT');
@@ -761,16 +751,6 @@ function enrich(o){
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
   o.fwVersion=(o.fw&&o.fw.ver)||'5.6';
-  // Tính giá trị DAC thô ước lượng để hiển thị
-  if(o.outMode===0){
-    const pin = o.dacPin;
-    o.dacRawEst = Math.round(o.soc/100*255);  // ước lượng (0-255)
-    o.dacVoltEst = (o.dacRawEst/255*3.3).toFixed(2);
-  } else {
-    const maxVal = (1<<o.pwmRes)-1;
-    o.dacRawEst = Math.round(o.soc/100*maxVal);
-    o.dacVoltEst = (o.dacRawEst/maxVal*3.3).toFixed(2);
-  }
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
@@ -798,8 +778,8 @@ function onAccOpen(id){
   else if(id==='accOutput'){
     if(!cachedPresets && navigator.onLine) fetchPresets();
     if(!configLoaded) updateData();
-    // ★ Khi mở panel Output → fetch live status 1 lần để hiển thị đúng mode/pin
-    setTimeout(updateOutLive, 100);
+    // ★ Load vmap từ ESP32 vào bảng thủ công (1 lần)
+    if(!vmapLoaded) setTimeout(loadVmapFromServer, 400);
   }
   else if(id==='accOta'){
     checkUpdate();
@@ -851,89 +831,31 @@ function selectMode(m){
   document.getElementById('tabPwm').className='mode-tab'+(m===1?' active':'');
   document.getElementById('dacCfg').style.display=(m===0)?'block':'none';
   document.getElementById('pwmCfg').style.display=(m===1)?'block':'none';
-  updateOutLive();
 }
 
-// ★ Cập nhật live status Output
-function updateOutLive(){
-  if(!bleConnected){ 
-    document.getElementById('out-live-mode').innerText='--';
-    document.getElementById('out-live-pin').innerText='--';
-    document.getElementById('out-live-dac').innerText='--';
-    document.getElementById('out-live-volt').innerText='--';
-    return;
-  }
-  fetch('/data').then(r=>r.json()).then(d=>{
-    const modeStr = (d.outMode===0)?'🔵 DAC':'🟠 PWM';
-    const pinStr = (d.outMode===0)?('GPIO'+d.dacPin):('GPIO'+d.pwmPin);
-    document.getElementById('out-live-mode').innerText = modeStr;
-    document.getElementById('out-live-pin').innerText = pinStr;
-    document.getElementById('out-live-dac').innerText = d.dacRawEst + (d.outMode===0?' (0-255)':' ('+((1<<d.pwmRes)-1)+')');
-    document.getElementById('out-live-volt').innerText = d.dacVoltEst + ' V';
-    document.getElementById('vol-text').innerText = 'Output: ' + d.dacVoltEst + ' V';
-    document.getElementById('out-current').innerText = pinStr;
-  }).catch(e=>{});
-}
-
-// ★ Save Output — fix chính
 function saveOutput(){
   let p='mode='+currentMode;
-  let pinVal;
   if(currentMode===0){
-    pinVal = document.getElementById('dacPinSel').value;
-    p+='&dacpin='+pinVal;
-    p+='&pwmpin=14&freq=5000&res=10';   // gửi kèm để ESP32 không lỗi parse
+    p+='&dacpin='+document.getElementById('dacPinSel').value;
+    p+='&pwmpin=14&freq=5000&res=10';
   } else {
-    pinVal = document.getElementById('pwmPinIn').value;
-    p+='&pwmpin='+pinVal;
+    p+='&pwmpin='+document.getElementById('pwmPinIn').value;
     p+='&freq='+document.getElementById('pwmFreqIn').value;
     p+='&res='+document.getElementById('pwmResIn').value;
     p+='&dacpin=25';
   }
-  const msg=document.getElementById('saveOutMsg');
-  if(msg){msg.innerText='⏳ Đang lưu...';msg.style.color='#007bff';}
-  console.log('[saveOutput] '+p);
   fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
     if(t==='OK'){
-      outputTouched=false;
-      configLoaded=true;
-      if(msg){msg.innerText='✅ Đã lưu! Mode='+(currentMode===0?'DAC':'PWM')+' pin='+pinVal;msg.style.color='#28a745';}
-      setTimeout(updateOutLive, 500);
+      alert('Đã lưu Output! Mode='+(currentMode===0?'DAC':'PWM'));
+      outputTouched=false; configLoaded=true;
     }
-    else {
-      if(msg){msg.innerText='❌ Lỗi: '+t;msg.style.color='#dc3545';}
-      alert('Lỗi: '+t);
-    }
-  }).catch(e=>{
-    if(msg){msg.innerText='❌ Timeout';msg.style.color='#dc3545';}
-    alert('Timeout');
-  });
+    else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
 }
 
-// ★ Test DAC trực tiếp — gửi giá trị thô
-async function testDacRaw(){
-  const v = parseInt(document.getElementById('dacTestSlider').value);
-  const msg = document.getElementById('dacTestMsg');
-  if(!bleConnected){ if(msg){msg.innerText='❌ Chưa kết nối BLE';msg.style.color='#dc3545';} return; }
-  if(msg){msg.innerText='⏳ Gửi '+v+'...';msg.style.color='#007bff';}
-  // Test gửi SOC tương ứng (v/255*100)
-  const soc = Math.round(v/255*100);
-  await bleSend('SOC:'+soc);
-  const ack = await bleWaitFor('ack', 2000).catch(()=>null);
-  if(ack){
-    if(msg){msg.innerText='✅ Đã gửi DAC='+v+' (SOC '+soc+'%)';msg.style.color='#28a745';}
-    setTimeout(updateOutLive, 500);
-  } else {
-    if(msg){msg.innerText='❌ Timeout';msg.style.color='#dc3545';}
-  }
-}
-
-// ★ updateData — chỉ ghi config 1 lần, status động luôn cập nhật
 function updateData(){
   if(!bleConnected) return;
   fetch('/data').then(r=>r.json()).then(d=>{
-
-    // ===== STATUS ĐỘNG =====
     let s=document.getElementById('conn-status');
     if(d.acquyMode){s.innerText='Đang đo Ắc quy';s.style.color='#ff9800';}
     else if(d.connected){s.innerText='Đã kết nối';s.style.color='green';}
@@ -952,6 +874,7 @@ function updateData(){
     document.getElementById('chip-name').innerText=d.chipName;
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
+    document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
     let rb=document.getElementById('realBtn');
     if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
@@ -985,33 +908,11 @@ function updateData(){
     }
     grid.innerHTML=html;
 
-    // Update live output
-    updateOutLiveFromData(d);
-
-    // ===== CONFIG — chỉ ghi 1 lần =====
     if(!configLoaded){
       loadConfigFromStatus(d);
       configLoaded = true;
-      console.log('[CFG] Loaded config (1 lần)');
     }
   }).catch(e=>{});
-}
-
-// ★ updateOutLiveFromData — dùng data đã fetch
-function updateOutLiveFromData(d){
-  if(!d) return;
-  const modeStr = (d.outMode===0)?'🔵 DAC':'🟠 PWM';
-  const pinStr = (d.outMode===0)?('GPIO'+d.dacPin):('GPIO'+d.pwmPin);
-  const el1=document.getElementById('out-live-mode');
-  const el2=document.getElementById('out-live-pin');
-  const el3=document.getElementById('out-live-dac');
-  const el4=document.getElementById('out-live-volt');
-  if(el1) el1.innerText = modeStr;
-  if(el2) el2.innerText = pinStr;
-  if(el3) el3.innerText = d.dacRawEst + (d.outMode===0?' (0-255)':' ('+((1<<d.pwmRes)-1)+')');
-  if(el4) el4.innerText = d.dacVoltEst + ' V';
-  const vt=document.getElementById('vol-text');
-  if(vt) vt.innerText = 'Output: ' + d.dacVoltEst + ' V';
 }
 
 function loadConfigFromStatus(d){
@@ -1056,12 +957,13 @@ function reloadConfig(){
   configLoaded = false;
   outputTouched = false;
   configDirty = false;
+  vmapLoaded = false;
   updateData();
   loadOcvFromServer();
+  loadVmapFromServer();
   if(navigator.onLine) fetchPresets();
 }
 
-// Auto-poll status: LUÔN chạy (cả BMS và acquyMode)
 setInterval(()=>{
   if(!bleConnected || document.hidden) return;
   updateData();
@@ -1069,20 +971,9 @@ setInterval(()=>{
 
 function sendSim(v){
   document.getElementById('slider-val').innerText=v+'%';
-  const msg=document.getElementById('simMsg');
-  if(!bleConnected){ if(msg){msg.innerText='❌ Chưa kết nối BLE';msg.style.color='#dc3545';} return; }
-  if(msg){msg.innerText='⏳ Đang gửi...';msg.style.color='#007bff';}
-  fetch('/sim?soc='+v).then(r=>r.text()).then(t=>{
-    if(msg){msg.innerText='✅ SOC='+v+'%';msg.style.color='#28a745';}
-    setTimeout(updateOutLive, 200);
-  }).catch(e=>{
-    if(msg){msg.innerText='❌ Lỗi';msg.style.color='#dc3545';}
-  });
+  fetch('/sim?soc='+v);
 }
-function setRealSoc(){
-  if(!bleConnected) return;
-  fetch('/sim?real=1').then(()=>setTimeout(updateOutLive,200));
-}
+function setRealSoc(){ fetch('/sim?real=1'); }
 
 function onBattTypeChange(){
   let t=parseInt(document.getElementById('battType').value);
@@ -1290,6 +1181,7 @@ async function refreshAcquyJson(){
   }
 }
 
+// ============ BẢNG ĐIỆN ÁP ============
 function addVmapRow(s,e,v){
   let list=document.getElementById('vmapList');
   let row=document.createElement('div');row.className='vmap-row';
@@ -1300,6 +1192,29 @@ function addVmapRow(s,e,v){
   +"<button onclick='this.parentNode.remove()'>✕</button>";
   list.appendChild(row);
 }
+
+// ★ Load vmap hiện tại từ ESP32 → đổ vào bảng thủ công
+function loadVmapFromServer(){
+  fetch('/getvmap').then(r=>r.json()).then(d=>{
+    const list=document.getElementById('vmapList');
+    if(!list) return;
+    list.innerHTML='';
+    const arr=d.vmap||[];
+    if(arr.length===0){
+      // ESP32 chưa có vmap → thêm mặc định để user thấy
+      addVmapRow(0, 50, 1.65);
+      addVmapRow(51, 100, 3.30);
+      console.log('[VMAP] ESP32 chưa có bảng → tạo mặc định 2 dải');
+    } else {
+      arr.forEach(e=>addVmapRow(e.s, e.e, e.v));
+      console.log('[VMAP] Loaded '+arr.length+' dải từ ESP32');
+    }
+    vmapLoaded = true;
+  }).catch(e=>{
+    console.warn('[VMAP] Load fail:', e);
+  });
+}
+
 function saveVmap(){
   let rows=document.querySelectorAll('#vmapList .vmap-row');
   let p='enabled=1&count='+rows.length;
@@ -1318,6 +1233,7 @@ function saveVmap(){
   }).catch(e=>alert('Timeout'));
 }
 
+// ============ PRESET ============
 async function fetchPresets(){
   const msg=document.getElementById('presetListMsg');
   const box=document.getElementById('presetList');
@@ -1378,11 +1294,19 @@ async function applyPreset(id){
     document.querySelectorAll('.preset-btn').forEach((b,i)=>{
       b.classList.toggle('active', i===activePresetIdx);
     });
+    // ★ Đồng bộ bảng thủ công theo preset vừa áp
+    const list=document.getElementById('vmapList');
+    if(list){
+      list.innerHTML='';
+      p.entries.forEach(e=>addVmapRow(e.s, e.e, e.v));
+      vmapLoaded=true;
+    }
     alert('✅ Đã áp dụng: '+(p.name||id));
   }
   else alert('❌ Timeout');
 }
 
+// ============ SCAN ============
 function scan(){
   let s=document.getElementById('status'),r=document.getElementById('results');
   if(!bleConnected){s.innerText='❌ Chưa kết nối BLE';return;}
@@ -1428,6 +1352,7 @@ function clearMac(){
   });
 }
 
+// ============ BMS INFO ============
 function updateBmsInfo(){
   fetch('/data').then(r=>r.json()).then(d=>{
     let titleEl=document.getElementById('accBmsTitle');
@@ -1580,6 +1505,77 @@ async function checkUpdate(){
   }catch(e){
     if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
   }
+}
+
+async function otaOnline(){
+  if(!bleConnected){ alert('Chưa kết nối BLE'); return; }
+  if(!remoteUpdateInfo || !remoteUpdateInfo.url){
+    alert('Bấm "Kiểm tra phiên bản" trước'); return;
+  }
+  if(!confirm('Nạp firmware v'+remoteUpdateInfo.version+' từ GitHub?'))return;
+  const msg=document.getElementById('onlineMsg');
+  const bar=document.getElementById('onlineProgress');
+  try{
+    if(msg){msg.innerText='⏳ Đang tải firmware...';msg.style.color='#007bff';}
+    if(bar) bar.style.width='0%';
+    const r=await fetch(remoteUpdateInfo.url+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const buf=await r.arrayBuffer();
+    const total=buf.byteLength;
+    if(!bleOtaRx){ alert('OTA service không khả dụng'); return; }
+    if(msg){msg.innerText='⏳ Đang nạp ('+(total/1024).toFixed(0)+' KB)...';msg.style.color='#007bff';}
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
+    let off=0;
+    const CHUNK=180;
+    while(off<total){
+      const end=Math.min(off+CHUNK,total);
+      await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
+      off=end;
+      const pct=Math.round(off/total*100);
+      if(bar) bar.style.width=pct+'%';
+      if(msg) msg.innerText='Đang nạp '+pct+'%';
+    }
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
+    if(msg){msg.innerText='✅ Xong! ESP32 restart...';msg.style.color='#28a745';}
+    setTimeout(()=>{ bleDisconnect(); }, 3000);
+  }catch(e){
+    if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
+  }
+}
+
+async function bleOtaFile(){
+  const f=document.getElementById('fwFile').files[0];
+  if(!f){alert('Chọn file .bin');return;}
+  if(!bleConnected||!bleOtaRx){alert('Chưa kết nối BLE');return;}
+  if(!confirm('Nạp '+f.name+'?'))return;
+  const buf=await f.arrayBuffer();
+  const total=buf.byteLength;
+  const bar=document.getElementById('fwProgress');
+  const st=document.getElementById('fwStatus');
+  try{
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
+    let off=0;
+    const CHUNK=180;
+    while(off<total){
+      const end=Math.min(off+CHUNK,total);
+      await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
+      off=end;
+      const pct=Math.round(off/total*100);
+      bar.style.width=pct+'%';
+      st.innerText=pct+'%';
+    }
+    await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
+    st.innerText='✅ Xong! ESP32 restart...';
+  }catch(e){st.innerText='❌ '+e.message;}
+}
+
+function bleOtaWriteChunk(chunk){
+  return new Promise(async(resolve,reject)=>{
+    const tm=setTimeout(()=>{bleOtaAckResolve=null;reject(new Error('Timeout'));},3000);
+    bleOtaAckResolve=()=>{clearTimeout(tm);resolve();};
+    try{await bleOtaRx.writeValue(chunk);}
+    catch(e){clearTimeout(tm);bleOtaAckResolve=null;reject(e);}
+  });
 }
 
 // ================================================================
