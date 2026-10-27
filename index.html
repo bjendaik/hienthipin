@@ -114,6 +114,8 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 }
 .ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
 .ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
+/* Ẩn/hiện theo mode */
+.mode-hidden{display:none !important}
 </style></head><body>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
@@ -513,20 +515,22 @@ let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
 let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
 
-// ★ Lưu device đã dùng để reconnect nhanh
 let savedDeviceId = localStorage.getItem('bleDeviceId') || '';
 let savedDeviceName = localStorage.getItem('bleDeviceName') || '';
 let autoReconnecting = false;
 
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
-let otaInProgress = false;   // ★ Cờ báo hiệu đang OTA
+let otaInProgress = false;
 
 let configLoaded = false;
 let configDirty = false;
 let outputTouched = false;
 let activePresetIdx = -1;
 let vmapLoaded = false;
+
+// ★ Lưu mode hiện tại để tránh ghi đè display
+let currentAcquyMode = false;
 
 function markDirty(){ configDirty = true; }
 function markOutputTouched(){ outputTouched = true; }
@@ -676,7 +680,6 @@ function bleDisconnect(){
   try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
   bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
   configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
-  // ★ Reset firmware version khi ngắt kết nối
   const fwVerHeaderEl = document.getElementById('fwVerHeader');
   const fwVerOtaEl = document.getElementById('fwVerOta');
   if(fwVerHeaderEl) fwVerHeaderEl.innerText = '--';
@@ -821,7 +824,6 @@ window.fetch = async function(url, opts){
       const mac=q.get('mac')||'', name=q.get('name')||'';
       await bleSend('SAVE_MAC:'+mac+'|'+name);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      // ★ Cập nhật cache ngay để updateData() thấy MAC mới
       if(ack && bleLastStatus){
         bleLastStatus.mac = mac;
         bleLastStatus.bmsName = name || bleLastStatus.bmsName || '';
@@ -976,6 +978,51 @@ function onAccOpen(id){
   }
 }
 
+// ★ Sửa applyModeUI: ẩn/hiện TOÀN BỘ theo mode
+function applyModeUI(isAcquy){
+  currentAcquyMode = isAcquy;
+
+  document.getElementById('swBms').className='sw-lbl'+(isAcquy?'':' active bms');
+  document.getElementById('swAcquy').className='sw-lbl'+(isAcquy?' active acquy':'');
+
+  // Nguồn dữ liệu: config
+  document.getElementById('acquyConfigBox').style.display=isAcquy?'block':'none';
+  document.getElementById('bmsScanArea').style.display=isAcquy?'none':'block';
+
+  // Box acquy trong "Chi Tiết Điện Áp"
+  const aqBoxes = ['aq-box-raw', 'aq-box-stable', 'aq-status-line', 'irBox'];
+  aqBoxes.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){
+      if(isAcquy) el.classList.remove('mode-hidden');
+      else el.classList.add('mode-hidden');
+    }
+  });
+
+  // Box BMS trong "Chi Tiết Điện Áp"
+  const bmsBoxes = ['bms-box-totalv','bms-box-cellcount','bms-box-current','bms-box-power','bms-cellstats','bms-cells-wrap','bms-empty'];
+  bmsBoxes.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){
+      if(isAcquy) el.classList.add('mode-hidden');
+      else el.classList.remove('mode-hidden');
+    }
+  });
+
+  // Đổi tiêu đề accordion
+  const titleEl = document.getElementById('accBmsTitle');
+  const headEl = document.getElementById('accBmsHead');
+  if(titleEl && headEl){
+    if(isAcquy){
+      titleEl.innerText = '🔋 Chi Tiết Điện Áp / Ắc Quy';
+      headEl.style.color = '#ff9800';
+    } else {
+      titleEl.innerText = '🔋 Chi Tiết Điện Áp / BMS';
+      headEl.style.color = '#17a2b8';
+    }
+  }
+}
+
 function switchMode(mode){
   let wantAcquy=(mode==='acquy');
   fetch('/data').then(r=>r.json()).then(d=>{
@@ -991,13 +1038,6 @@ function switchMode(mode){
       }
     });
   });
-}
-
-function applyModeUI(isAcquy){
-  document.getElementById('swBms').className='sw-lbl'+(isAcquy?'':' active bms');
-  document.getElementById('swAcquy').className='sw-lbl'+(isAcquy?' active acquy':'');
-  document.getElementById('acquyConfigBox').style.display=isAcquy?'block':'none';
-  document.getElementById('bmsScanArea').style.display=isAcquy?'none':'block';
 }
 
 function switchSubTab(which){
@@ -1063,7 +1103,6 @@ function updateData(){
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
     document.getElementById('chip-name').innerText=d.chipName;
 
-    // ★ Cập nhật firmware version từ ESP32
     const fwVer = d.fwVersion || '0.0';
     const fwVerHeaderEl = document.getElementById('fwVerHeader');
     const fwVerOtaEl = document.getElementById('fwVerOta');
@@ -1079,7 +1118,6 @@ function updateData(){
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
 
-    // ★ Hiển thị MAC BMS thống nhất ở cả 2 nơi
     const bmsMac = (d.mac || '').trim();
     const macDisplay = bmsMac || 'Chưa có';
     document.getElementById('curMacText').innerText = macDisplay;
@@ -1180,7 +1218,7 @@ function reloadConfig(){
 
 setInterval(()=>{
   if(!bleConnected || document.hidden) return;
-  if(otaInProgress) return;   // ★ Tạm dừng khi đang nạp
+  if(otaInProgress) return;
   updateData();
 }, 2000);
 
@@ -1537,15 +1575,13 @@ function save(mac,name){
   fetch('/save?mac='+encodeURIComponent(mac)+'&name='+encodeURIComponent(name||''))
   .then(r=>r.text()).then(t=>{
     if(t==='OK'){
-      // ★ Xóa cache và force lấy status mới
       if(bleLastStatus){
         bleLastStatus.mac = mac;
         bleLastStatus.bmsName = name || '';
-        bleLastStatus._ts = 0;   // ← ép fetch mới, không dùng cache
+        bleLastStatus._ts = 0;
       }
       alert('Đã lưu '+mac);
       updateData();
-      // Cập nhật lại sau 1.5s để chắc chắn ESP32 đã gửi status mới
       setTimeout(()=>updateData(), 1500);
     }
     else alert('Lỗi: '+t);
@@ -1561,7 +1597,6 @@ function saveManualMac(){
   fetch('/save?mac='+mac).then(r=>r.text()).then(t=>{
     if(t==='OK'){
       msg.innerText='✅ '+mac;msg.style.color='#28a745';
-      // ★ Cập nhật cache + force refresh
       if(bleLastStatus){
         bleLastStatus.mac = mac;
         bleLastStatus._ts = 0;
@@ -1580,7 +1615,6 @@ function clearMac(){
       document.getElementById('curMacText').innerText='Chưa có';
       document.getElementById('curBmsName').innerText='';
       document.getElementById('manualMac').value='';
-      // ★ Xóa cache + force refresh
       if(bleLastStatus){
         bleLastStatus.mac = '';
         bleLastStatus.bmsName = '';
@@ -1593,42 +1627,121 @@ function clearMac(){
 }
 
 // ============ BMS INFO ============
+// ★ Sửa updateBmsInfo: KHÔNG ghi đè display khi sai mode
 function updateBmsInfo(){
   fetch('/data').then(r=>r.json()).then(d=>{
-    let titleEl=document.getElementById('accBmsTitle');
-    let headEl=document.getElementById('accBmsHead');
-    if(titleEl&&headEl){
-      if(d.acquyMode){titleEl.innerText='🔋 Chi Tiết Điện Áp / Ắc Quy';headEl.style.color='#ff9800';}
-      else{titleEl.innerText='🔋 Chi Tiết Điện Áp / BMS';headEl.style.color='#17a2b8';}
+    // ★ Nếu mode hiện tại khác với d.acquyMode, cập nhật lại UI trước
+    if(currentAcquyMode !== d.acquyMode){
+      applyModeUI(d.acquyMode);
     }
+
     let vc=0,maxV=-1,minV=999,mi=0,ni=0;
     for(let i=0;i<16;i++){
       let v=(d.cells&&d.cells[i])||0;
       if(v>0.5){vc++;if(v>maxV){maxV=v;mi=i}if(v<minV){minV=v;ni=i}}
     }
-    let hasAny=d.hasTotalV||d.hasCurrent||d.hasPower||d.hasCells;
-    document.getElementById('bms-empty').style.display=hasAny?'none':'block';
-    let boxTV=document.getElementById('bms-box-totalv');
-    let boxRaw=document.getElementById('aq-box-raw');
-    let boxStable=document.getElementById('aq-box-stable');
+
+    // ===== BOX ACQUY =====
     if(d.acquyMode){
-      if(boxTV)boxTV.style.display='none';
-      if(boxRaw){boxRaw.style.display='block';let rvEl=document.getElementById('aq-totalv-raw');
-        if(rvEl){rvEl.innerText=(d.aqRawV||0).toFixed(2)+' V';
+      const boxRaw=document.getElementById('aq-box-raw');
+      const boxStable=document.getElementById('aq-box-stable');
+      if(boxRaw){
+        boxRaw.classList.remove('mode-hidden');
+        let rvEl=document.getElementById('aq-totalv-raw');
+        if(rvEl){
+          rvEl.innerText=(d.aqRawV||0).toFixed(2)+' V';
           let diff=Math.abs((d.aqRawV||0)-(d.aqOcvEst||0));
-          rvEl.style.color=(diff>0.3)?'#ff9800':'#6c757d';}}
-      if(boxStable){boxStable.style.display='block';let svEl=document.getElementById('aq-totalv-stable');
-        if(svEl){svEl.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
-          svEl.style.color=d.aqIsStable?'#28a745':'#6c757d';}}
-    }else{
-      if(boxRaw)boxRaw.style.display='none';
-      if(boxStable)boxStable.style.display='none';
-      if(d.hasTotalV){if(boxTV){boxTV.style.display='block';
-        document.getElementById('bms-totalv').innerText=d.totalV.toFixed(2)+' V';}}
-      else{if(boxTV)boxTV.style.display='none';}
+          rvEl.style.color=(diff>0.3)?'#ff9800':'#6c757d';
+        }
+      }
+      if(boxStable){
+        boxStable.classList.remove('mode-hidden');
+        let svEl=document.getElementById('aq-totalv-stable');
+        if(svEl){
+          svEl.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
+          svEl.style.color=d.aqIsStable?'#28a745':'#6c757d';
+        }
+      }
     }
-    let irBox=document.getElementById('irBox');
-    if(irBox)irBox.style.display=d.acquyMode?'block':'none';
+
+    // ===== BOX BMS =====
+    if(!d.acquyMode){
+      const boxTV=document.getElementById('bms-box-totalv');
+      if(d.hasTotalV && boxTV){
+        boxTV.classList.remove('mode-hidden');
+        document.getElementById('bms-totalv').innerText=d.totalV.toFixed(2)+' V';
+      } else if(boxTV){
+        boxTV.classList.add('mode-hidden');
+      }
+
+      const boxCC=document.getElementById('bms-box-cellcount');
+      if(d.hasCells && boxCC){
+        boxCC.classList.remove('mode-hidden');
+        document.getElementById('bms-cellcount').innerText=vc;
+      } else if(boxCC){
+        boxCC.classList.add('mode-hidden');
+      }
+
+      const boxCur=document.getElementById('bms-box-current');
+      if(d.hasCurrent && boxCur){
+        boxCur.classList.remove('mode-hidden');
+        let cur=d.current||0;let curEl=document.getElementById('bms-current');
+        curEl.innerText=cur.toFixed(2)+' A';
+        curEl.style.color=cur<0?'#28a745':(cur>0?'#dc3545':'#ff9800');
+      } else if(boxCur){
+        boxCur.classList.add('mode-hidden');
+      }
+
+      const boxPow=document.getElementById('bms-box-power');
+      if(d.hasPower && boxPow){
+        boxPow.classList.remove('mode-hidden');
+        document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';
+      } else if(boxPow){
+        boxPow.classList.add('mode-hidden');
+      }
+
+      const stats=document.getElementById('bms-cellstats');
+      if(d.hasCells && vc>0 && stats){
+        stats.classList.remove('mode-hidden');
+        stats.style.display='flex';
+        document.getElementById('bms-cellmax').innerText='C'+(mi+1)+' - '+maxV.toFixed(3)+'V';
+        document.getElementById('bms-cellmin').innerText='C'+(ni+1)+' - '+minV.toFixed(3)+'V';
+        let diff=maxV-minV;let diffEl=document.getElementById('bms-celldiff');
+        diffEl.innerText=(diff*1000).toFixed(0)+' mV';
+        diffEl.style.color=diff>0.05?'#dc3545':(diff>0.03?'#ff9800':'#28a745');
+      } else if(stats){
+        stats.classList.add('mode-hidden');
+      }
+
+      const wrap=document.getElementById('bms-cells-wrap');
+      if(d.hasCells && vc>0 && wrap){
+        wrap.classList.remove('mode-hidden');
+        wrap.style.display='block';
+        let grid=document.getElementById('bms-cells-grid');
+        let html='';
+        for(let i=0;i<16;i++){
+          let v=(d.cells&&d.cells[i])||0;
+          if(v>0.5){
+            let color='#333';let bg='#f8f9fa';
+            if(i===mi){color='#fff';bg='#dc3545';}
+            else if(i===ni){color='#fff';bg='#28a745';}
+            html+='<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">';
+            html+='<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>';
+            html+='<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
+          }
+        }
+        grid.innerHTML=html;
+      } else if(wrap){
+        wrap.classList.add('mode-hidden');
+      }
+    }
+
+    // ===== IR BOX + STATUS LINE (acquy) =====
+    const irBox=document.getElementById('irBox');
+    if(irBox){
+      if(d.acquyMode) irBox.classList.remove('mode-hidden');
+      else irBox.classList.add('mode-hidden');
+    }
     if(d.acquyMode){
       let irRaw=document.getElementById('ir-raw');if(irRaw)irRaw.innerText=(d.aqRawV||0).toFixed(2)+' V';
       let irOcv=document.getElementById('ir-ocv');if(irOcv)irOcv.innerText=(d.aqOcvEst||0).toFixed(2)+' V';
@@ -1644,70 +1757,32 @@ function updateBmsInfo(){
         else if(sag<1.0)sagLabel.innerText='Tải nhẹ ('+sag.toFixed(2)+'V)';
         else if(sag<2.0)sagLabel.innerText='Tải vừa ('+sag.toFixed(2)+'V)';
         else sagLabel.innerText='🔥 TẢI NẶNG ('+sag.toFixed(2)+'V)';}
-    }
-    let statusLine=document.getElementById('aq-status-line');
-    let statusText=document.getElementById('bms-aq-status-text');
-    let adcVEl=document.getElementById('bms-aq-adc-v');
-    let pinLabelEl=document.getElementById('bms-aq-pin-label');
-    let ovpBadge=document.getElementById('bms-aq-ovp-badge');
-    let gainEl=document.getElementById('bms-aq-gain');
-    let offsetEl=document.getElementById('bms-aq-offset');
-    if(statusLine&&statusText){
-      if(d.acquyMode){
-        statusLine.style.display='block';
-        if(pinLabelEl)pinLabelEl.innerText='GPIO'+(d.aqPin||'--');
-        if(adcVEl)adcVEl.innerText=(d.aqAdcV||0).toFixed(3)+' V';
-        if(gainEl)gainEl.innerText=(d.aqGain||1).toFixed(4);
-        if(offsetEl)offsetEl.innerText=(d.aqOffset||0).toFixed(3);
+
+      const statusLine=document.getElementById('aq-status-line');
+      const statusText=document.getElementById('bms-aq-status-text');
+      const adcVEl=document.getElementById('bms-aq-adc-v');
+      const pinLabelEl=document.getElementById('bms-aq-pin-label');
+      const ovpBadge=document.getElementById('bms-aq-ovp-badge');
+      const gainEl=document.getElementById('bms-aq-gain');
+      const offsetEl=document.getElementById('bms-aq-offset');
+      if(statusLine) statusLine.classList.remove('mode-hidden');
+      if(pinLabelEl)pinLabelEl.innerText='GPIO'+(d.aqPin||'--');
+      if(adcVEl)adcVEl.innerText=(d.aqAdcV||0).toFixed(3)+' V';
+      if(gainEl)gainEl.innerText=(d.aqGain||1).toFixed(4);
+      if(offsetEl)offsetEl.innerText=(d.aqOffset||0).toFixed(3);
+      if(statusText){
         if(d.aqIsStable){statusText.innerText='✅ Ổn định';statusText.style.color='#28a745';}
         else{let sag=d.aqSag||0;
           if(sag<0.3){statusText.innerText='⏳ Chờ ổn định';statusText.style.color='#6c757d';}
           else if(sag<1.0){statusText.innerText='⚠️ Tải nhẹ';statusText.style.color='#ff9800';}
           else if(sag<2.0){statusText.innerText='⚠️ Tải vừa';statusText.style.color='#ff9800';}
           else{statusText.innerText='🔥 TẢI NẶNG';statusText.style.color='#dc3545';}}
-        if(ovpBadge)ovpBadge.style.display=d.aqOvp?'inline-block':'none';
-      }else{statusLine.style.display='none';}
-    }
-    let boxCC=document.getElementById('bms-box-cellcount');
-    if(d.hasCells){boxCC.style.display='block';document.getElementById('bms-cellcount').innerText=vc;}
-    else{boxCC.style.display='none';}
-    let boxCur=document.getElementById('bms-box-current');
-    if(d.hasCurrent){boxCur.style.display='block';
-      let cur=d.current||0;let curEl=document.getElementById('bms-current');
-      curEl.innerText=cur.toFixed(2)+' A';
-      curEl.style.color=cur<0?'#28a745':(cur>0?'#dc3545':'#ff9800');}
-    else{boxCur.style.display='none';}
-    let boxPow=document.getElementById('bms-box-power');
-    if(d.hasPower){boxPow.style.display='block';
-      document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';}
-    else{boxPow.style.display='none';}
-    let stats=document.getElementById('bms-cellstats');
-    if(d.hasCells&&vc>0){
-      stats.style.display='flex';
-      document.getElementById('bms-cellmax').innerText='C'+(mi+1)+' - '+maxV.toFixed(3)+'V';
-      document.getElementById('bms-cellmin').innerText='C'+(ni+1)+' - '+minV.toFixed(3)+'V';
-      let diff=maxV-minV;let diffEl=document.getElementById('bms-celldiff');
-      diffEl.innerText=(diff*1000).toFixed(0)+' mV';
-      diffEl.style.color=diff>0.05?'#dc3545':(diff>0.03?'#ff9800':'#28a745');
-    }else{stats.style.display='none';}
-    let wrap=document.getElementById('bms-cells-wrap');
-    if(d.hasCells&&vc>0){
-      wrap.style.display='block';
-      let grid=document.getElementById('bms-cells-grid');
-      let html='';
-      for(let i=0;i<16;i++){
-        let v=(d.cells&&d.cells[i])||0;
-        if(v>0.5){
-          let color='#333';let bg='#f8f9fa';
-          if(i===mi){color='#fff';bg='#dc3545';}
-          else if(i===ni){color='#fff';bg='#28a745';}
-          html+='<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">';
-          html+='<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>';
-          html+='<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
-        }
       }
-      grid.innerHTML=html;
-    }else{wrap.style.display='none';}
+      if(ovpBadge)ovpBadge.style.display=d.aqOvp?'inline-block':'none';
+    } else {
+      const statusLine=document.getElementById('aq-status-line');
+      if(statusLine) statusLine.classList.add('mode-hidden');
+    }
   }).catch(e=>{});
 }
 setInterval(function(){
@@ -1733,7 +1808,6 @@ async function checkUpdate(){
     const j=await r.json();
     remoteUpdateInfo=j;
 
-    // Lấy version thực từ ESP32
     const curVer = (bleLastStatus && bleLastStatus.fw && bleLastStatus.fw.ver)
                    ? bleLastStatus.fw.ver
                    : '0.0';
@@ -1753,7 +1827,6 @@ async function checkUpdate(){
     document.getElementById('newDateText').innerText=j.date||'--';
     document.getElementById('notesText').innerText=(j.notes||'(không có mô tả)').replace(/\\n/g,'\n');
 
-    // ★ Set link tải file
     if(j.url && j.version){
       const link=document.getElementById('downloadFwLink');
       link.href=j.url;
@@ -1772,7 +1845,7 @@ async function bleOtaFile(){
   if(!bleConnected||!bleOtaRx){alert('Chưa kết nối BLE');return;}
   if(!confirm('Nạp '+f.name+' ('+(f.size/1024).toFixed(0)+' KB)?\n\n⚠️ Không tắt tab trong lúc nạp.'))return;
 
-  otaInProgress = true;   // ★ Tạm dừng updateData()
+  otaInProgress = true;
   const buf=await f.arrayBuffer();
   const total=buf.byteLength;
   const bar=document.getElementById('fwProgress');
@@ -1787,7 +1860,7 @@ async function bleOtaFile(){
   try{
     await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
     let off=0;
-    const CHUNK=20;   // ★ Giảm từ 180 → 20 để ổn định
+    const CHUNK=20;
     while(off<total){
       const end=Math.min(off+CHUNK,total);
       await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
@@ -1828,7 +1901,7 @@ function bleOtaWriteChunk(chunk){
 
       bleOtaAckResolve = () => {
         clearTimeout(tm);
-        setTimeout(resolve, 15);   // ★ Delay nhỏ để ESP32 xử lý
+        setTimeout(resolve, 15);
       };
 
       try{
