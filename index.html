@@ -70,9 +70,9 @@
         status.innerText = "Đang tìm kiếm thiết bị...";
 
         const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: "ESP32_BMS_Monitor" }],
-          optionalServices: [SERVICE_UUID]
-        });
+  filters: [{ name: "ESP32_BMS" }],
+  optionalServices: [SERVICE_UUID]
+});
 
         status.innerText = "Đang kết nối...";
         const server = await device.gatt.connect();
