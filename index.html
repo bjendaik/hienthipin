@@ -91,6 +91,15 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
   line-height:1.3;flex-basis:100%;text-align:right;
   margin-bottom:2px;
 }
+.ble-inline .status b{font-size:12px}
+.ble-inline .status .bms-mac{
+  display:block;font-family:monospace;font-size:10px;
+  color:#17a2b8;margin-top:2px;word-break:break-all;
+}
+.ble-inline .status .esp-mac{
+  display:block;font-family:monospace;font-size:10px;
+  color:#6c757d;margin-top:1px;word-break:break-all;
+}
 .ble-inline button{
   margin:0;padding:7px 11px;font-size:12px;width:auto;
   flex-shrink:0;border-radius:6px;
@@ -519,9 +528,15 @@ function bleUpdateUI(){
 
   if(bleConnected){
     if(st){
-      st.innerHTML='🟢 Đã kết nối'+(savedDeviceName?' — <b>'+savedDeviceName+'</b>':'')+
-                   ' <span style="font-weight:normal;color:#888">(RX:'+bleNotifyCount+')</span>';
-      st.style.color='#28a745';
+      const bmsMac = (bleLastStatus && bleLastStatus.mac) ? bleLastStatus.mac : '';
+      const bmsName = (bleLastStatus && bleLastStatus.bmsName) ? bleLastStatus.bmsName : '';
+      const espMac = (bleLastStatus && bleLastStatus.espMac) ? bleLastStatus.espMac : '';
+      let html = '🟢 <b>' + (savedDeviceName || 'ESP32') + '</b>';
+      if(espMac) html += '<span class="esp-mac">ESP32: '+espMac+'</span>';
+      if(bmsMac) html += '<span class="bms-mac">BMS: '+bmsMac+(bmsName?' · '+bmsName:'')+'</span>';
+      html += '<span style="font-weight:normal;color:#888;font-size:10px">RX:'+bleNotifyCount+'</span>';
+      st.innerHTML = html;
+      st.style.color = '#28a745';
     }
     btn.innerText='Ngắt'; btn.style.background='#dc3545';
     if(forgetBtn) forgetBtn.style.display='none';
@@ -531,7 +546,7 @@ function bleUpdateUI(){
     if(forgetBtn) forgetBtn.style.display='none';
   } else if(savedDeviceId){
     if(st){
-      st.innerHTML='🔵 Sẵn sàng: <b>'+savedDeviceName+'</b>';
+      st.innerHTML='🔵 Sẵn sàng: <b>'+(savedDeviceName||'ESP32')+'</b>';
       st.style.color='#6c757d';
     }
     btn.innerText='Kết nối lại';
@@ -554,6 +569,11 @@ async function bleConnect(){
   try{
     if(!navigator.bluetooth){ alert('Không hỗ trợ Web Bluetooth'); return; }
 
+    console.log('[BLE] === BẮT ĐẦU KẾT NỐI ===');
+    console.log('[BLE] savedDeviceId:', savedDeviceId || '(chưa có)');
+    console.log('[BLE] getDevices available:', typeof navigator.bluetooth.getDevices === 'function');
+    console.log('[BLE] Location:', location.href);
+
     let device=null;
 
     // ① Thử lấy lại device đã lưu (Chrome 122+, không cần popup)
@@ -561,17 +581,29 @@ async function bleConnect(){
       try{
         autoReconnecting=true; bleUpdateUI();
         const devices = await navigator.bluetooth.getDevices();
+        console.log('[BLE] getDevices() trả về', devices.length, 'device(s):');
+        devices.forEach((d,i)=>console.log('  ['+i+'] id='+d.id+' name='+d.name));
         device = devices.find(d => d.id === savedDeviceId) || null;
+        if(device){
+          console.log('[BLE] ✅ Tìm thấy device đã lưu:', device.name);
+        } else {
+          console.warn('[BLE] ⚠️ Không tìm thấy device id='+savedDeviceId);
+        }
         autoReconnecting=false;
       }catch(e){
         autoReconnecting=false;
-        console.warn('[BLE] getDevices() thất bại:', e.message);
+        console.error('[BLE] getDevices() thất bại:', e.name, e.message);
       }
+    } else if(!savedDeviceId){
+      console.log('[BLE] Chưa có savedDeviceId → phải popup lần đầu');
+    } else {
+      console.log('[BLE] Trình duyệt không hỗ trợ getDevices() → phải popup');
     }
 
-    // ② Nếu không lấy được → popup chọn device
+    // ② Nếu không lấy được → popup
     if(!device){
       bleUpdateUI();
+      console.log('[BLE] → Mở popup chọn device...');
       device = await navigator.bluetooth.requestDevice({
         filters:[{services:[BLE_SERVICE]}],
         optionalServices:[BLE_SERVICE, BLE_OTA_SVC]
@@ -586,6 +618,7 @@ async function bleConnect(){
       savedDeviceName = device.name || 'BMS_Controller';
       localStorage.setItem('bleDeviceId', savedDeviceId);
       localStorage.setItem('bleDeviceName', savedDeviceName);
+      console.log('[BLE] 💾 Đã lưu: id='+savedDeviceId+', name='+savedDeviceName);
     }
 
     bleDevice.addEventListener('gattserverdisconnected', ()=>{
@@ -595,7 +628,9 @@ async function bleConnect(){
     });
 
     // ④ Kết nối GATT
+    console.log('[BLE] Đang kết nối GATT...');
     const server = await bleDevice.gatt.connect();
+    console.log('[BLE] ✅ GATT connected');
     const svc = await server.getPrimaryService(BLE_SERVICE);
     bleTx = await svc.getCharacteristic(BLE_TX_CHAR);
     await bleTx.startNotifications();
@@ -610,7 +645,9 @@ async function bleConnect(){
       bleOtaTx = await osvc.getCharacteristic(BLE_OTA_TX);
       await bleOtaTx.startNotifications();
       bleOtaTx.addEventListener('characteristicvaluechanged', bleOnOtaNotify);
-    }catch(e){}
+    }catch(e){
+      console.log('[BLE] OTA service không có (bỏ qua)');
+    }
 
     bleConnected = true;
     bleNotifyCount = 0;
@@ -618,10 +655,12 @@ async function bleConnect(){
 
     await bleSend('HELLO');
     setTimeout(()=>updateData(), 300);
+    console.log('[BLE] ✅ HOÀN TẤT KẾT NỐI');
 
   }catch(e){
     autoReconnecting = false;
     bleUpdateUI();
+    console.error('[BLE] ❌ Lỗi:', e.name, e.message);
     if(e.name === 'NotFoundError'){
       console.log('[BLE] User cancelled device selection');
     } else {
@@ -867,6 +906,7 @@ function enrich(o){
   o.chipName = o.chipName || 'ESP32';
   o.bleAutoScan=true; o.bleEnabled=true;
   o.mac=o.mac||''; o.bmsName=o.bmsName||'';
+  o.espMac=o.espMac||'';   // ★ MAC ESP32
   o.needAutoConnect=false;
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
@@ -1018,7 +1058,9 @@ function updateData(){
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
-    document.getElementById('curMacText').innerText=d.mac||'Chưa có';
+    let macText = d.mac||'Chưa có';
+    if(d.espMac) macText += '  (ESP32: '+d.espMac+')';
+    document.getElementById('curMacText').innerText=macText;
     document.getElementById('curBmsName').innerText=d.bmsName?('📛 '+d.bmsName):'';
     if(d.acquyMode){
       document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
@@ -1050,6 +1092,8 @@ function updateData(){
       loadConfigFromStatus(d);
       configLoaded = true;
     }
+    // ★ Cập nhật UI để hiện MAC ESP32 + MAC BMS
+    if(bleConnected) bleUpdateUI();
   }).catch(e=>{});
 }
 
