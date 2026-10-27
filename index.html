@@ -1065,8 +1065,6 @@ function updateData(){
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
     let macText = d.mac||'Chưa có';
-    if(d.espMac) macText += '  (ESP32: '+d.espMac+')';
-    document.getElementById('curMacText').innerText=macText;
     document.getElementById('curBmsName').innerText=d.bmsName?('📛 '+d.bmsName):'';
     if(d.acquyMode){
       document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
