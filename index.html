@@ -2,7 +2,7 @@
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v4.3</title><style>
+<title>BMS & ACQUY Controller v4.9</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
@@ -110,7 +110,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v4.3</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v4.9</span></h2>
 <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
@@ -151,8 +151,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 <button onclick='clearMac()' style='width:auto;margin:0;padding:8px 12px;font-size:12px;background:#dc3545'>🗑️ Xóa MAC</button>
 </div>
-<div id='autoConnectHint' style='display:none;background:#fff3cd;color:#856404;padding:8px 12px;border-radius:5px;font-size:12px;margin-top:10px'>
-⏳ Đang chờ BMS — sẽ tự kết nối khi chỉ tìm thấy 1 thiết bị</div>
 <div class='sub-tabs'>
 <div class='sub-tab active' id='subTabScan' onclick='switchMacTab("scan")'>📡 Quét Tự Động</div>
 <div class='sub-tab' id='subTabManualMac' onclick='switchMacTab("manual")'>⌨️ Nhập Thủ Công</div>
@@ -357,7 +355,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v4.3</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v4.9</div>
 </div>
 <div id='otaLocalBox' style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
@@ -370,7 +368,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE SHIM v4.3
+// BLE SHIM v4.9 — đã sửa tất cả lỗi
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -493,6 +491,7 @@ async function bleSend(cmd){
 }
 
 function bleOnNotify(ev){
+  if(!ev.target.value) return;
   bleNotifyCount++;
   const text=new TextDecoder().decode(ev.target.value);
   bleRxBuf += text;
@@ -542,7 +541,7 @@ function bleWaitFor(kind, timeoutMs=5000){
 }
 
 // ================================================================
-// FETCH SHIM
+// FETCH SHIM — đã sửa SAVE_MAC dùng dấu '|'
 // ================================================================
 const _realFetch = window.fetch.bind(window);
 window.fetch = async function(url, opts){
@@ -558,7 +557,7 @@ window.fetch = async function(url, opts){
     if(path==='/data'){
       if(bleLastStatus && Date.now()-bleLastStatus._ts<500) return jsonResponse(enrich(bleLastStatus));
       await bleSend('GET_STATUS');
-      const obj=await bleWaitFor('status', 3000);
+      const obj=await bleWaitFor('status', 5000);  // ★ 5000ms
       return jsonResponse(enrich(obj));
     }
     if(path==='/sim'){
@@ -568,8 +567,8 @@ window.fetch = async function(url, opts){
     if(path==='/scan'){
       bleDbg('→ SCAN request','info');
       await bleSend('SCAN');
-      bleDbg('Waiting scan (12s)...','info');
-      const obj=await bleWaitFor('scan', 12000);
+      bleDbg('Waiting scan (15s)...','info');
+      const obj=await bleWaitFor('scan', 15000);  // ★ 15000ms
       bleDbg('✅ Scan: '+(obj.list||[]).length+' BMS','info');
       const list=obj.list||[];
       if(list.length===0) return htmlResponse("<li style='color:#888;'>Không tìm thấy BMS.</li>");
@@ -581,10 +580,13 @@ window.fetch = async function(url, opts){
       }
       return htmlResponse(html);
     }
+    // ★ SAVE_MAC dùng '|' thay ':'
     if(path==='/save'){
       const mac=q.get('mac')||'', name=q.get('name')||'';
-      await bleSend('SAVE_MAC:'+mac+':'+name);
-      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      bleDbg('→ SAVE_MAC: '+mac+' | '+name,'info');
+      await bleSend('SAVE_MAC:'+mac+'|'+name);  // ★ Dùng '|'
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      bleDbg('→ SAVE_MAC ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/clearmac'){ await bleSend('CLEAR_MAC'); await bleWaitFor('ack',3000).catch(()=>{}); return textResponse('OK'); }
@@ -633,7 +635,7 @@ window.fetch = async function(url, opts){
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
     if(path==='/fetchacquyjson') return textResponse('OK|0|0|BLE');
-    if(path==='/checkupdate') return textResponse('LATEST:4.3');
+    if(path==='/checkupdate') return textResponse('LATEST:4.9');
     if(path==='/savefwinfo'||path==='/saveautoupdate') return textResponse('OK');
     if(path==='/wifiscan') return htmlResponse("<li style='color:#888'>WiFi không hỗ trợ</li>");
     if(path==='/serial') return textResponse('');
@@ -660,7 +662,10 @@ function enrich(o){
   o.current=o.i||0; o.hasCurrent=(o.i!==0);
   o.power=o.p||0; o.hasPower=(o.p!==0);
   o.cellCount=o.n||0; o.hasCells=(o.n>0);
-  o.cells=o.cells||[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+  // ★ Check Array.isArray và đủ 16 phần tử
+  if(!Array.isArray(o.cells) || o.cells.length < 16){
+    o.cells = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+  }
   o.realSoc=o.soc||0; o.savedSoc=o.soc||0;
   o.socFresh=true; o.socAge=0; o.manualSim=o.sim||false;
   o.configMode=false; o.ledMode=1; o.voltage=0;
@@ -676,7 +681,7 @@ function enrich(o){
   o.logMask=o.logMask||255;
   o.presetUpdated=''; o.presetInfoLoaded=true;
   o.activePresetName=o.activePresetName||'';
-  o.fwVersion=(o.fw&&o.fw.ver)||'4.3';
+  o.fwVersion=(o.fw&&o.fw.ver)||'4.9';
   o.fwDate=''; o.fwNotes='';
   o.autoUpdate=false; o.autoUpdateDone=true; o.apActive=false;
   return o;
