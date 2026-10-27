@@ -2,7 +2,7 @@
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v5.7</title><style>
+<title>BMS & ACQUY Controller</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:30px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
@@ -118,7 +118,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <div class='card' style='border-top:4px solid #17a2b8'>
 <div style='display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px'>
-  <h2 style='margin:0;flex-shrink:0;white-space:nowrap'>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.7</span></h2>
+  <h2 style='margin:0;flex-shrink:0;white-space:nowrap'>MONITOR <span id='fwVerHeader' style='font-size:12px;color:#6c757d;font-weight:normal'>--</span></h2>
   <div class='ble-inline'>
     <div class='status' id='bleStatus'>🔵 Chưa kết nối</div>
     <button id='bleForgetBtn' class='forget' onclick='bleForget()' style='display:none'>Quên</button>
@@ -460,8 +460,8 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.7</div>
-<div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>BLE-only firmware</div>
+<div id='fwVerOta' style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>--</div>
+<div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>Đang tải...</div>
 </div>
 <div class='ota-box'>
 <div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (từ GitHub)</div>
@@ -486,7 +486,7 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 
 <script>
 // ================================================================
-// BLE SHIM v5.7
+// BLE SHIM
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -573,7 +573,6 @@ async function bleConnect(){
 
     let device=null;
 
-    // ① Thử lấy lại device đã lưu (Chrome 122+, không cần popup)
     if(savedDeviceId && typeof navigator.bluetooth.getDevices === 'function'){
       try{
         autoReconnecting=true; bleUpdateUI();
@@ -597,7 +596,6 @@ async function bleConnect(){
       console.log('[BLE] Trình duyệt không hỗ trợ getDevices() → phải popup');
     }
 
-    // ② Nếu không lấy được → popup
     if(!device){
       bleUpdateUI();
       console.log('[BLE] → Mở popup chọn device...');
@@ -609,7 +607,6 @@ async function bleConnect(){
 
     bleDevice = device;
 
-    // ③ Lưu ID + tên
     if(device.id){
       savedDeviceId = device.id;
       savedDeviceName = device.name || 'BMS_Controller';
@@ -624,7 +621,6 @@ async function bleConnect(){
       bleUpdateUI();
     });
 
-    // ④ Kết nối GATT
     console.log('[BLE] Đang kết nối GATT...');
     const server = await bleDevice.gatt.connect();
     console.log('[BLE] ✅ GATT connected');
@@ -670,6 +666,11 @@ function bleDisconnect(){
   try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
   bleConnected=false; bleRx=null; bleTx=null; bleOtaRx=null; bleOtaTx=null;
   configLoaded=false; outputTouched=false; activePresetIdx=-1; configDirty=false; vmapLoaded=false;
+  // ★ Reset firmware version khi ngắt kết nối
+  const fwVerHeaderEl = document.getElementById('fwVerHeader');
+  const fwVerOtaEl = document.getElementById('fwVerOta');
+  if(fwVerHeaderEl) fwVerHeaderEl.innerText = '--';
+  if(fwVerOtaEl) fwVerOtaEl.innerText = '--';
   bleUpdateUI();
 }
 
@@ -859,7 +860,7 @@ window.fetch = async function(url, opts){
     }
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
-    if(path==='/checkupdate') return textResponse('LATEST:5.7');
+    if(path==='/checkupdate') return textResponse('LATEST');
     return textResponse('OK');
   }catch(e){
     if(path==='/data') return jsonResponse(dummyStatus());
@@ -908,7 +909,7 @@ function enrich(o){
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.7';
+  o.fwVersion=(o.fw&&o.fw.ver)||'0.0';
 
   if(o.voltage === undefined || o.voltage === 0 || o.voltage === null){
     let mv = -1;
@@ -1047,6 +1048,14 @@ function updateData(){
     else if(!d.connected){b.innerText='CŨ('+d.savedSoc+'%)';b.style.background='#6c757d';w.style.display='block';w.innerText='Mất kết nối - SOC cũ: '+d.savedSoc+'%';}
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
     document.getElementById('chip-name').innerText=d.chipName;
+
+    // ★ Cập nhật firmware version từ ESP32
+    const fwVer = d.fwVersion || '0.0';
+    const fwVerHeaderEl = document.getElementById('fwVerHeader');
+    const fwVerOtaEl = document.getElementById('fwVerOta');
+    if(fwVerHeaderEl) fwVerHeaderEl.innerText = 'v'+fwVer;
+    if(fwVerOtaEl) fwVerOtaEl.innerText = 'v'+fwVer;
+
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V (' + outText + ')';
@@ -1089,7 +1098,6 @@ function updateData(){
       loadConfigFromStatus(d);
       configLoaded = true;
     }
-    // Cập nhật UI để hiện MAC ESP32
     if(bleConnected) bleUpdateUI();
   }).catch(e=>{});
 }
@@ -1667,13 +1675,22 @@ async function checkUpdate(){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
     remoteUpdateInfo=j;
-    const curVer='5.7';
-    const isNewer=(j.version && j.version !== curVer);
+
+    // ★ Lấy version thực từ ESP32 (không hardcode)
+    const curVer = (bleLastStatus && bleLastStatus.fw && bleLastStatus.fw.ver)
+                   ? bleLastStatus.fw.ver
+                   : '0.0';
+
+    if(!bleConnected){
+      if(msg){msg.innerText='⚠️ Chưa kết nối ESP32 — không biết version hiện tại';msg.style.color='#ff9800';}
+    }
+
+    const isNewer = (j.version && j.version !== curVer);
     if(!isNewer){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
       return;
     }
-    if(msg){msg.innerText='🆕 Có bản mới v'+j.version;msg.style.color='#e65100';}
+    if(msg){msg.innerText='🆕 Có bản mới v'+j.version+' (hiện tại: v'+curVer+')';msg.style.color='#e65100';}
     document.getElementById('newVersionText').innerText='Phiên bản v'+j.version;
     document.getElementById('newDateText').innerText=j.date||'--';
     document.getElementById('notesText').innerText=(j.notes||'(không có mô tả)').replace(/\\n/g,'\n');
