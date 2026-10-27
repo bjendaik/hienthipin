@@ -1,118 +1,314 @@
-#include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
-// Nút nhấn ngắt kết nối (mặc định dùng nút BOOT GPIO 0 trên ESP32)
-#define BUTTON_PIN 0
-
-BLEServer* pServer = nullptr;
-BLECharacteristic* pCharacteristic = nullptr;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-
-unsigned long lastNotifyTime = 0;
-const unsigned long notifyInterval = 1000; // Gửi dữ liệu mỗi 1000ms (1s)
-
-class MyServerCallbacks : public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-        deviceConnected = true;
-        Serial.println(">> Da co dien thoai ket noi!");
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMS Monitor - Web Bluetooth</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --border: #334155;
     }
 
-    void onDisconnect(BLEServer* pServer) {
-        deviceConnected = false;
-        Serial.println(">> Dien thoai ngat ket noi!");
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-};
 
-void setup() {
-    Serial.begin(115200);
-    delay(1000);
-    Serial.println("\n=== TEST BLE SERVER BMS ===");
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
 
-    // Cấu hình nút nhấn (dùng điện trở kéo lên nội bộ)
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+    }
 
-    // Khởi tạo bộ sinh số ngẫu nhiên theo nhiễu ADC
-    randomSeed(analogRead(34));
+    h1 {
+      font-size: 1.4rem;
+      text-align: center;
+      margin-bottom: 8px;
+    }
 
-    BLEDevice::init("ESP32_BMS_TEST");
-    pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new MyServerCallbacks());
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: #334155;
+      color: var(--text-muted);
+      margin: 0 auto 20px;
+      display: table;
+    }
 
-    BLEService *pService = pServer->createService(SERVICE_UUID);
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
 
-    pCharacteristic = pService->createCharacteristic(
-        CHARACTERISTIC_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
 
-    pCharacteristic->addDescriptor(new BLE2902());
-    pService->start();
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
 
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMaxPreferred(0x12);
+    button {
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
 
-    BLEDevice::startAdvertising();
-    Serial.println(">> Dang quang ba. Nhan nut BOOT de chu dong ngat ket noi BLE.");
-}
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
-void loop() {
-    // 1. Kiểm tra nút bấm ngắt kết nối (Active LOW)
-    if (digitalRead(BUTTON_PIN) == LOW) {
-        delay(50); // Chống rung phím (debounce)
-        if (digitalRead(BUTTON_PIN) == LOW && deviceConnected) {
-            Serial.println(">> Nut nhan duoc bam: Chu dong ngat ket noi BLE!");
-            pServer->disconnect(pServer->getConnId());
+    .btn-connect {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-connect:hover:not(:disabled) {
+      background: #2563eb;
+    }
 
-            // Đợi người dùng nhả nút
-            while (digitalRead(BUTTON_PIN) == LOW) {
-                delay(10);
-            }
+    .btn-disconnect {
+      background: var(--danger);
+      color: white;
+    }
+    .btn-disconnect:hover:not(:disabled) {
+      background: #dc2626;
+    }
+
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: #0f172a;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .card-full {
+      grid-column: span 2;
+    }
+
+    .label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    .unit {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #334155;
+      border-radius: 5px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--success);
+      transition: width 0.3s ease;
+    }
+
+    .raw-log {
+      margin-top: 16px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>BMS Dashboard</h1>
+    
+    <div class="status-badge">
+      <div id="statusDot" class="status-dot"></div>
+      <span id="statusText">Chưa kết nối</span>
+    </div>
+
+    <div class="button-group">
+      <button id="btnConnect" class="btn-connect" onclick="connectBLE()">Kết nối BLE</button>
+      <button id="btnDisconnect" class="btn-disconnect" onclick="disconnectBLE()" disabled>Ngắt kết nối</button>
+    </div>
+
+    <div class="grid-metrics">
+      <div class="card">
+        <div class="label">Điện áp</div>
+        <div class="value"><span id="valV">--</span><span class="unit">V</span></div>
+      </div>
+
+      <div class="card">
+        <div class="label">Dòng điện</div>
+        <div class="value"><span id="valI">--</span><span class="unit">A</span></div>
+      </div>
+
+      <div class="card card-full">
+        <div class="label">Dung lượng pin (SOC)</div>
+        <div class="value"><span id="valSoc">--</span><span class="unit">%</span></div>
+        <div class="progress-bar-bg">
+          <div id="socBar" class="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rawLog" class="raw-log">Payload: --</div>
+  </div>
+
+  <script>
+    // UUID trùng khớp với code trên ESP32
+    const SERVICE_UUID        = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    let bleDevice = null;
+    let bmsCharacteristic = null;
+
+    const btnConnect = document.getElementById('btnConnect');
+    const btnDisconnect = document.getElementById('btnDisconnect');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    const valV = document.getElementById('valV');
+    const valI = document.getElementById('valI');
+    const valSoc = document.getElementById('valSoc');
+    const socBar = document.getElementById('socBar');
+    const rawLog = document.getElementById('rawLog');
+
+    async function connectBLE() {
+      try {
+        statusText.textContent = "Đang tìm kiếm thiết bị...";
+
+        // Yêu cầu quyền truy cập thiết bị có Service UUID tương ứng
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: "ESP32_BMS" }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        // Lắng nghe sự kiện ngắt kết nối (do ESP32 hoặc mất sóng)
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+        statusText.textContent = "Đang kết nối GATT...";
+        const server = await bleDevice.gatt.connect();
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bmsCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        // Đăng ký nhận Notify
+        await bmsCharacteristic.startNotifications();
+        bmsCharacteristic.addEventListener('characteristicvaluechanged', handleNotify);
+
+        // Cập nhật trạng thái UI
+        statusText.textContent = "Đã kết nối: " + bleDevice.name;
+        statusDot.classList.add('connected');
+        btnConnect.disabled = true;
+        btnDisconnect.disabled = false;
+
+      } catch (error) {
+        console.error("Lỗi BLE:", error);
+        statusText.textContent = "Kết nối thất bại";
+        resetUI();
+      }
+    }
+
+    // Xử lý dữ liệu nhận được từ Notify
+    function handleNotify(event) {
+      const decoder = new TextDecoder('utf-8');
+      const jsonString = decoder.decode(event.target.value);
+      rawLog.textContent = "Payload: " + jsonString;
+
+      try {
+        const data = JSON.parse(jsonString);
+        
+        if (data.v !== undefined) valV.textContent = data.v.toFixed(1);
+        if (data.i !== undefined) valI.textContent = data.i.toFixed(1);
+        if (data.soc !== undefined) {
+          valSoc.textContent = data.soc;
+          socBar.style.width = Math.min(Math.max(data.soc, 0), 100) + "%";
         }
+      } catch (e) {
+        console.warn("Dữ liệu không phải định dạng JSON hợp lệ:", jsonString);
+      }
     }
 
-    // 2. Tạo và gửi dữ liệu ngẫu nhiên mỗi 1 giây khi có kết nối
-    if (deviceConnected) {
-        unsigned long currentMillis = millis();
-        if (currentMillis - lastNotifyTime >= notifyInterval) {
-            lastNotifyTime = currentMillis;
-
-            // Điện áp: 48.0V - 54.5V
-            float v = random(480, 546) / 10.0;
-            // Dòng điện: 2.0A - 25.0A
-            float i = random(20, 251) / 10.0;
-            // Phần trăm pin (SOC): 20% - 100%
-            int soc = random(20, 101);
-
-            char payload[64];
-            snprintf(payload, sizeof(payload), "{\"v\":%.1f,\"i\":%.1f,\"soc\":%d}", v, i, soc);
-
-            pCharacteristic->setValue(payload);
-            pCharacteristic->notify();
-            Serial.printf("Notify: %s\n", payload);
-        }
+    // Nút ngắt kết nối trên web
+    function disconnectBLE() {
+      if (!bleDevice || !bleDevice.gatt.connected) return;
+      bleDevice.gatt.disconnect();
     }
 
-    // 3. Xử lý bật lại quảng bá khi bị ngắt kết nối
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // Chờ stack BLE giải phóng bộ nhớ
-        pServer->startAdvertising();
-        Serial.println(">> Bat lai quang ba BLE...");
-        oldDeviceConnected = deviceConnected;
+    // Callback khi ngắt kết nối
+    function onDisconnected() {
+      statusText.textContent = "Đã ngắt kết nối";
+      resetUI();
     }
 
-    // 4. Xử lý trạng thái vừa kết nối
-    if (deviceConnected && !oldDeviceConnected) {
-        oldDeviceConnected = deviceConnected;
+    function resetUI() {
+      statusDot.classList.remove('connected');
+      btnConnect.disabled = false;
+      btnDisconnect.disabled = true;
+      valV.textContent = "--";
+      valI.textContent = "--";
+      valSoc.textContent = "--";
+      socBar.style.width = "0%";
+      rawLog.textContent = "Payload: --";
     }
-}
+  </script>
+</body>
+</html>
