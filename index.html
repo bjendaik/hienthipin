@@ -1,6 +1,116 @@
-<html>
-  <title>Hello</title>
-  <body>
-    jyagdjawdawd
-  </body>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMS Monitor Web Bluetooth</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background-color: #121212;
+      color: #ffffff;
+    }
+    .card {
+      background: #1e1e1e;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 400px;
+      margin: 20px auto;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+    .metric {
+      font-size: 1.4rem;
+      margin: 15px 0;
+    }
+    .value {
+      font-weight: bold;
+      color: #00e676;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: bold;
+      background-color: #00e676;
+      color: #121212;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    #status {
+      margin-top: 10px;
+      font-style: italic;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Theo Dõi BMS Qua Bluetooth</h2>
+    <button id="btnConnect" onclick="connectBle()">Kết nối ESP32</button>
+    <div id="status">Chưa kết nối</div>
+
+    <div class="metric">Điện áp: <span class="value" id="valV">--</span> V</div>
+    <div class="metric">Dòng điện: <span class="value" id="valI">--</span> A</div>
+    <div class="metric">SOC: <span class="value" id="valSoc">--</span> %</div>
+  </div>
+
+  <script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    async function connectBle() {
+      const status = document.getElementById("status");
+      try {
+        status.innerText = "Đang tìm kiếm thiết bị...";
+
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "ESP32_BMS_Monitor" }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        status.innerText = "Đang kết nối...";
+        const server = await device.gatt.connect();
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        await characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
+        status.innerText = "Đã kết nối thành công!";
+        document.getElementById("btnConnect").innerText = "Đã Kết Nối";
+
+        device.addEventListener('gattserverdisconnected', () => {
+          status.innerText = "Đã mất kết nối!";
+          document.getElementById("btnConnect").innerText = "Kết nối ESP32";
+        });
+
+      } catch (error) {
+        console.error(error);
+        status.innerText = "Lỗi kết nối: " + error.message;
+      }
+    }
+
+    function handleNotifications(event) {
+      const value = event.target.value;
+      const decoder = new TextDecoder('utf-8');
+      const jsonString = decoder.decode(value);
+
+      try {
+        const data = JSON.parse(jsonString);
+        document.getElementById("valV").innerText = data.v;
+        document.getElementById("valI").innerText = data.i;
+        document.getElementById("valSoc").innerText = data.soc;
+      } catch (err) {
+        console.error("Lỗi parse JSON:", err);
+      }
+    }
+  </script>
+</body>
 </html>
