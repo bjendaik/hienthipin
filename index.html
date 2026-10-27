@@ -2,7 +2,7 @@
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='mobile-web-app-capable' content='yes'>
-<title>BMS & ACQUY Controller v4.9</title><style>
+<title>BMS & ACQUY Controller v5.1</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2,h3{margin-top:0;color:#333;font-size:18px}
@@ -24,8 +24,6 @@ input[type=range]{width:100%;margin:12px 0}
 .input-with-icon{flex:1;position:relative;display:flex;align-items:center;min-width:0}
 .input-with-icon input{width:100%;padding-right:44px !important;margin:0}
 .input-with-icon .icon-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:32px;margin:0;padding:0;background:transparent;color:#6c757d;border:none;border-radius:6px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
-#wifiList{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0;margin:0}
-#wifiList.open{max-height:220px;overflow-y:auto}
 ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd}
 .mode-tabs{display:flex;gap:8px;margin-bottom:12px}
 .mode-tab{flex:1;padding:12px;text-align:center;border-radius:8px;cursor:pointer;border:2px solid #ccc;background:#f8f9fa;font-weight:bold}
@@ -110,7 +108,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v4.9</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.1</span></h2>
 <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='color:#6c757d;font-size:12px;margin-top:4px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
@@ -355,7 +353,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#495057;margin-bottom:6px'>📌 Firmware hiện tại</div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v4.9</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>v5.1</div>
 </div>
 <div id='otaLocalBox' style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
@@ -368,7 +366,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE SHIM v4.9 — đã sửa tất cả lỗi
+// BLE SHIM v5.1
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -541,7 +539,7 @@ function bleWaitFor(kind, timeoutMs=5000){
 }
 
 // ================================================================
-// FETCH SHIM — đã sửa SAVE_MAC dùng dấu '|'
+// FETCH SHIM
 // ================================================================
 const _realFetch = window.fetch.bind(window);
 window.fetch = async function(url, opts){
@@ -557,7 +555,7 @@ window.fetch = async function(url, opts){
     if(path==='/data'){
       if(bleLastStatus && Date.now()-bleLastStatus._ts<500) return jsonResponse(enrich(bleLastStatus));
       await bleSend('GET_STATUS');
-      const obj=await bleWaitFor('status', 5000);  // ★ 5000ms
+      const obj=await bleWaitFor('status', 5000);
       return jsonResponse(enrich(obj));
     }
     if(path==='/sim'){
@@ -568,7 +566,7 @@ window.fetch = async function(url, opts){
       bleDbg('→ SCAN request','info');
       await bleSend('SCAN');
       bleDbg('Waiting scan (15s)...','info');
-      const obj=await bleWaitFor('scan', 15000);  // ★ 15000ms
+      const obj=await bleWaitFor('scan', 15000);
       bleDbg('✅ Scan: '+(obj.list||[]).length+' BMS','info');
       const list=obj.list||[];
       if(list.length===0) return htmlResponse("<li style='color:#888;'>Không tìm thấy BMS.</li>");
@@ -580,11 +578,10 @@ window.fetch = async function(url, opts){
       }
       return htmlResponse(html);
     }
-    // ★ SAVE_MAC dùng '|' thay ':'
     if(path==='/save'){
       const mac=q.get('mac')||'', name=q.get('name')||'';
       bleDbg('→ SAVE_MAC: '+mac+' | '+name,'info');
-      await bleSend('SAVE_MAC:'+mac+'|'+name);  // ★ Dùng '|'
+      await bleSend('SAVE_MAC:'+mac+'|'+name);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
       bleDbg('→ SAVE_MAC ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
@@ -598,15 +595,21 @@ window.fetch = async function(url, opts){
     if(path==='/saveacquycfg'){
       const p=q.get('pin')||32, r1=q.get('r1')||100, r2=q.get('r2')||4.7;
       const g=q.get('gain')||1, o=q.get('offset')||0, bt=q.get('btype')||0, c=q.get('cells')||4;
-      await bleSend(`SAVE_ACQ:${p},${r1},${r2},${g},${o},${bt},${c}`);
-      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      const cmd=`SAVE_ACQ:${p},${r1},${r2},${g},${o},${bt},${c}`;
+      bleDbg('→ '+cmd,'info');
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      bleDbg('→ SAVE_ACQ ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/saveout'){
       const m=q.get('mode')||1, p=q.get('pwmpin')||q.get('dacpin')||14;
       const f=q.get('freq')||5000, r=q.get('res')||10;
-      await bleSend(`SAVE_OUT:${m},${p},${f},${r}`);
-      const ack=await bleWaitFor('ack',3000).catch(()=>null);
+      const cmd=`SAVE_OUT:${m},${p},${f},${r}`;
+      bleDbg('→ '+cmd,'info');
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      bleDbg('→ SAVE_OUT ack: '+(ack?'OK':'TIMEOUT'),'info');
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/savevmap'){
@@ -635,7 +638,7 @@ window.fetch = async function(url, opts){
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
     if(path==='/fetchacquyjson') return textResponse('OK|0|0|BLE');
-    if(path==='/checkupdate') return textResponse('LATEST:4.9');
+    if(path==='/checkupdate') return textResponse('LATEST:5.1');
     if(path==='/savefwinfo'||path==='/saveautoupdate') return textResponse('OK');
     if(path==='/wifiscan') return htmlResponse("<li style='color:#888'>WiFi không hỗ trợ</li>");
     if(path==='/serial') return textResponse('');
@@ -653,24 +656,34 @@ function enrich(o){
   const aq=o.aq||{};
   o.aqRawV=aq.raw||0; o.aqOcvEst=aq.ocv||0; o.aqStableV=aq.ocv||0;
   o.aqSag=aq.sag||0; o.aqIsStable=aq.stable||false;
-  o.aqAdcV=aq.adc||0; o.aqGain=aq.gain||1; o.aqOffset=aq.offset||0;
+  o.aqAdcV=aq.adc||0;
   o.aqSocRaw=o.soc||0; o.aqSocStable=o.soc||0;
   o.acquyMode=(o.mode==='ACQ');
-  o.battType=0; o.battCells=4; o.aqPin=32; o.aqR1=100; o.aqR2=4.7;
+  o.battType = (o.battType !== undefined) ? o.battType : 0;
+  o.battCells = (o.battCells !== undefined) ? o.battCells : 4;
+  o.aqPin = (o.aqPin !== undefined) ? o.aqPin : 32;
+  o.aqR1 = (o.aqR1 !== undefined) ? o.aqR1 : 100;
+  o.aqR2 = (o.aqR2 !== undefined) ? o.aqR2 : 4.7;
+  o.aqGain = (o.aqGain !== undefined) ? o.aqGain : 1;
+  o.aqOffset = (o.aqOffset !== undefined) ? o.aqOffset : 0;
   o.aqCompFactor=0.7; o.aqTempC=25; o.aqOcvComp=aq.ocv||0; o.aqOvp=false;
   o.totalV=o.v||0; o.hasTotalV=(o.v>0);
   o.current=o.i||0; o.hasCurrent=(o.i!==0);
   o.power=o.p||0; o.hasPower=(o.p!==0);
   o.cellCount=o.n||0; o.hasCells=(o.n>0);
-  // ★ Check Array.isArray và đủ 16 phần tử
   if(!Array.isArray(o.cells) || o.cells.length < 16){
     o.cells = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
   }
   o.realSoc=o.soc||0; o.savedSoc=o.soc||0;
   o.socFresh=true; o.socAge=0; o.manualSim=o.sim||false;
   o.configMode=false; o.ledMode=1; o.voltage=0;
-  o.outMode=1; o.dacPin=25; o.pwmPin=14; o.pwmFreq=5000; o.pwmRes=10;
-  o.hasDac=true; o.chipName='ESP32';
+  o.outMode = (o.outMode !== undefined) ? o.outMode : 1;
+  o.dacPin = (o.dacPin !== undefined) ? o.dacPin : 25;
+  o.pwmPin = (o.pwmPin !== undefined) ? o.pwmPin : 14;
+  o.pwmFreq = (o.pwmFreq !== undefined) ? o.pwmFreq : 5000;
+  o.pwmRes = (o.pwmRes !== undefined) ? o.pwmRes : 10;
+  o.hasDac = (o.hasDac !== undefined) ? o.hasDac : 1;
+  o.chipName = o.chipName || 'ESP32';
   o.bleAutoScan=true; o.bleEnabled=true;
   o.mac=o.mac||''; o.bmsName=o.bmsName||'';
   o.needAutoConnect=false;
@@ -681,7 +694,7 @@ function enrich(o){
   o.logMask=o.logMask||255;
   o.presetUpdated=''; o.presetInfoLoaded=true;
   o.activePresetName=o.activePresetName||'';
-  o.fwVersion=(o.fw&&o.fw.ver)||'4.9';
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.1';
   o.fwDate=''; o.fwNotes='';
   o.autoUpdate=false; o.autoUpdateDone=true; o.apActive=false;
   return o;
@@ -751,7 +764,12 @@ function saveOutput(){
     p+='&freq='+document.getElementById('pwmFreqIn').value;
     p+='&res='+document.getElementById('pwmResIn').value;
   }
-  fetch('/saveout?'+p).then(r=>r.text()).then(t=>{if(t==='OK')alert('Đã lưu!');});
+  bleDbg('→ SAVE_OUT: '+p,'info');
+  fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
+    bleDbg('→ SAVE_OUT result: '+t,'info');
+    if(t==='OK'){alert('Đã lưu Output!');updateData();}
+    else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
 }
 
 function updateData(){
@@ -773,8 +791,37 @@ function updateData(){
     else if(!d.connected){b.innerText='CŨ('+d.savedSoc+'%)';b.style.background='#6c757d';w.style.display='block';w.innerText='Mất kết nối - SOC cũ';}
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
     document.getElementById('chip-name').innerText=d.chipName;
-    document.getElementById('out-current').innerText='PWM GPIO'+d.pwmPin;
-    document.getElementById('vol-text').innerText='Output: '+d.voltage+' V';
+    
+    // ★ OUT config
+    let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
+    document.getElementById('out-current').innerText = outText;
+    document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
+    if(d.outMode !== currentMode){ currentMode = d.outMode; selectMode(currentMode); }
+    if(d.outMode === 0 && d.dacPin !== undefined){
+      document.getElementById('dacPinSel').value = d.dacPin;
+    }
+    if(d.outMode === 1){
+      if(d.pwmPin !== undefined) document.getElementById('pwmPinIn').value = d.pwmPin;
+      if(d.pwmFreq !== undefined) document.getElementById('pwmFreqIn').value = d.pwmFreq;
+      if(d.pwmRes !== undefined) document.getElementById('pwmResIn').value = d.pwmRes;
+    }
+    
+    // ★ ACQ config
+    if(d.battType !== undefined){
+      document.getElementById('battType').value = d.battType;
+      document.getElementById('leadOptions').style.display = (d.battType === 0) ? 'block' : 'none';
+      document.getElementById('lfpOptions').style.display = (d.battType === 1) ? 'block' : 'none';
+    }
+    if(d.battCells !== undefined){
+      if(d.battType === 0) document.getElementById('battCells').value = d.battCells;
+      else document.getElementById('battCellsInput').value = d.battCells;
+    }
+    if(d.aqPin !== undefined) document.getElementById('aqPin').value = d.aqPin;
+    if(d.aqR1 !== undefined) document.getElementById('aqR1').value = d.aqR1;
+    if(d.aqR2 !== undefined) document.getElementById('aqR2').value = d.aqR2;
+    if(d.aqGain !== undefined) document.getElementById('aqGain').value = d.aqGain;
+    if(d.aqOffset !== undefined) document.getElementById('aqOffset').value = d.aqOffset;
+    
     isManualSim=d.manualSim;
     let rb=document.getElementById('realBtn');
     if(isManualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
@@ -854,7 +901,12 @@ function saveAcquyCfg(){
   p+='&btype='+document.getElementById('battType').value;
   let t=parseInt(document.getElementById('battType').value);
   p+='&cells='+(t===0?document.getElementById('battCells').value:document.getElementById('battCellsInput').value);
-  fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{if(t==='OK')alert('Đã lưu!');});
+  bleDbg('→ SAVE_ACQ: '+p,'info');
+  fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{
+    bleDbg('→ SAVE_ACQ result: '+t,'info');
+    if(t==='OK'){alert('Đã lưu cấu hình Ắc quy!');updateData();}
+    else alert('Lỗi: '+t);
+  }).catch(e=>alert('Timeout'));
 }
 
 function quickCalibrate(){
