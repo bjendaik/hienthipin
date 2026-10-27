@@ -1,5 +1,5 @@
 // ============================================================
-// BMS & ACQUY Controller v3.2 — FIXED SOC CALCULATION
+// BMS & ACQUY Controller v3.3 — FIXED SOC CALCULATION
 // LFP + Lead-Acid đều dùng bảng tra OCV phi tuyến (động, từ NVS/server)
 // ============================================================
 #include <WiFi.h>
@@ -47,9 +47,11 @@ uint16_t logModulesEnabled = LOGMOD_ALL;
 } while(0)
 
 #define FW_VERSION      "3.3"
-#define PRESET_URL      "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/data.json"
-#define UPDATE_JSON_URL "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/update.json"
-#define ACQUY_JSON_URL  "https://raw.githubusercontent.com/bjendaik/hienthipin/refs/heads/main/acquy.json"
+
+#define BASE_URL        "https://bjendaik.github.io/hienthipin/"
+#define PRESET_URL      BASE_URL "data.json"
+#define UPDATE_JSON_URL BASE_URL "update.json"
+#define ACQUY_JSON_URL  BASE_URL "acquy.json"
 
 #define LED_PIN        2
 #define LED_PWM_FREQ   5000
