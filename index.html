@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>BMS & ACQUY Controller v5.2</title><style>
+<title>BMS & ACQUY Controller v5.3</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2{font-size:18px;margin:0 0 10px}
@@ -40,6 +40,10 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 .vmap-row input.pct{width:52px}
 .vmap-row input.volt{width:72px}
 .vmap-row button{width:auto;padding:6px 10px;margin:0;font-size:14px;background:#dc3545}
+.vmap-head{display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px}
+.vmap-head span{text-align:center}
+.vmap-head .h1{width:52px}.vmap-head .h2{width:14px}.vmap-head .h3{width:52px}
+.vmap-head .h4{width:72px}.vmap-head .h5{width:34px}
 .ocv-tab{display:flex;gap:6px;margin-bottom:10px;background:#f0f2f5;padding:4px;border-radius:8px}
 .ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;user-select:none}
 .ocv-tab div.active{background:#fff;color:#17a2b8;box-shadow:0 1px 3px rgba(0,0,0,.1)}
@@ -76,7 +80,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.2</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.3</span></h2>
 <div>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='font-size:12px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='margin-top:10px;display:flex;align-items:center;gap:8px'>
@@ -136,27 +140,38 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='input-row'><label>Offset:</label><input type='number' id='aqOffset' step='0.01' value='0'></div>
 <button class='btn-warn' onclick='saveAcquyCfg()'>💾 Lưu thông số</button>
 
-<!-- ===== BẢNG OCV → SOC CHO ẮC QUY ===== -->
+<!-- ===== BẢNG OCV → SOC (giữ nguyên bản gốc, thêm nút tải từ server) ===== -->
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
-<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
-<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC (Ắc quy)</div>
-<div style='font-size:10px;color:#6c757d' id='ocvDateInfo'>--</div>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>
+<div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
+<div style='font-size:10px;color:#6c757d;text-align:right' id='ocvDateInfo'>--</div>
 </div>
 <div class='ocv-tab'>
-<div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì</div>
-<div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP</div>
+<div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì (per 12V)</div>
+<div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP (per cell)</div>
 </div>
 <div id='ocvEditorLead'>
+<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+<span style='flex:1;text-align:center'>Điện áp (V)</span>
+<span style='width:60px;text-align:center'>SOC %</span>
+<span style='width:34px'></span>
+</div>
 <div id='ocvListLead'></div>
 <button onclick='addOcvRow("lead")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
 </div>
 <div id='ocvEditorLfp' style='display:none'>
+<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+<span style='flex:1;text-align:center'>Điện áp (V)</span>
+<span style='width:60px;text-align:center'>SOC %</span>
+<span style='width:34px'></span>
+</div>
 <div id='ocvListLfp'></div>
 <button onclick='addOcvRow("lfp")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
 </div>
 <div class='ocv-preview' id='ocvPreview'>--</div>
 <div style='display:flex;gap:6px;margin-top:8px'>
 <button onclick='saveOcvManual()' style='flex:1;background:#28a745;margin:0;font-size:12px;padding:8px'>💾 Lưu</button>
+<button id='btnFetchAcquyJson' onclick='refreshAcquyJson()' style='flex:1;background:#ff9800;margin:0;font-size:12px;padding:8px'>⬇️ Tải từ server</button>
 <button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>
 </div>
 </div>
@@ -195,29 +210,23 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>
 </div>
 
-<!-- ===== BẢNG ĐIỆN ÁP THEO % ===== -->
 <div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>
 <label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>
 <button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;flex-shrink:0'>🔄 Cập nhật</button>
 </div>
-
+<div id='presetUpdatedBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:6px 10px;border-radius:5px;font-size:11px;margin-bottom:8px'>
+📅 Cập nhật: <b><span id='presetUpdatedText'>--</span></b></div>
 <div id='vmapBox'>
 <div class='sub-tabs'>
 <div class='sub-tab active' id='subTabPreset' onclick='switchSubTab("preset")'>⚡ Có sẵn</div>
 <div class='sub-tab' id='subTabManual' onclick='switchSubTab("manual")'>✏️ Thủ công</div>
 </div>
 <div id='subPreset'>
-<div id='presetUpdatedBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:6px 10px;border-radius:5px;font-size:11px;margin-bottom:8px'>
-📅 Cập nhật: <b><span id='presetUpdatedText'>--</span></b></div>
 <div id='presetList'></div>
 <div id='presetListMsg' style='font-size:11px;color:#6c757d;text-align:center;margin-top:8px;display:none'></div>
 </div>
 <div id='subManual' style='display:none'>
-<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px'>
-<span style='width:52px;text-align:center'>Từ %</span><span style='width:14px'></span>
-<span style='width:52px;text-align:center'>Đến %</span>
-<span style='width:72px;text-align:center'>V</span><span style='width:34px'></span>
-</div>
+<div class='vmap-head'><span class='h1'>Từ %</span><span class='h2'></span><span class='h3'>Đến %</span><span class='h4'>Điện áp (V)</span><span class='h5'></span></div>
 <div id='vmapList'></div>
 <button onclick='addVmapRow()' style='background:#17a2b8;margin-top:8px'>+ Thêm dải</button>
 <button class='btn-success' onclick='saveVmap()'>Lưu bảng</button>
@@ -241,7 +250,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'>Hiện tại: <span id='out-current'>--</span></div>
 </div></div>
 
-<!-- ===== OTA ONLINE + LOCAL ===== -->
 <div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
 <div class='acc-head red' onclick='toggleAcc("accOta")'>
 <span>⬆️ Cập nhật Firmware</span><span class='arrow'>▼</span>
@@ -249,7 +257,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div><strong>📌 Firmware hiện tại</strong></div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-top:4px'>v5.2</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-top:4px'>v5.3</div>
 </div>
 
 <div class='ota-box'>
@@ -276,7 +284,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE SHIM v5.2
+// BLE SHIM v5.3
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -284,16 +292,17 @@ const BLE_TX_CHAR='6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_OTA_SVC='0000ff00-0000-1000-8000-00805f9b34fb';
 const BLE_OTA_RX='0000ff01-0000-1000-8000-00805f9b34fb';
 const BLE_OTA_TX='0000ff02-0000-1000-8000-00805f9b34fb';
-
 const GITHUB_BASE='https://bjendaik.github.io/hienthipin/';
 const URL_DATA=GITHUB_BASE+'data.json';
 const URL_UPDATE=GITHUB_BASE+'update.json';
+const ACQUY_JSON_URL=GITHUB_BASE+'acquy.json';
 
 let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
 let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
 let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
+let remoteUpdateInfo=null;
 
 function bleDbg(msg, cls){
   console.log('[BLE]', msg);
@@ -564,7 +573,7 @@ function enrich(o){
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.2';
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.3';
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
@@ -649,7 +658,6 @@ function updateData(){
     else if(d.acquyMode){b.innerText='ẮC QUY';b.style.background='#17a2b8';w.style.display='none';}
     else if(!d.connected){b.innerText='CŨ('+d.savedSoc+'%)';b.style.background='#6c757d';w.style.display='block';w.innerText='Mất kết nối - SOC cũ';}
     else{b.innerText='MỚI';b.style.background='#28a745';w.style.display='none';}
-    document.getElementById('chip-name');
     let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
     document.getElementById('out-current').innerText = outText;
     document.getElementById('vol-text').innerText = 'Output: ' + d.voltage + ' V';
@@ -664,7 +672,6 @@ function updateData(){
     }
     if(d.battType !== undefined){
       document.getElementById('battType').value = d.battType;
-      document.getElementById('leadOptions') && (document.getElementById('leadOptions').style.display = (d.battType === 0) ? 'block' : 'none');
     }
     if(d.battCells !== undefined) document.getElementById('battCells').value = d.battCells;
     if(d.aqPin !== undefined) document.getElementById('aqPin').value = d.aqPin;
@@ -672,7 +679,6 @@ function updateData(){
     if(d.aqR2 !== undefined) document.getElementById('aqR2').value = d.aqR2;
     if(d.aqGain !== undefined) document.getElementById('aqGain').value = d.aqGain;
     if(d.aqOffset !== undefined) document.getElementById('aqOffset').value = d.aqOffset;
-    
     let rb=document.getElementById('realBtn');
     if(d.manualSim){rb.innerText='Về Pin Thực';rb.className='btn-danger';}
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
@@ -683,12 +689,6 @@ function updateData(){
     if(!document.getElementById('swBms').dataset.inited){
       document.getElementById('swBms').dataset.inited='1';
       applyModeUI(d.acquyMode);
-    }
-    if(d.acquyMode){
-      document.getElementById('aqRawV') && (document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V');
-      document.getElementById('aqSocRaw') && (document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%');
-      document.getElementById('aqStableV') && (document.getElementById('aqStableV').innerText=(d.aqOcvEst||0).toFixed(2)+' V');
-      document.getElementById('aqSocStable') && (document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%');
     }
     let bmsNameEl=document.getElementById('bms-name-text');
     if(d.acquyMode){bmsNameEl.innerText='Chế độ Ắc quy';bmsNameEl.style.color='#17a2b8';}
@@ -792,6 +792,50 @@ function saveOcvManual(){
   });
 }
 
+// ============ TẢI TỪ SERVER — acquy.json ============
+async function refreshAcquyJson(){
+  if(!navigator.onLine){ alert('❌ Không có internet'); return; }
+  if(!confirm('Tải bảng OCV mới từ server? (ghi đè bảng hiện tại)')) return;
+  const btn=document.getElementById('btnFetchAcquyJson');
+  const oldText=btn.innerText;
+  btn.disabled=true; btn.innerText='⏳ Đang tải...';
+  try{
+    bleDbg('→ Fetch '+ACQUY_JSON_URL,'info');
+    const r=await fetch(ACQUY_JSON_URL+'?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    const lead=j.lead||[];
+    const lfp=j.lfp||[];
+    const date=j.date||'';
+    bleDbg('✅ acquy.json: Lead='+lead.length+', LFP='+lfp.length,'info');
+    if(lead.length < 2 && lfp.length < 2){
+      alert('❌ File acquy.json không có dữ liệu hợp lệ');
+      return;
+    }
+    if(lead.length >= 2){
+      let cmd='SET_OCV:lead:'+lead.length;
+      lead.forEach(e=>{ cmd+=';'+e.v.toFixed(3)+','+e.soc; });
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      if(!ack) throw new Error('Timeout khi gửi Lead OCV');
+    }
+    if(lfp.length >= 2){
+      let cmd='SET_OCV:lfp:'+lfp.length;
+      lfp.forEach(e=>{ cmd+=';'+e.v.toFixed(3)+','+e.soc; });
+      await bleSend(cmd);
+      const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      if(!ack) throw new Error('Timeout khi gửi LFP OCV');
+    }
+    alert('✅ Đã tải và đẩy bảng OCV xuống ESP32\nLead: '+lead.length+' điểm\nLFP: '+lfp.length+' điểm'+(date?'\n('+date+')':''));
+    loadOcvFromServer();
+  }catch(e){
+    bleDbg('❌ '+e.message,'err');
+    alert('❌ Lỗi: '+e.message);
+  }finally{
+    btn.disabled=false; btn.innerText=oldText;
+  }
+}
+
 // ============ BẢNG ĐIỆN ÁP ============
 function addVmapRow(s,e,v){
   let list=document.getElementById('vmapList');
@@ -823,7 +867,6 @@ async function fetchPresets(){
   }
   if(box) box.innerHTML='<div style="text-align:center;padding:15px;color:#6c757d;font-size:13px">⏳ Đang tải...</div>';
   if(msg){msg.style.display='block';msg.innerText='⏳ Đang tải từ GitHub...';msg.style.color='#6c757d';}
-  
   try{
     bleDbg('→ Fetch '+URL_DATA,'info');
     const r=await fetch(URL_DATA+'?t='+Date.now());
@@ -831,13 +874,11 @@ async function fetchPresets(){
     const j=await r.json();
     cachedPresets=j.presets||[];
     bleDbg('✅ Loaded '+cachedPresets.length+' presets','info');
-    
     if(cachedPresets.length===0){
       if(box) box.innerHTML='<div style="text-align:center;padding:15px;color:#888;font-size:13px">Không có preset</div>';
       if(msg){msg.innerText='⚠️ File rỗng';msg.style.color='#ff9800';}
       return;
     }
-    
     if(box) box.innerHTML='';
     for(let i=0;i<cachedPresets.length;i++){
       const p=cachedPresets[i];
@@ -849,13 +890,11 @@ async function fetchPresets(){
       btn.onclick=(function(idx){return function(){applyPreset(idx);};})(i);
       box.appendChild(btn);
     }
-    
     if(j.date){
       const ub=document.getElementById('presetUpdatedBox');
       const ut=document.getElementById('presetUpdatedText');
       if(ub&&ut){ub.style.display='block';ut.innerText=j.date;}
     }
-    
     if(msg){msg.innerText='✅ Đã tải '+cachedPresets.length+' preset';msg.style.color='#28a745';}
   }catch(e){
     bleDbg('❌ '+e.message,'err');
@@ -869,19 +908,12 @@ async function applyPreset(id){
   const p=cachedPresets[id];
   if(!p.entries||p.entries.length===0){alert('Preset rỗng');return;}
   if(!confirm('Áp dụng preset "'+(p.name||id)+'"?\n'+p.entries.length+' dải sẽ được ghi vào ESP32.'))return;
-  
   let cmd='SET_VMAP:'+p.entries.length;
   p.entries.forEach(e=>{ cmd+=';'+e.s+','+e.e+','+e.v.toFixed(3); });
-  
-  bleDbg('→ '+cmd,'info');
   await bleSend(cmd);
   const ack=await bleWaitFor('ack',5000).catch(()=>null);
-  if(ack){
-    alert('✅ Đã áp dụng: '+(p.name||id));
-    updateData();
-  } else {
-    alert('❌ Timeout');
-  }
+  if(ack){ alert('✅ Đã áp dụng: '+(p.name||id)); updateData(); }
+  else alert('❌ Timeout');
 }
 
 // ============ SCAN ============
@@ -909,7 +941,6 @@ function save(mac,name){
 
 function saveManualMac(){
   let el=document.getElementById('manualMac');
-  let msg=document.getElementById('manualMacMsg');
   let mac=el.value.trim().toUpperCase();
   if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)){alert('MAC không hợp lệ');return;}
   fetch('/save?mac='+mac).then(r=>r.text()).then(t=>{
@@ -930,8 +961,6 @@ function clearMac(){
 }
 
 // ============ OTA ONLINE ============
-let remoteUpdateInfo=null;
-
 async function checkUpdate(){
   const msg=document.getElementById('onlineMsg');
   const box=document.getElementById('updateInfoBox');
@@ -941,7 +970,6 @@ async function checkUpdate(){
   }
   if(msg){msg.innerText='🔍 Đang kiểm tra...';msg.style.color='#007bff';}
   if(box) box.style.display='none';
-  
   try{
     bleDbg('→ Fetch '+URL_UPDATE,'info');
     const r=await fetch(URL_UPDATE+'?t='+Date.now());
@@ -949,15 +977,12 @@ async function checkUpdate(){
     const j=await r.json();
     remoteUpdateInfo=j;
     bleDbg('✅ update.json: v'+j.version,'info');
-    
-    const curVer='5.2';
+    const curVer='5.3';
     const isNewer=(j.version && j.version !== curVer);
-    
     if(!isNewer){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
       return;
     }
-    
     if(msg){msg.innerText='🆕 Có bản mới v'+j.version;msg.style.color='#e65100';}
     document.getElementById('newVersionText').innerText='Phiên bản v'+j.version;
     document.getElementById('newDateText').innerText=j.date||'--';
@@ -975,25 +1000,19 @@ async function otaOnline(){
     alert('Bấm "Kiểm tra phiên bản" trước'); return;
   }
   if(!confirm('Nạp firmware v'+remoteUpdateInfo.version+' từ GitHub?'))return;
-  
   const msg=document.getElementById('onlineMsg');
   const bar=document.getElementById('onlineProgress');
-  
   try{
     if(msg){msg.innerText='⏳ Đang tải firmware...';msg.style.color='#007bff';}
     if(bar) bar.style.width='0%';
-    
     bleDbg('→ Download '+remoteUpdateInfo.url,'info');
     const r=await fetch(remoteUpdateInfo.url+'?t='+Date.now());
     if(!r.ok) throw new Error('HTTP '+r.status);
     const buf=await r.arrayBuffer();
     const total=buf.byteLength;
     bleDbg('✅ Downloaded '+total+' bytes','info');
-    
     if(!bleOtaRx){ alert('OTA service không khả dụng'); return; }
-    
     if(msg){msg.innerText='⏳ Đang nạp ('+(total/1024).toFixed(0)+' KB)...';msg.style.color='#007bff';}
-    
     await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
     let off=0;
     const CHUNK=180;
