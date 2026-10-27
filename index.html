@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>BMS & ACQUY Controller v5.3</title><style>
+<title>BMS & ACQUY Controller v5.2</title><style>
 body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:80px}
 .card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
 h2{font-size:18px;margin:0 0 10px}
@@ -70,6 +70,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 #bleBar .status{flex:1;font-size:12px;font-weight:bold;color:#6c757d}
 #debugLog{background:#1e1e1e;color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:8px;height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 #debugLog .rx{color:#4fc3f7}#debugLog .tx{color:#ffd54f}#debugLog .err{color:#ff5252}#debugLog .info{color:#b0bec5}
+#terminal{background:#1e1e1e;color:#0f0;padding:10px;border-radius:5px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:250px;overflow-y:auto}
 .ota-box{background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0}
 .ota-info{background:#fff;border:1px solid #ffcc80;border-radius:6px;padding:10px;margin-top:10px;display:none}
 </style></head><body>
@@ -80,7 +81,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 </div>
 
 <div class='card' style='border-top:4px solid #17a2b8'>
-<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.3</span></h2>
+<h2>MONITOR <span style='font-size:12px;color:#6c757d;font-weight:normal'>v5.2</span></h2>
 <div>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
 <div style='font-size:12px'>BLE: <span id='scan-mode' style='font-weight:bold'>--</span></div>
 <div style='margin-top:10px;display:flex;align-items:center;gap:8px'>
@@ -140,42 +141,29 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='input-row'><label>Offset:</label><input type='number' id='aqOffset' step='0.01' value='0'></div>
 <button class='btn-warn' onclick='saveAcquyCfg()'>💾 Lưu thông số</button>
 
-<!-- ===== BẢNG OCV → SOC (giữ nguyên bản gốc, thêm nút tải từ server) ===== -->
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
-<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>
+<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
 <div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
-<div style='font-size:10px;color:#6c757d;text-align:right' id='ocvDateInfo'>--</div>
+<div style='font-size:10px;color:#6c757d' id='ocvDateInfo'>--</div>
 </div>
 <div class='ocv-tab'>
-<div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì (per 12V)</div>
-<div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP (per cell)</div>
+<div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì</div>
+<div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP</div>
 </div>
 <div id='ocvEditorLead'>
-<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
-<span style='flex:1;text-align:center'>Điện áp (V)</span>
-<span style='width:60px;text-align:center'>SOC %</span>
-<span style='width:34px'></span>
-</div>
 <div id='ocvListLead'></div>
 <button onclick='addOcvRow("lead")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
 </div>
 <div id='ocvEditorLfp' style='display:none'>
-<div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
-<span style='flex:1;text-align:center'>Điện áp (V)</span>
-<span style='width:60px;text-align:center'>SOC %</span>
-<span style='width:34px'></span>
-</div>
 <div id='ocvListLfp'></div>
 <button onclick='addOcvRow("lfp")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
 </div>
 <div class='ocv-preview' id='ocvPreview'>--</div>
 <div style='display:flex;gap:6px;margin-top:8px'>
 <button onclick='saveOcvManual()' style='flex:1;background:#28a745;margin:0;font-size:12px;padding:8px'>💾 Lưu</button>
-<button id='btnFetchAcquyJson' onclick='refreshAcquyJson()' style='flex:1;background:#ff9800;margin:0;font-size:12px;padding:8px'>⬇️ Tải từ server</button>
 <button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>
 </div>
 </div>
-<!-- ===== HẾT BẢNG OCV ===== -->
 
 </div>
 </div></div>
@@ -193,6 +181,19 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='stat-box'><div>Công suất</div><div class='stat-val' id='bms-power'>-- W</div></div>
 </div>
 <div id='bms-cells-grid' style='display:grid;grid-template-columns:repeat(4,1fr);gap:5px'></div>
+</div></div>
+
+<!-- ===== TERMINAL (bản v5.2 có Terminal) ===== -->
+<div class='card accordion' id='accTerm' style='border:2px solid #444'>
+<div class='acc-head dark' onclick='toggleAcc("accTerm")'>
+<span>💻 Terminal</span><span class='arrow'>▼</span>
+</div>
+<div class='acc-body'>
+<div style='display:flex;gap:8px;margin:12px 0 8px 0'>
+<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='clearTerm()'>Xóa</button>
+<button style='margin:0;flex:1;padding:6px;font-size:13px;background:#444' onclick='toggleTermPause()' id='termBtn'>Tạm dừng</button>
+</div>
+<div id='terminal'>-- Chờ BLE --&#10;</div>
 </div></div>
 
 <div class='card accordion' id='accOutput' style='border:2px solid #28a745'>
@@ -257,9 +258,8 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div class='acc-body'>
 <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
 <div><strong>📌 Firmware hiện tại</strong></div>
-<div style='font-size:15px;font-weight:bold;color:#007bff;margin-top:4px'>v5.3</div>
+<div style='font-size:15px;font-weight:bold;color:#007bff;margin-top:4px'>v5.2</div>
 </div>
-
 <div class='ota-box'>
 <div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (từ GitHub)</div>
 <button style='margin:0;background:#ff9800' onclick='checkUpdate()'>🔍 Kiểm tra phiên bản</button>
@@ -272,7 +272,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 <div id='onlineMsg' style='font-size:12px;margin-top:8px'></div>
 <div class='battery-bg' style='margin-top:10px'><div id='onlineProgress' class='battery-bar' style='width:0%;background:#ff9800'></div></div>
 </div>
-
 <div style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
 <input type='file' id='fwFile' accept='.bin' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box'>
@@ -284,7 +283,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE SHIM v5.3
+// BLE SHIM v5.2
 // ================================================================
 const BLE_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -295,7 +294,6 @@ const BLE_OTA_TX='0000ff02-0000-1000-8000-00805f9b34fb';
 const GITHUB_BASE='https://bjendaik.github.io/hienthipin/';
 const URL_DATA=GITHUB_BASE+'data.json';
 const URL_UPDATE=GITHUB_BASE+'update.json';
-const ACQUY_JSON_URL=GITHUB_BASE+'acquy.json';
 
 let bleDevice=null, bleRx=null, bleTx=null, bleOtaRx=null, bleOtaTx=null;
 let bleConnected=false, bleRxBuf='', blePendingResolvers=[];
@@ -303,6 +301,7 @@ let bleLastStatus=null, bleOtaAckResolve=null;
 let bleNotifyCount=0;
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
+let terminalData='', termPaused=false;
 
 function bleDbg(msg, cls){
   console.log('[BLE]', msg);
@@ -314,6 +313,20 @@ function bleDbg(msg, cls){
   box.appendChild(d);
   box.scrollTop=box.scrollHeight;
   while(box.children.length>200) box.removeChild(box.firstChild);
+}
+
+function appendTerminal(t){
+  if(termPaused) return;
+  terminalData += t;
+  if(terminalData.length > 8000) terminalData = terminalData.slice(-8000);
+  const el = document.getElementById('terminal');
+  if(el){ el.innerText = terminalData; el.scrollTop = el.scrollHeight; }
+}
+function clearTerm(){ terminalData=''; const el=document.getElementById('terminal'); if(el) el.innerText=''; }
+function toggleTermPause(){
+  termPaused=!termPaused;
+  const b=document.getElementById('termBtn');
+  if(b) b.innerText = termPaused ? 'Tiếp tục' : 'Tạm dừng';
 }
 
 function bleUpdateUI(){
@@ -413,6 +426,7 @@ function bleHandleLine(line){
   else if(obj.t==='err'){ resolvePending('err',obj); }
   else if(obj.t==='scan'){ resolvePending('scan',obj); }
   else if(obj.t==='ocv'){ resolvePending('ocv',obj); }
+  else if(obj.t==='log'){ appendTerminal(obj.msg+'\n'); }
 }
 
 function bleOnOtaNotify(ev){
@@ -573,7 +587,7 @@ function enrich(o){
   o.bmsProto=o.bmsProto!==undefined?o.bmsProto:255;
   o.jkVer=o.jkVer||0;
   o.vmap=Array.isArray(o.vmap)?o.vmap:[];
-  o.fwVersion=(o.fw&&o.fw.ver)||'5.3';
+  o.fwVersion=(o.fw&&o.fw.ver)||'5.2';
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
@@ -635,7 +649,6 @@ function saveOutput(){
     p+='&freq='+document.getElementById('pwmFreqIn').value;
     p+='&res='+document.getElementById('pwmResIn').value;
   }
-  bleDbg('→ SAVE_OUT: '+p,'info');
   fetch('/saveout?'+p).then(r=>r.text()).then(t=>{
     if(t==='OK'){alert('Đã lưu Output!');updateData();}
     else alert('Lỗi: '+t);
@@ -731,7 +744,6 @@ function saveAcquyCfg(){
   p+='&offset='+document.getElementById('aqOffset').value;
   p+='&btype='+document.getElementById('battType').value;
   p+='&cells='+document.getElementById('battCells').value;
-  bleDbg('→ SAVE_ACQ: '+p,'info');
   fetch('/saveacquycfg?'+p).then(r=>r.text()).then(t=>{
     if(t==='OK'){alert('Đã lưu cấu hình Ắc quy!');updateData();}
     else alert('Lỗi: '+t);
@@ -790,50 +802,6 @@ function saveOcvManual(){
     if(t.startsWith('OK|'))alert('✅ Đã lưu');
     else alert('❌ '+t);
   });
-}
-
-// ============ TẢI TỪ SERVER — acquy.json ============
-async function refreshAcquyJson(){
-  if(!navigator.onLine){ alert('❌ Không có internet'); return; }
-  if(!confirm('Tải bảng OCV mới từ server? (ghi đè bảng hiện tại)')) return;
-  const btn=document.getElementById('btnFetchAcquyJson');
-  const oldText=btn.innerText;
-  btn.disabled=true; btn.innerText='⏳ Đang tải...';
-  try{
-    bleDbg('→ Fetch '+ACQUY_JSON_URL,'info');
-    const r=await fetch(ACQUY_JSON_URL+'?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    const lead=j.lead||[];
-    const lfp=j.lfp||[];
-    const date=j.date||'';
-    bleDbg('✅ acquy.json: Lead='+lead.length+', LFP='+lfp.length,'info');
-    if(lead.length < 2 && lfp.length < 2){
-      alert('❌ File acquy.json không có dữ liệu hợp lệ');
-      return;
-    }
-    if(lead.length >= 2){
-      let cmd='SET_OCV:lead:'+lead.length;
-      lead.forEach(e=>{ cmd+=';'+e.v.toFixed(3)+','+e.soc; });
-      await bleSend(cmd);
-      const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      if(!ack) throw new Error('Timeout khi gửi Lead OCV');
-    }
-    if(lfp.length >= 2){
-      let cmd='SET_OCV:lfp:'+lfp.length;
-      lfp.forEach(e=>{ cmd+=';'+e.v.toFixed(3)+','+e.soc; });
-      await bleSend(cmd);
-      const ack=await bleWaitFor('ack',5000).catch(()=>null);
-      if(!ack) throw new Error('Timeout khi gửi LFP OCV');
-    }
-    alert('✅ Đã tải và đẩy bảng OCV xuống ESP32\nLead: '+lead.length+' điểm\nLFP: '+lfp.length+' điểm'+(date?'\n('+date+')':''));
-    loadOcvFromServer();
-  }catch(e){
-    bleDbg('❌ '+e.message,'err');
-    alert('❌ Lỗi: '+e.message);
-  }finally{
-    btn.disabled=false; btn.innerText=oldText;
-  }
 }
 
 // ============ BẢNG ĐIỆN ÁP ============
@@ -971,13 +939,11 @@ async function checkUpdate(){
   if(msg){msg.innerText='🔍 Đang kiểm tra...';msg.style.color='#007bff';}
   if(box) box.style.display='none';
   try{
-    bleDbg('→ Fetch '+URL_UPDATE,'info');
     const r=await fetch(URL_UPDATE+'?t='+Date.now());
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
     remoteUpdateInfo=j;
-    bleDbg('✅ update.json: v'+j.version,'info');
-    const curVer='5.3';
+    const curVer='5.2';
     const isNewer=(j.version && j.version !== curVer);
     if(!isNewer){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
@@ -989,7 +955,6 @@ async function checkUpdate(){
     document.getElementById('notesText').innerText=(j.notes||'(không có mô tả)').replace(/\\n/g,'\n');
     if(box) box.style.display='block';
   }catch(e){
-    bleDbg('❌ '+e.message,'err');
     if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
   }
 }
@@ -1005,12 +970,10 @@ async function otaOnline(){
   try{
     if(msg){msg.innerText='⏳ Đang tải firmware...';msg.style.color='#007bff';}
     if(bar) bar.style.width='0%';
-    bleDbg('→ Download '+remoteUpdateInfo.url,'info');
     const r=await fetch(remoteUpdateInfo.url+'?t='+Date.now());
     if(!r.ok) throw new Error('HTTP '+r.status);
     const buf=await r.arrayBuffer();
     const total=buf.byteLength;
-    bleDbg('✅ Downloaded '+total+' bytes','info');
     if(!bleOtaRx){ alert('OTA service không khả dụng'); return; }
     if(msg){msg.innerText='⏳ Đang nạp ('+(total/1024).toFixed(0)+' KB)...';msg.style.color='#007bff';}
     await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
@@ -1028,7 +991,6 @@ async function otaOnline(){
     if(msg){msg.innerText='✅ Xong! ESP32 restart...';msg.style.color='#28a745';}
     setTimeout(()=>{ bleDisconnect(); }, 3000);
   }catch(e){
-    bleDbg('❌ '+e.message,'err');
     if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
   }
 }
