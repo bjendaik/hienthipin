@@ -463,20 +463,29 @@ Mức sụt áp <span id='sag-label'>--</span></div>
 <div id='fwVerOta' style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>--</div>
 <div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>Đang tải...</div>
 </div>
+
 <div class='ota-box'>
-<div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (từ GitHub)</div>
+<div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>⬇️ Tải firmware mới</div>
+<div style='font-size:11px;color:#6c757d;margin-bottom:8px'>
+Bấm kiểm tra → tải file .bin về máy → sau đó dùng phần "Nạp từ file" bên dưới để nạp qua BLE.</div>
 <button style='margin:0;background:#ff9800' onclick='checkUpdate()'>🔍 Kiểm tra phiên bản</button>
 <div id='updateInfoBox' class='ota-info'>
 <div style='font-size:13px;color:#e65100;font-weight:bold;margin-bottom:6px'>🆕 <span id='newVersionText'>--</span></div>
 <div style='font-size:11px;color:#6c757d;margin-bottom:6px'>📅 <span id='newDateText'>--</span></div>
 <div style='font-size:12px;color:#333;background:#f8f9fa;padding:8px;border-radius:5px;margin-bottom:10px;line-height:1.5' id='notesText'>--</div>
-<button class='btn-danger' style='margin:0;background:#dc3545;font-weight:bold' onclick='otaOnline()'>🚀 Nạp Firmware Online</button>
+<div style='font-size:11px;color:#6c757d;margin-bottom:8px'>
+📥 File sẽ tải về thư mục <b>Downloads</b> của điện thoại.<br>
+Sau khi tải xong, quay lại đây và dùng phần "Nạp từ file (.bin)".</div>
+<a id='downloadFwLink' style='display:inline-block;padding:10px 15px;background:#ff9800;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:13px;width:100%;text-align:center;box-sizing:border-box'
+   download>⬇️ Tải firmware về máy</a>
 </div>
 <div id='onlineMsg' style='font-size:12px;margin-top:8px'></div>
-<div class='battery-bg' style='margin-top:10px'><div id='onlineProgress' class='battery-bar' style='width:0%;background:#ff9800'></div></div>
 </div>
+
 <div style='background:#fff5f5;border:1px solid #f5c2c7;border-radius:8px;padding:12px;margin:12px 0'>
 <div style='font-size:13px;font-weight:bold;color:#dc3545;margin-bottom:6px'>📦 Nạp từ file (.bin)</div>
+<div style='font-size:11px;color:#6c757d;margin-bottom:8px'>
+⚠️ Trong lúc nạp: <b>không tắt tab, không thao tác web</b>. Quá trình mất ~2-5 phút tùy kích thước firmware.</div>
 <input type='file' id='fwFile' accept='.bin' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box'>
 <button class='btn-danger' style='margin-top:10px' onclick='bleOtaFile()'>🚀 Nạp qua BLE</button>
 <div class='battery-bg' style='margin-top:12px'><div id='fwProgress' class='battery-bar' style='width:0%;background:#dc3545'></div></div>
@@ -511,6 +520,7 @@ let autoReconnecting = false;
 
 let currentMode=1, activePresetName='', cachedPresets=null, ocvTab='lead';
 let remoteUpdateInfo=null;
+let otaInProgress = false;   // ★ Cờ báo hiệu đang OTA
 
 let configLoaded = false;
 let configDirty = false;
@@ -811,6 +821,11 @@ window.fetch = async function(url, opts){
       const mac=q.get('mac')||'', name=q.get('name')||'';
       await bleSend('SAVE_MAC:'+mac+'|'+name);
       const ack=await bleWaitFor('ack',5000).catch(()=>null);
+      // ★ Cập nhật cache ngay để updateData() thấy MAC mới
+      if(ack && bleLastStatus){
+        bleLastStatus.mac = mac;
+        bleLastStatus.bmsName = name || bleLastStatus.bmsName || '';
+      }
       return textResponse(ack?'OK':'TIMEOUT');
     }
     if(path==='/clearmac'){ await bleSend('CLEAR_MAC'); await bleWaitFor('ack',3000).catch(()=>{}); return textResponse('OK'); }
@@ -860,7 +875,6 @@ window.fetch = async function(url, opts){
     }
     if(path==='/presets') return jsonResponse([]);
     if(path==='/fetchpresets') return textResponse('OK|0|');
-    if(path==='/checkupdate') return textResponse('LATEST');
     return textResponse('OK');
   }catch(e){
     if(path==='/data') return jsonResponse(dummyStatus());
@@ -958,7 +972,7 @@ function onAccOpen(id){
     if(!vmapLoaded) setTimeout(loadVmapFromServer, 400);
   }
   else if(id==='accOta'){
-    checkUpdate();
+    // Không tự check update — user bấm nút để check
   }
 }
 
@@ -1064,8 +1078,13 @@ function updateData(){
     else{rb.innerText='Đang chạy Tự động';rb.className='btn-success';
       document.getElementById('simSlider').value=d.soc;
       document.getElementById('slider-val').innerText=d.soc+'%';}
-    document.getElementById('curMacText').innerText = d.mac || 'Chưa có';
+
+    // ★ Hiển thị MAC BMS thống nhất ở cả 2 nơi
+    const bmsMac = (d.mac || '').trim();
+    const macDisplay = bmsMac || 'Chưa có';
+    document.getElementById('curMacText').innerText = macDisplay;
     document.getElementById('curBmsName').innerText = d.bmsName ? ('📛 '+d.bmsName) : '';
+
     if(d.acquyMode){
       document.getElementById('aqRawV').innerText=(d.aqRawV||0).toFixed(2)+' V';
       document.getElementById('aqSocRaw').innerText=(d.aqSocRaw||0)+'%';
@@ -1073,9 +1092,19 @@ function updateData(){
       document.getElementById('aqSocStable').innerText=(d.aqSocStable||0)+'%';
     }
     let bmsNameEl=document.getElementById('bms-name-text');
-    if(d.acquyMode){bmsNameEl.innerText='Chế độ Ắc quy';bmsNameEl.style.color='#17a2b8';}
-    else if(d.connected){bmsNameEl.innerText=(d.bmsName||'BMS')+' ('+d.mac+')';bmsNameEl.style.color='#28a745';}
-    else{bmsNameEl.innerText=d.mac||'--';bmsNameEl.style.color='#6c757d';}
+    if(d.acquyMode){
+      bmsNameEl.innerText='Chế độ Ắc quy';
+      bmsNameEl.style.color='#17a2b8';
+    } else if(d.connected && bmsMac){
+      bmsNameEl.innerText=(d.bmsName||'BMS')+' ('+bmsMac+')';
+      bmsNameEl.style.color='#28a745';
+    } else if(bmsMac){
+      bmsNameEl.innerText=bmsMac+' (chưa kết nối)';
+      bmsNameEl.style.color='#ff9800';
+    } else {
+      bmsNameEl.innerText='--';
+      bmsNameEl.style.color='#6c757d';
+    }
     document.getElementById('bms-totalv').innerText=(d.totalV||0).toFixed(2)+' V';
     document.getElementById('bms-current').innerText=(d.current||0).toFixed(2)+' A';
     document.getElementById('bms-power').innerText=(d.power||0).toFixed(1)+' W';
@@ -1151,6 +1180,7 @@ function reloadConfig(){
 
 setInterval(()=>{
   if(!bleConnected || document.hidden) return;
+  if(otaInProgress) return;   // ★ Tạm dừng khi đang nạp
   updateData();
 }, 2000);
 
@@ -1506,7 +1536,18 @@ function save(mac,name){
   if(!confirm('Kết nối BMS:\n'+mac+'?'))return;
   fetch('/save?mac='+encodeURIComponent(mac)+'&name='+encodeURIComponent(name||''))
   .then(r=>r.text()).then(t=>{
-    if(t==='OK'){alert('Đã lưu '+mac);updateData();}
+    if(t==='OK'){
+      // ★ Xóa cache và force lấy status mới
+      if(bleLastStatus){
+        bleLastStatus.mac = mac;
+        bleLastStatus.bmsName = name || '';
+        bleLastStatus._ts = 0;   // ← ép fetch mới, không dùng cache
+      }
+      alert('Đã lưu '+mac);
+      updateData();
+      // Cập nhật lại sau 1.5s để chắc chắn ESP32 đã gửi status mới
+      setTimeout(()=>updateData(), 1500);
+    }
     else alert('Lỗi: '+t);
   });
 }
@@ -1518,7 +1559,16 @@ function saveManualMac(){
   if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)){msg.innerText='MAC không hợp lệ';msg.style.color='#dc3545';return;}
   msg.innerText='Đang lưu...';msg.style.color='#007bff';
   fetch('/save?mac='+mac).then(r=>r.text()).then(t=>{
-    if(t==='OK'){msg.innerText='✅ '+mac;msg.style.color='#28a745';}
+    if(t==='OK'){
+      msg.innerText='✅ '+mac;msg.style.color='#28a745';
+      // ★ Cập nhật cache + force refresh
+      if(bleLastStatus){
+        bleLastStatus.mac = mac;
+        bleLastStatus._ts = 0;
+      }
+      updateData();
+      setTimeout(()=>updateData(), 1500);
+    }
     else{msg.innerText='❌ '+t;msg.style.color='#dc3545';}
   });
 }
@@ -1530,6 +1580,14 @@ function clearMac(){
       document.getElementById('curMacText').innerText='Chưa có';
       document.getElementById('curBmsName').innerText='';
       document.getElementById('manualMac').value='';
+      // ★ Xóa cache + force refresh
+      if(bleLastStatus){
+        bleLastStatus.mac = '';
+        bleLastStatus.bmsName = '';
+        bleLastStatus._ts = 0;
+      }
+      updateData();
+      setTimeout(()=>updateData(), 1500);
     }
   });
 }
@@ -1655,6 +1713,7 @@ function updateBmsInfo(){
 setInterval(function(){
   let acc=document.getElementById('accBms');
   if(!acc || !acc.classList.contains('open')) return;
+  if(otaInProgress) return;
   updateBmsInfo();
 },2000);
 
@@ -1674,7 +1733,7 @@ async function checkUpdate(){
     const j=await r.json();
     remoteUpdateInfo=j;
 
-    // ★ Lấy version thực từ ESP32 (không hardcode)
+    // Lấy version thực từ ESP32
     const curVer = (bleLastStatus && bleLastStatus.fw && bleLastStatus.fw.ver)
                    ? bleLastStatus.fw.ver
                    : '0.0';
@@ -1688,47 +1747,20 @@ async function checkUpdate(){
       if(msg){msg.innerText='✅ Đang dùng bản mới nhất (v'+curVer+')';msg.style.color='#28a745';}
       return;
     }
+
     if(msg){msg.innerText='🆕 Có bản mới v'+j.version+' (hiện tại: v'+curVer+')';msg.style.color='#e65100';}
     document.getElementById('newVersionText').innerText='Phiên bản v'+j.version;
     document.getElementById('newDateText').innerText=j.date||'--';
     document.getElementById('notesText').innerText=(j.notes||'(không có mô tả)').replace(/\\n/g,'\n');
-    if(box) box.style.display='block';
-  }catch(e){
-    if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
-  }
-}
 
-async function otaOnline(){
-  if(!bleConnected){ alert('Chưa kết nối BLE'); return; }
-  if(!remoteUpdateInfo || !remoteUpdateInfo.url){
-    alert('Bấm "Kiểm tra phiên bản" trước'); return;
-  }
-  if(!confirm('Nạp firmware v'+remoteUpdateInfo.version+' từ GitHub?'))return;
-  const msg=document.getElementById('onlineMsg');
-  const bar=document.getElementById('onlineProgress');
-  try{
-    if(msg){msg.innerText='⏳ Đang tải firmware...';msg.style.color='#007bff';}
-    if(bar) bar.style.width='0%';
-    const r=await fetch(remoteUpdateInfo.url+'?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const buf=await r.arrayBuffer();
-    const total=buf.byteLength;
-    if(!bleOtaRx){ alert('OTA service không khả dụng'); return; }
-    if(msg){msg.innerText='⏳ Đang nạp ('+(total/1024).toFixed(0)+' KB)...';msg.style.color='#007bff';}
-    await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
-    let off=0;
-    const CHUNK=180;
-    while(off<total){
-      const end=Math.min(off+CHUNK,total);
-      await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
-      off=end;
-      const pct=Math.round(off/total*100);
-      if(bar) bar.style.width=pct+'%';
-      if(msg) msg.innerText='Đang nạp '+pct+'%';
+    // ★ Set link tải file
+    if(j.url && j.version){
+      const link=document.getElementById('downloadFwLink');
+      link.href=j.url;
+      link.setAttribute('download', 'firmware_v'+j.version+'.bin');
     }
-    await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
-    if(msg){msg.innerText='✅ Xong! ESP32 restart...';msg.style.color='#28a745';}
-    setTimeout(()=>{ bleDisconnect(); }, 3000);
+
+    if(box) box.style.display='block';
   }catch(e){
     if(msg){msg.innerText='❌ '+e.message;msg.style.color='#dc3545';}
   }
@@ -1738,34 +1770,82 @@ async function bleOtaFile(){
   const f=document.getElementById('fwFile').files[0];
   if(!f){alert('Chọn file .bin');return;}
   if(!bleConnected||!bleOtaRx){alert('Chưa kết nối BLE');return;}
-  if(!confirm('Nạp '+f.name+'?'))return;
+  if(!confirm('Nạp '+f.name+' ('+(f.size/1024).toFixed(0)+' KB)?\n\n⚠️ Không tắt tab trong lúc nạp.'))return;
+
+  otaInProgress = true;   // ★ Tạm dừng updateData()
   const buf=await f.arrayBuffer();
   const total=buf.byteLength;
   const bar=document.getElementById('fwProgress');
   const st=document.getElementById('fwStatus');
+  const btn=event && event.target ? event.target : null;
+
+  if(btn){ btn.disabled=true; btn.innerText='⏳ Đang nạp...'; }
+  bar.style.width='0%';
+  st.innerText='0%';
+  st.style.color='#6c757d';
+
   try{
     await bleOtaWriteChunk(new TextEncoder().encode('OTA_START:'+total+'\n'));
     let off=0;
-    const CHUNK=180;
+    const CHUNK=20;   // ★ Giảm từ 180 → 20 để ổn định
     while(off<total){
       const end=Math.min(off+CHUNK,total);
       await bleOtaWriteChunk(new Uint8Array(buf,off,end-off));
       off=end;
       const pct=Math.round(off/total*100);
       bar.style.width=pct+'%';
-      st.innerText=pct+'%';
+      st.innerText=pct+'% ('+(off/1024).toFixed(0)+'/'+(total/1024).toFixed(0)+' KB)';
     }
     await bleOtaWriteChunk(new TextEncoder().encode('OTA_END\n'));
     st.innerText='✅ Xong! ESP32 restart...';
-  }catch(e){st.innerText='❌ '+e.message;}
+    st.style.color='#28a745';
+  }catch(e){
+    st.innerText='❌ '+e.message;
+    st.style.color='#dc3545';
+    console.error('[OTA]', e);
+  }finally{
+    otaInProgress = false;
+    if(btn){ btn.disabled=false; btn.innerText='🚀 Nạp qua BLE'; }
+  }
 }
 
 function bleOtaWriteChunk(chunk){
   return new Promise(async(resolve,reject)=>{
-    const tm=setTimeout(()=>{bleOtaAckResolve=null;reject(new Error('Timeout'));},3000);
-    bleOtaAckResolve=()=>{clearTimeout(tm);resolve();};
-    try{await bleOtaRx.writeValue(chunk);}
-    catch(e){clearTimeout(tm);bleOtaAckResolve=null;reject(e);}
+    const maxRetries = 3;
+    let attempt = 0;
+
+    const tryWrite = async () => {
+      attempt++;
+      const tm = setTimeout(()=>{
+        bleOtaAckResolve=null;
+        if(attempt < maxRetries){
+          console.warn(`[OTA] Timeout, retry ${attempt}/${maxRetries}`);
+          setTimeout(tryWrite, 100);
+        } else {
+          reject(new Error('Timeout sau '+maxRetries+' lần thử'));
+        }
+      }, 5000);
+
+      bleOtaAckResolve = () => {
+        clearTimeout(tm);
+        setTimeout(resolve, 15);   // ★ Delay nhỏ để ESP32 xử lý
+      };
+
+      try{
+        await bleOtaRx.writeValue(chunk);
+      }catch(e){
+        clearTimeout(tm);
+        bleOtaAckResolve=null;
+        if(attempt < maxRetries){
+          console.warn(`[OTA] Write error, retry ${attempt}/${maxRetries}:`, e.message);
+          setTimeout(tryWrite, 100);
+        } else {
+          reject(e);
+        }
+      }
+    };
+
+    tryWrite();
   });
 }
 
