@@ -968,11 +968,21 @@ void bleTask(void* param){
 }
 
 // ============ STATUS ============
+// ============ STATUS ============
 void sendStatus(){
     if(!uartClientConnected) return;
     lockState();
+    
+    // ★ Lấy MAC ESP32 (dùng ESP API gốc, không phụ thuộc NimBLE)
+    uint64_t mac = ESP.getEfuseMac();
+    char espMacStr[18];
+    snprintf(espMacStr, sizeof(espMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+        (uint8_t)(mac >> 40), (uint8_t)(mac >> 32), (uint8_t)(mac >> 24),
+        (uint8_t)(mac >> 16), (uint8_t)(mac >> 8), (uint8_t)mac);
+    
     String j="{";
     j+="\"t\":\"status\",";
+    j+="\"espMac\":\""+String(espMacStr)+"\",";   // ★ MAC ESP32
     j+="\"soc\":"+String(currentSoc)+",";
     j+="\"v\":"+String(bmsHasTotalV?bmsTotalVoltage:0.0f,2)+",";
     j+="\"i\":"+String(bmsHasCurrent?bmsCurrent:0.0f,2)+",";
@@ -981,7 +991,7 @@ void sendStatus(){
     j+="\"mode\":\""+String(acquyMode?"ACQ":"BMS")+"\",";
     j+="\"sim\":"+String(manualSimMode?"true":"false")+",";
     j+="\"connected\":"+String(connected?"true":"false")+",";
-    j+="\"mac\":\""+targetMac+"\",";
+    j+="\"mac\":\""+targetMac+"\",";              // MAC BMS
     j+="\"bmsName\":\""+bmsDeviceName+"\",";
     j+="\"bmsProto\":"+String((int)bmsProtocol)+",";
     j+="\"jkVer\":"+String((int)jkVersion)+",";
