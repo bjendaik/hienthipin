@@ -1,9 +1,3 @@
-// ============================================================
-// BMS & ACQUY Controller v5.2 — BLE ONLY, MULTI-ROLE
-// Auto-scan: chưa có MAC → scan liên tục, nếu 1 BMS → kết nối + lưu MAC
-// Đã có MAC → scan liên tục tìm BMS đó
-// ============================================================
-
 #define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 4
 #define CONFIG_BT_NIMBLE_MAX_BONDS 3
 #define CONFIG_BT_NIMBLE_MAX_CCCDS 8
