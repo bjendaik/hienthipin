@@ -1,7 +1,3 @@
-// ============================================================
-// BMS & ACQUY Controller v3.2 — FIXED SOC CALCULATION
-// LFP + Lead-Acid đều dùng bảng tra OCV phi tuyến (động, từ NVS/server)
-// ============================================================
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
