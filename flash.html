@@ -1,284 +1,72 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ESP32 Web Flasher</title>
-<style>
-body{font-family:sans-serif;padding:20px;max-width:600px;margin:auto;background:#f0f2f5}
-.card{background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:15px}
-h1{font-size:20px;margin-top:0;color:#333}
-h2{font-size:15px;color:#007bff;margin-top:20px}
-button{padding:12px 20px;font-size:15px;background:#007bff;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-top:8px;width:100%}
-button:disabled{background:#ccc;cursor:not-allowed}
-button.success{background:#28a745}
-button.danger{background:#dc3545}
-input[type=file]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;margin-bottom:10px}
-.progress{background:#e0e0e0;border-radius:6px;height:24px;overflow:hidden;margin-top:10px;position:relative}
-.progress-bar{background:#28a745;height:100%;width:0;transition:width .2s}
-.progress-text{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#fff}
-.log{background:#1e1e1e;color:#0f0;font-family:monospace;font-size:12px;padding:10px;border-radius:6px;height:200px;overflow-y:auto;margin-top:10px;white-space:pre-wrap}
-.status{font-size:13px;padding:8px;border-radius:6px;margin-top:10px;font-weight:bold}
-.status.ok{background:#d4edda;color:#155724}
-.status.err{background:#f8d7da;color:#721c24}
-.status.info{background:#d1ecf1;color:#0c5460}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.row button{flex:1;min-width:120px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nạp firmware ESP32 - Một nút nhấn</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+      max-width: 500px;
+    }
+    h1 { color: #1e3c72; margin-top: 0; }
+    p { color: #666; line-height: 1.6; }
+    .tip {
+      background: #e7f3ff;
+      border-left: 4px solid #2196f3;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #0c5460;
+      text-align: left;
+      margin-top: 20px;
+    }
+    /* Tùy chỉnh style nút của esp-web-tools (tùy chọn) */
+    esp-web-install-button {
+      --esp-tools-button-color: #2e7d32;
+      --esp-tools-button-text-color: white;
+      --esp-tools-button-border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
 
 <div class="card">
-<h1>🔌 ESP32 Web Flasher</h1>
-<p style="color:#666;font-size:13px;margin:0">
-Nạp firmware ESP32 qua USB trực tiếp từ trình duyệt.
-Dùng <b>Chrome / Edge</b> trên <b>HTTPS hoặc localhost</b>.
-</p>
+  <h1>⚡ Nạp firmware ESP32</h1>
+  <p>Kết nối board mạch, sau đó nhấn nút bên dưới và chọn cổng COM.</p>
+
+  <!-- Tải thư viện ESP Web Tools (CDN chính thức) -->
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+
+  <!-- Nút nạp firmware, trỏ đến file manifest.json của bạn -->
+  <esp-web-install-button manifest="./manifest.json">
+    <!-- Nội dung hiển thị khi trình duyệt không hỗ trợ -->
+    <span slot="unsupported">
+      ❌ Trình duyệt của bạn không hỗ trợ Web Serial. Vui lòng sử dụng Chrome hoặc Edge trên máy tính.
+    </span>
+    <!-- Nội dung hiển thị khi không có HTTPS (tùy chọn) -->
+    <span slot="not-allowed">
+      ⚠️ Vui lòng truy cập qua HTTPS hoặc localhost.
+    </span>
+  </esp-web-install-button>
+
+  <div class="tip">
+    💡 <strong>Lưu ý:</strong> Nếu nhấn nút không có phản hồi, hãy kiểm tra xem tệp <code>manifest.json</code> và các tệp <code>.bin</code> có nằm cùng thư mục với trang web này không.
+  </div>
 </div>
 
-<div class="card">
-<h2>1️⃣ Kết nối ESP32</h2>
-<button id="btnConnect" onclick="connectSerial()">🔌 Kết nối cổng COM</button>
-<div id="connStatus" class="status info">Chưa kết nối</div>
-</div>
-
-<div class="card">
-<h2>2️⃣ Chọn file firmware</h2>
-<input type="file" id="fwFile" accept=".bin">
-<div id="fileInfo" style="font-size:12px;color:#666;margin-top:5px">Chưa chọn file</div>
-</div>
-
-<div class="card">
-<h2>3️⃣ Chọn tốc độ nạp</h2>
-<select id="baudRate" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px">
-<option value="115200">115200 (chậm, an toàn)</option>
-<option value="230400">230400</option>
-<option value="460800">460800</option>
-<option value="921600" selected>921600 (nhanh, khuyến nghị)</option>
-</select>
-</div>
-
-<div class="card">
-<h2>4️⃣ Nạp firmware</h2>
-<button id="btnFlash" onclick="startFlash()" disabled>🚀 Bắt đầu nạp</button>
-<div class="progress">
-<div class="progress-bar" id="progBar"></div>
-<div class="progress-text" id="progText">0%</div>
-</div>
-<div id="flashStatus" class="status info">Sẵn sàng</div>
-</div>
-
-<div class="card">
-<h2>📋 Log</h2>
-<div class="log" id="logBox"></div>
-<div class="row">
-<button onclick="document.getElementById('logBox').innerHTML=''" style="background:#6c757d">🗑️ Xóa log</button>
-</div>
-</div>
-
-<script>
-// ================================================================
-// ESP32 Web Serial Flasher
-// Dùng esptool-js (https://github.com/espressif/esptool-js)
-// ================================================================
-
-let port = null;
-let transport = null;
-let esploader = null;
-let selectedFile = null;
-
-function log(msg, color){
-  const box = document.getElementById('logBox');
-  const line = document.createElement('div');
-  line.textContent = msg;
-  if(color) line.style.color = color;
-  box.appendChild(line);
-  box.scrollTop = box.scrollHeight;
-  console.log(msg);
-}
-
-function setConnStatus(txt, cls){
-  const el = document.getElementById('connStatus');
-  el.textContent = txt;
-  el.className = 'status ' + cls;
-}
-
-function setFlashStatus(txt, cls){
-  const el = document.getElementById('flashStatus');
-  el.textContent = txt;
-  el.className = 'status ' + cls;
-}
-
-function updateProgress(pct){
-  document.getElementById('progBar').style.width = pct + '%';
-  document.getElementById('progText').textContent = pct + '%';
-}
-
-// Kiểm tra trình duyệt hỗ trợ
-if(!('serial' in navigator)){
-  document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif">' +
-    '<h1>❌ Trình duyệt không hỗ trợ Web Serial</h1>' +
-    '<p>Vui lòng dùng <b>Chrome</b> hoặc <b>Edge</b> bản mới nhất.</p>' +
-    '<p>Firefox và Safari không hỗ trợ Web Serial API.</p></div>';
-}
-
-// File input
-document.getElementById('fwFile').addEventListener('change', async (e)=>{
-  const f = e.target.files[0];
-  if(!f){ selectedFile=null; document.getElementById('fileInfo').textContent='Chưa chọn file'; return; }
-  selectedFile = f;
-  document.getElementById('fileInfo').innerHTML = 
-    '<b>' + f.name + '</b> — ' + (f.size/1024).toFixed(1) + ' KB';
-  checkReady();
-});
-
-function checkReady(){
-  const btn = document.getElementById('btnFlash');
-  btn.disabled = !(port && selectedFile);
-}
-
-// Kết nối cổng COM
-async function connectSerial(){
-  try{
-    log('Yêu cầu quyền truy cập cổng Serial...');
-    port = await navigator.serial.requestPort();
-    log('Đã chọn cổng', '#0f0');
-    setConnStatus('✅ Đã kết nối cổng COM', 'ok');
-    document.getElementById('btnConnect').textContent = '🔌 Đổi cổng COM';
-    checkReady();
-  }catch(e){
-    log('Lỗi kết nối: ' + e.message, '#f66');
-    setConnStatus('❌ ' + e.message, 'err');
-  }
-}
-
-// Nạp firmware
-async function startFlash(){
-  if(!port){ alert('Chưa kết nối cổng COM'); return; }
-  if(!selectedFile){ alert('Chưa chọn file .bin'); return; }
-
-  const btn = document.getElementById('btnFlash');
-  btn.disabled = true;
-  setFlashStatus('⏳ Đang khởi tạo...', 'info');
-  updateProgress(0);
-
-  const baud = parseInt(document.getElementById('baudRate').value);
-  log('=== BẮT ĐẦU NẠP FIRMWARE ===');
-  log('File: ' + selectedFile.name + ' (' + (selectedFile.size/1024).toFixed(1) + ' KB)');
-  log('Baud: ' + baud);
-
-  try{
-    // Load esptool-js từ CDN
-    if(typeof ESPLoader === 'undefined'){
-      log('Đang tải esptool-js từ CDN...');
-      await loadScript('https://unpkg.com/esptool-js@0.4.1/bundle.js');
-      log('Đã tải esptool-js', '#0f0');
-    }
-
-    // Mở port
-    log('Mở cổng Serial...');
-    await port.open({ baudRate: baud });
-
-    // Tạo transport
-    transport = new Transport(port);
-
-    // Callback terminal
-    const terminal = {
-      clean: ()=>{},
-      writeLine: (data)=>{ log(data); },
-      write: (data)=>{ }
-    };
-
-    // Khởi tạo ESPLoader
-    esploader = new ESPLoader({
-      transport: transport,
-      baudrate: baud,
-      terminal: terminal,
-      romBaudrate: 115200
-    });
-
-    setFlashStatus('🔄 Kết nối chip...', 'info');
-    log('Kết nối chip (giữ nút BOOT nếu cần)...');
-    const chip = await esploader.main();
-    log('✅ Chip: ' + chip, '#0f0');
-
-    // Đọc file
-    log('Đọc file firmware...');
-    const arrayBuffer = await selectedFile.arrayBuffer();
-    const binaryData = new Uint8Array(arrayBuffer);
-    log('Đã đọc ' + binaryData.length + ' bytes');
-
-    // Ghi flash tại offset 0x10000 (app partition)
-    // Nếu cần nạp full (bootloader + partition + app) → dùng writeFlash với nhiều file
-    setFlashStatus('⬇️ Đang nạp firmware...', 'info');
-
-    const flashOptions = {
-      fileArray: [{
-        data: binaryData,
-        address: 0x10000   // app partition offset
-      }],
-      flashSize: 'keep',
-      flashMode: 'keep',
-      flashFreq: 'keep',
-      eraseAll: false,
-      compress: true,
-      reportProgress: (fileIndex, written, total) => {
-        const pct = Math.round((written / total) * 100);
-        updateProgress(pct);
-      },
-      calculateMD5Hash: (image) => {
-        // Bỏ qua MD5 (dùng để verify, có thể skip)
-        return '';
-      }
-    };
-
-    await esploader.writeFlash(flashOptions);
-    log('✅ Nạp xong!', '#0f0');
-
-    // Reset chip
-    setFlashStatus('🔄 Reset chip...', 'info');
-    await esploader.after();
-    log('✅ Chip đã reset, firmware mới đang chạy', '#0f0');
-
-    setFlashStatus('✅ NẠP THÀNH CÔNG!', 'ok');
-    updateProgress(100);
-
-    // Đóng port
-    await transport.disconnect();
-    port = null;
-    document.getElementById('btnConnect').textContent = '🔌 Kết nối cổng COM';
-    setConnStatus('Chưa kết nối', 'info');
-
-  }catch(e){
-    log('❌ LỖI: ' + e.message, '#f66');
-    console.error(e);
-    setFlashStatus('❌ ' + e.message, 'err');
-
-    // Đóng port nếu còn mở
-    try{
-      if(transport) await transport.disconnect();
-      if(port) await port.close();
-    }catch(e2){}
-    port = null;
-    document.getElementById('btnConnect').textContent = '🔌 Kết nối cổng COM';
-  }finally{
-    btn.disabled = false;
-    checkReady();
-  }
-}
-
-// Load script động
-function loadScript(src){
-  return new Promise((resolve, reject)=>{
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = ()=>reject(new Error('Không tải được ' + src));
-    document.head.appendChild(s);
-  });
-}
-
-log('Sẵn sàng. Bấm "Kết nối cổng COM" để bắt đầu.', '#0ff');
-</script>
 </body>
 </html>
