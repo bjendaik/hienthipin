@@ -43,7 +43,7 @@ uint16_t logModulesEnabled = LOGMOD_ALL;
 
 #define FW_VERSION      "3.5"
 
-#define BASE_URL        "https://bjendaik.github.io/hienthipin/"
+#define BASE_URL        "https://bjendaik.github.io/hienthipin/json/"
 #define PRESET_URL      BASE_URL "data.json"
 #define UPDATE_JSON_URL BASE_URL "update.json"
 #define ACQUY_JSON_URL  BASE_URL "acquy.json"
