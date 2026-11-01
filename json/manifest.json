@@ -5,9 +5,9 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "../firmware/esp32/3.3/bootloader.bin", "offset": 4096 },
-        { "path": "../firmware/esp32/3.3/partitions.bin", "offset": 32768 },
-        { "path": "../firmware/esp32/3.3/firmware.bin", "offset": 65536 }
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/bootloader.bin", "offset": 4096 },
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/partitions.bin", "offset": 32768 },
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/firmware.bin", "offset": 65536 }
       ]
     }
   ]
