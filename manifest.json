@@ -5,7 +5,7 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware_gop.bin", "offset": 0 }
+        { "path": "firmware-v3.3.bin", "offset": 0 }
       ]
     }
   ]
