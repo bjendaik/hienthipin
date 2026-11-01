@@ -1,0 +1,14 @@
+{
+  "name": "Hiển Thị Pin V3.3",
+  "version": "3.3",
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "firmware/esp32/3.3/bootloader.bin", "offset": 4096 },
+        { "path": "firmware/esp32/3.3/partitions.bin", "offset": 32768 },
+        { "path": "firmware/esp32/3.3/firmware.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}
