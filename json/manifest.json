@@ -1,13 +1,13 @@
 {
-  "name": "Hiển Thị Pin V3.3",
-  "version": "3.3",
+  "name": "Hiển Thị Pin V3.4",
+  "version": "3.4",
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/bootloader.bin", "offset": 4096 },
-        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/partitions.bin", "offset": 32768 },
-        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/firmware.bin", "offset": 65536 }
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.4/bootloader.bin", "offset": 4096 },
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.4/partitions.bin", "offset": 32768 },
+        { "path": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.4/firmware.bin", "offset": 65536 }
       ]
     }
   ]
