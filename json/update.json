@@ -1,6 +1,6 @@
 {
-  "version": "3.3",
-  "url": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.3/firmware.bin",
-  "notes": "v3.3 - Fix một số lỗi, Thêm bảng điện áp acquy và LFP để dùng màn acquy!",
-  "date": "26/10/2026"
+  "version": "3.4",
+  "url": "https://bjendaik.github.io/hienthipin/firmware/esp32/3.4/firmware.bin",
+  "notes": "v3.4 - Fix một số lỗi, fix lỗi tụt pin khi chạy chế độ ACQUY!",
+  "date": "02/11/2026"
 }
