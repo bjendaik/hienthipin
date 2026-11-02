@@ -283,24 +283,27 @@ static float tempCompLogged = 0.0f;
 
 #define ACQY_ADC_ATTEN ADC_11db
 
-// ===== THAM SỐ PHÁT HIỆN TỤT ÁP & ỔN ĐỊNH (chỉnh được từ web) =====
-#define DROP_WINDOW_MS 500UL  // cửa sổ phát hiện tụt
-#define DROP_BUF_SIZE 8       // 8 mẫu x 100ms = 800ms
+// ===== THAM SỐ PHÁT HIỆN TỤT/TĂNG ÁP & ỔN ĐỊNH =====
+#define DROP_WINDOW_MS 500UL
+#define DROP_BUF_SIZE 8
 
-float dropThresholdLead = 1.00f;      // Chì: tụt >= 1.0V
-float dropThresholdLfp = 0.50f;       // LFP: tụt >= 0.5V
-unsigned long settleLeadMs = 5000UL;  // Chì: chờ 5s
-unsigned long settleLfpMs = 3000UL;   // LFP: chờ 3s
-float stableBandV = 0.50f;            // biên độ đứng yên
+float dropThresholdLead = 1.00f;  // Chì: tụt >= 1.0V
+float dropThresholdLfp = 0.50f;   // LFP: tụt >= 0.5V
+float riseThresholdLead = 1.00f;  // Chì: tăng >= 1.0V  ★ MỚI
+float riseThresholdLfp = 0.50f;   // LFP: tăng >= 0.5V  ★ MỚI
+unsigned long settleLeadMs = 5000UL;
+unsigned long settleLfpMs = 3000UL;
+float stableBandV = 0.50f;
 
 enum AcqState { ACQ_IDLE,
-                ACQ_DROP_DETECTED,
+                ACQ_TRANSIENT,
                 ACQ_SETTLING };
+// ACQ_TRANSIENT = đang chờ sau khi phát hiện tụt HOẶC tăng
 static AcqState acqState = ACQ_IDLE;
-static unsigned long acqDropTime = 0;
-static float acqDropPeakV = 0.0f;
+static unsigned long acqEventTime = 0;
 static float acqSettleMinV = 999.0f;
 static float acqSettleMaxV = 0.0f;
+static bool acqIsRise = false;  // ★ true = tăng, false = tụt
 
 static float dropBuf[DROP_BUF_SIZE];
 static unsigned long dropBufTs[DROP_BUF_SIZE];
@@ -781,23 +784,43 @@ void processAcquyReading() {
 
     case ACQ_IDLE:
       {
+        // Tìm max VÀ min trong cửa sổ 500ms
         float vMax = vBatMedian;
+        float vMin = vBatMedian;
         for (uint8_t i = 0; i < DROP_BUF_SIZE; i++) {
-          if (now - dropBufTs[i] <= DROP_WINDOW_MS && dropBuf[i] > vMax)
-            vMax = dropBuf[i];
+          if (now - dropBufTs[i] <= DROP_WINDOW_MS) {
+            if (dropBuf[i] > vMax) vMax = dropBuf[i];
+            if (dropBuf[i] < vMin) vMin = dropBuf[i];
+          }
         }
-        float thr = (batteryType == BATT_TYPE_LFP) ? dropThresholdLfp : dropThresholdLead;
 
-        if (vMax - vBatMedian >= thr) {
-          acqState = ACQ_DROP_DETECTED;
-          acqDropTime = now;
-          acqDropPeakV = vMax;
+        bool isLfp = (batteryType == BATT_TYPE_LFP);
+        float dropThr = isLfp ? dropThresholdLfp : dropThresholdLead;
+        float riseThr = isLfp ? riseThresholdLfp : riseThresholdLead;
+
+        float deltaDown = vMax - vBatMedian;  // mức tụt
+        float deltaUp = vBatMedian - vMin;    // mức tăng
+
+        if (deltaDown >= dropThr) {
+          acqState = ACQ_TRANSIENT;
+          acqEventTime = now;
+          acqIsRise = false;
           acqSettleMinV = vBatMedian;
           acqSettleMaxV = vBatMedian;
           acquyStable = false;
-          unsigned long w = (batteryType == BATT_TYPE_LFP) ? settleLfpMs : settleLeadMs;
+          unsigned long w = isLfp ? settleLfpMs : settleLeadMs;
           LOGM(LOGMOD_ADC, "⬇️ TỤT %.2fV (%.2f→%.2f) chờ %lus",
-               vMax - vBatMedian, vMax, vBatMedian, w / 1000);
+               deltaDown, vMax, vBatMedian, w / 1000);
+        } else if (deltaUp >= riseThr) {
+          acqState = ACQ_TRANSIENT;
+          acqEventTime = now;
+          acqIsRise = true;
+          acqSettleMinV = vBatMedian;
+          acqSettleMaxV = vBatMedian;
+          acquyStable = false;
+          unsigned long w = isLfp ? settleLfpMs : settleLeadMs;
+          LOGM(LOGMOD_ADC, "⬆️ TĂNG %.2fV (%.2f→%.2f) chờ %lus",
+               deltaUp, vMin, vBatMedian, w / 1000);
         } else {
           if (fabsf(vBatMedian - acquyLastStableV) < stableBandV / 2) {
             if (acquyStableStart == 0) acquyStableStart = now;
@@ -817,14 +840,15 @@ void processAcquyReading() {
         break;
       }
 
-    case ACQ_DROP_DETECTED:
+    case ACQ_TRANSIENT:
       {
         unsigned long waitMs = (batteryType == BATT_TYPE_LFP) ? settleLfpMs : settleLeadMs;
-        if (now - acqDropTime >= waitMs) {
+        if (now - acqEventTime >= waitMs) {
           acqState = ACQ_SETTLING;
           acqSettleMinV = vBatMedian;
           acqSettleMaxV = vBatMedian;
-          LOGM(LOGMOD_ADC, "⏳ Hết %lus — đo biên độ", waitMs / 1000);
+          LOGM(LOGMOD_ADC, "⏳ Hết %lus — đo biên độ (%s)",
+               waitMs / 1000, acqIsRise ? "tăng" : "tụt");
         }
         break;
       }
@@ -840,8 +864,9 @@ void processAcquyReading() {
           acquyLastStableV = (acqSettleMinV + acqSettleMaxV) / 2.0f;
           acquyLastStableUpdate = now;
           acqState = ACQ_IDLE;
-          LOGM(LOGMOD_ADC, "✅ CHỐT OCV: %.2fV (band %.2fV)", acquyLastStableV, band);
-        } else if (now - acqDropTime > 30000UL) {
+          LOGM(LOGMOD_ADC, "✅ CHỐT OCV: %.2fV (band %.2fV, %s)",
+               acquyLastStableV, band, acqIsRise ? "tăng" : "tụt");
+        } else if (now - acqEventTime > 30000UL) {
           acquyLastStableV = (acqSettleMinV + acqSettleMaxV) / 2.0f;
           acquyLastStableUpdate = now;
           acqState = ACQ_IDLE;
@@ -2022,6 +2047,8 @@ void handleData() {
   json += "\"aqAdcMax\":" + String(calcAdcMaxVoltage(), 3) + ",";
   json += "\"dropThrLead\":" + String(dropThresholdLead, 2) + ",";
   json += "\"dropThrLfp\":" + String(dropThresholdLfp, 2) + ",";
+  json += "\"riseThrLead\":" + String(riseThresholdLead, 2) + ",";
+  json += "\"riseThrLfp\":" + String(riseThresholdLfp, 2) + ",";
   json += "\"settleLead\":" + String(settleLeadMs / 1000) + ",";
   json += "\"settleLfp\":" + String(settleLfpMs / 1000) + ",";
   json += "\"stableBand\":" + String(stableBandV, 2) + ",";
@@ -2675,7 +2702,12 @@ void handleToggleAcquy() {
     acquyLastStableUpdate = 0;
     acquyLastStableV = 0.0f;
     acqState = ACQ_IDLE;
+    acqIsRise = false;
     dropBufIdx = 0;
+    for (uint8_t i = 0; i < DROP_BUF_SIZE; i++) {
+      dropBuf[i] = 0.0f;
+      dropBufTs[i] = 0;
+    }
     for (uint8_t i = 0; i < DROP_BUF_SIZE; i++) {
       dropBuf[i] = 0.0f;
       dropBufTs[i] = 0;
@@ -2729,7 +2761,12 @@ void handleSaveAcquyCfg() {
   acquyLastStableUpdate = 0;
   acquyLastStableV = 0.0f;
   acqState = ACQ_IDLE;
+  acqIsRise = false;
   dropBufIdx = 0;
+  for (uint8_t i = 0; i < DROP_BUF_SIZE; i++) {
+    dropBuf[i] = 0.0f;
+    dropBufTs[i] = 0;
+  }
   LOGM(LOGMOD_ADC, "Lưu cấu hình: %s %d cell | R1=%.1fk R2=%.1fk | Gain=%.4f Offset=%.3f",
        batteryType == BATT_TYPE_LFP ? "LFP" : "Chì", batteryCells, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset);
   server.send(200, "text/plain", "OK");
@@ -2739,12 +2776,16 @@ void handleSaveAcqParams() {
   TOUCH_HTTP();
   if (server.hasArg("dropLead")) dropThresholdLead = server.arg("dropLead").toFloat();
   if (server.hasArg("dropLfp")) dropThresholdLfp = server.arg("dropLfp").toFloat();
+  if (server.hasArg("riseLead")) riseThresholdLead = server.arg("riseLead").toFloat();
+  if (server.hasArg("riseLfp")) riseThresholdLfp = server.arg("riseLfp").toFloat();
   if (server.hasArg("settleLead")) settleLeadMs = server.arg("settleLead").toInt() * 1000UL;
   if (server.hasArg("settleLfp")) settleLfpMs = server.arg("settleLfp").toInt() * 1000UL;
   if (server.hasArg("band")) stableBandV = server.arg("band").toFloat();
 
   dropThresholdLead = constrain(dropThresholdLead, 0.1f, 5.0f);
   dropThresholdLfp = constrain(dropThresholdLfp, 0.1f, 2.0f);
+  riseThresholdLead = constrain(riseThresholdLead, 0.1f, 5.0f);
+  riseThresholdLfp = constrain(riseThresholdLfp, 0.1f, 2.0f);
   settleLeadMs = constrain(settleLeadMs, 1000UL, 30000UL);
   settleLfpMs = constrain(settleLfpMs, 1000UL, 30000UL);
   stableBandV = constrain(stableBandV, 0.05f, 2.0f);
@@ -2752,13 +2793,16 @@ void handleSaveAcqParams() {
   preferences.begin("bms_config", false);
   preferences.putFloat("drop_lead", dropThresholdLead);
   preferences.putFloat("drop_lfp", dropThresholdLfp);
+  preferences.putFloat("rise_lead", riseThresholdLead);
+  preferences.putFloat("rise_lfp", riseThresholdLfp);
   preferences.putUInt("settle_lead", settleLeadMs);
   preferences.putUInt("settle_lfp", settleLfpMs);
   preferences.putFloat("stable_band", stableBandV);
   preferences.end();
 
-  LOGM(LOGMOD_ADC, "Params: drop LFP=%.2f Chì=%.2f | settle LFP=%lus Chì=%lus | band=%.2f",
-       dropThresholdLfp, dropThresholdLead, settleLfpMs / 1000, settleLeadMs / 1000, stableBandV);
+  LOGM(LOGMOD_ADC, "Params: drop LFP=%.2f Chì=%.2f | rise LFP=%.2f Chì=%.2f | settle LFP=%lus Chì=%lus | band=%.2f",
+       dropThresholdLfp, dropThresholdLead, riseThresholdLfp, riseThresholdLead,
+       settleLfpMs / 1000, settleLeadMs / 1000, stableBandV);
   server.send(200, "text/plain", "OK");
 }
 
@@ -3404,7 +3448,11 @@ void handleRoot() {
 
                                                                    "<div class='input-row'><label><strong>LFP: tụt (V):</strong></label>"
                                                                    "<input type='number' id='dropLfp' step='0.1' min='0.1' max='2' value='0.5'></div>"
+                                                                   "<div class='input-row'><label><strong>Chì: tăng (V):</strong></label>"
+                                                                   "<input type='number' id='riseLead' step='0.1' min='0.1' max='5' value='1.0'></div>"
 
+                                                                   "<div class='input-row'><label><strong>LFP: tăng (V):</strong></label>"
+                                                                   "<input type='number' id='riseLfp' step='0.1' min='0.1' max='2' value='0.5'></div>"
                                                                    "<div class='input-row'><label><strong>Chì: chờ (s):</strong></label>"
                                                                    "<input type='number' id='settleLead' step='1' min='1' max='30' value='5'></div>"
 
@@ -4103,6 +4151,8 @@ void handleRoot() {
                                            "if(d.dropThrLead!==undefined){"
                                            "document.getElementById('dropLead').value=d.dropThrLead;"
                                            "document.getElementById('dropLfp').value=d.dropThrLfp;"
+                                           "document.getElementById('riseLead').value=d.riseThrLead;"
+                                           "document.getElementById('riseLfp').value=d.riseThrLfp;"
                                            "document.getElementById('settleLead').value=d.settleLead;"
                                            "document.getElementById('settleLfp').value=d.settleLfp;"
                                            "document.getElementById('stableBand').value=d.stableBand;"
@@ -4119,7 +4169,7 @@ void handleRoot() {
                                            "let rv=document.getElementById('aqRawV');if(rv)rv.innerText=(d.aqRawV||0).toFixed(2)+' V';"
                                            "let ast=document.getElementById('acqStateText');"
                                            "if(ast){"
-                                           "let st=['IDLE','TỤT ÁP','ĐO BIÊN ĐỘ'][d.acqState]||'--';"
+                                           "let st=['IDLE','CHỜ SAU BIẾN ĐỘNG','ĐO BIÊN ĐỘ'][d.acqState]||'--';"
                                            "ast.innerText=st;"
                                            "ast.style.color=d.acqState===0?'#28a745':(d.acqState===1?'#dc3545':'#ff9800');"
                                            "}"
@@ -4353,6 +4403,8 @@ void handleRoot() {
                                            "function saveAcqParams(){"
                                            "let p='dropLead='+document.getElementById('dropLead').value"
                                            "+'&dropLfp='+document.getElementById('dropLfp').value"
+                                           "+'&riseLead='+document.getElementById('riseLead').value"
+                                           "+'&riseLfp='+document.getElementById('riseLfp').value"
                                            "+'&settleLead='+document.getElementById('settleLead').value"
                                            "+'&settleLfp='+document.getElementById('settleLfp').value"
                                            "+'&band='+document.getElementById('stableBand').value;"
@@ -4933,6 +4985,8 @@ void setup() {
   batteryCells = preferences.getInt("batt_cells", 4);
   dropThresholdLead = preferences.getFloat("drop_lead", 1.00f);
   dropThresholdLfp = preferences.getFloat("drop_lfp", 0.50f);
+  riseThresholdLead = preferences.getFloat("rise_lead", 1.00f);
+  riseThresholdLfp = preferences.getFloat("rise_lfp", 0.50f);
   settleLeadMs = preferences.getUInt("settle_lead", 5000UL);
   settleLfpMs = preferences.getUInt("settle_lfp", 3000UL);
   stableBandV = preferences.getFloat("stable_band", 0.50f);
