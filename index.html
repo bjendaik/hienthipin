@@ -104,9 +104,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
   .ble-inline .status b{font-size:11px}
   .ble-inline button{padding:6px 9px;font-size:11px}
 }
-@media (max-width:400px){
-  .ble-inline .status .esp-mac{display:none}
-}
+@media (max-width:400px){.ble-inline .status .esp-mac{display:none}}
 @media (max-width:380px){
   .acc-head .title-text{font-size:13px}
   .mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}
@@ -277,7 +275,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
         </div>
       </div>
 
-      <!-- BẢNG OCV → SOC -->
       <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
         <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>
           <div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
@@ -345,14 +342,12 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
     </div>
 
     <div class='ir-box' id='irBox' style='display:none'>
-      <h4>🚗 BÙ NỘI TRỞ (IR COMPENSATION)</h4>
+      <h4>🚗 THÔNG SỐ ĐO ĐIỆN ÁP</h4>
       <div class='ir-grid'>
         <div>Điện áp đo: <span class='ir-val' id='ir-raw'>--</span></div>
         <div>OCV ước lượng: <span class='ir-val' id='ir-ocv' style='color:#1565c0'>--</span></div>
         <div>Sụt áp: <span class='ir-val' id='ir-sag' style='color:#e65100'>--</span></div>
-        <div>Hệ số bù: <span class='ir-val' id='ir-comp' style='color:#6a1b9a'>--</span></div>
         <div>Nhiệt độ chip: <span class='ir-val' id='ir-temp'>--</span></div>
-        <div>OCV sau bù nhiệt: <span class='ir-val' id='ir-ocvcomp' style='color:#00838f'>--</span></div>
       </div>
       <div style='font-size:11px;color:#2e7d32;margin-top:6px'>SOC được tính từ OCV, không phải điện áp chịu tải</div>
       <div class='sag-bar-bg'><div class='sag-bar' id='sag-bar'></div></div>
@@ -364,28 +359,22 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
     <div id='bms-overview' style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0'>
       <div class='stat-box' id='bms-box-totalv' style='display:none'>
         <div>Điện áp tổng</div>
-        <div class='stat-val' id='bms-totalv' style='color:#007bff'>-- V</div>
-      </div>
+        <div class='stat-val' id='bms-totalv' style='color:#007bff'>-- V</div></div>
       <div class='stat-box' id='aq-box-raw' style='display:none'>
         <div>⚡ Điện áp tức thời</div>
-        <div class='stat-val' id='aq-totalv-raw' style='color:#ff9800'>-- V</div>
-      </div>
+        <div class='stat-val' id='aq-totalv-raw' style='color:#ff9800'>-- V</div></div>
       <div class='stat-box' id='aq-box-stable' style='display:none'>
         <div>📊 OCV ước lượng</div>
-        <div class='stat-val' id='aq-totalv-stable' style='color:#28a745'>-- V</div>
-      </div>
+        <div class='stat-val' id='aq-totalv-stable' style='color:#28a745'>-- V</div></div>
       <div class='stat-box' id='bms-box-cellcount' style='display:none'>
         <div>Số cell</div>
-        <div class='stat-val' id='bms-cellcount' style='color:#17a2b8'>--</div>
-      </div>
+        <div class='stat-val' id='bms-cellcount' style='color:#17a2b8'>--</div></div>
       <div class='stat-box' id='bms-box-current' style='display:none'>
         <div>Dòng điện</div>
-        <div class='stat-val' id='bms-current' style='color:#ff9800'>-- A</div>
-      </div>
+        <div class='stat-val' id='bms-current' style='color:#ff9800'>-- A</div></div>
       <div class='stat-box' id='bms-box-power' style='display:none'>
         <div>Công suất</div>
-        <div class='stat-val' id='bms-power' style='color:#6f42c1'>-- W</div>
-      </div>
+        <div class='stat-val' id='bms-power' style='color:#6f42c1'>-- W</div></div>
     </div>
 
     <div id='aq-status-line' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:8px 12px;font-size:12px;color:#495057;margin-bottom:10px'>
@@ -541,7 +530,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
   </div>
   <div class='acc-body'>
 
-    <!-- CÀI ĐẶT PHÁT WIFI (AP) -->
     <div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:12px;margin:12px 0'>
       <div style='display:flex;justify-content:space-between;align-items:center'>
         <div>
@@ -588,7 +576,6 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
       </div>
     </div>
 
-    <!-- KẾT NỐI WIFI NHÀ (STA) -->
     <div style='display:flex;justify-content:space-between;align-items:center;margin:0 0 10px 0;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px'>
       <div>
         <div style='font-size:13px;font-weight:bold'>📶 Kết Nối WiFi (STA)</div>
@@ -632,7 +619,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
   </div>
 </div>
 
-<!-- ============ CẬP NHẬT FIRMWARE (CHỈ DÙNG WIFI OTA) ============ -->
+<!-- ============ OTA ============ -->
 <div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
   <div class='acc-head red' onclick='toggleAcc("accOta")'>
     <span>⬆️ Cập nhật Firmware</span><span class='arrow'>▼</span>
@@ -693,7 +680,7 @@ ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;bor
 
 <script>
 // ================================================================
-// BLE UART NUS TRANSPORT (KHÔNG DÙNG BLE OTA)
+// BLE UART NUS TRANSPORT
 // ================================================================
 const BLE_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_RX_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -701,7 +688,6 @@ const BLE_TX_CHAR = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
 const GITHUB_BASE = 'https://bjendaik.github.io/hienthipin/';
 const URL_DATA    = GITHUB_BASE + 'data.json';
-const URL_UPDATE  = GITHUB_BASE + 'update.json';
 const ACQUY_JSON_URL = GITHUB_BASE + 'acquy.json';
 
 let bleDevice = null, bleRx = null, bleTx = null;
@@ -719,13 +705,6 @@ let activePresetIdx = -1, vmapLoaded = false;
 
 function markDirty(){ configDirty = true; }
 function markOutputTouched(){ outputTouched = true; }
-
-function fetchTO(url, ms){
-  return Promise.race([
-    fetch(url),
-    new Promise((_, rj) => setTimeout(() => rj(new Error('Timeout')), ms))
-  ]);
-}
 
 function bleUpdateUI(){
   const st = document.getElementById('bleStatus');
@@ -778,9 +757,7 @@ async function bleConnect(){
         const devices = await navigator.bluetooth.getDevices();
         device = devices.find(d => d.id === savedDeviceId) || null;
         autoReconnecting = false;
-      }catch(e){
-        autoReconnecting = false;
-      }
+      }catch(e){ autoReconnecting = false; }
     }
     if(!device){
       bleUpdateUI();
@@ -852,11 +829,8 @@ async function bleSend(cmd){
   const CHUNK = 180;
   for(let off = 0; off < raw.length; off += CHUNK){
     const slice = raw.slice(off, Math.min(off + CHUNK, raw.length));
-    try{
-      await bleRx.writeValue(slice);
-    }catch(e){
-      try{ await bleRx.writeValueWithoutResponse(slice); }catch(e2){ return false; }
-    }
+    try{ await bleRx.writeValue(slice); }
+    catch(e){ try{ await bleRx.writeValueWithoutResponse(slice); }catch(e2){ return false; } }
   }
   return true;
 }
@@ -885,8 +859,14 @@ function bleHandleLine(line){
   else if(obj.t === 'scan'){ resolvePending('scan', obj); }
   else if(obj.t === 'ocv'){ resolvePending('ocv', obj); }
   else if(obj.t === 'chip'){ resolvePending('chip', obj); }
+  else if(obj.t === 'vmap'){ resolvePending('vmap', obj); }
+  else if(obj.t === 'wifi'){ resolvePending('wifi', obj); }
+  else if(obj.t === 'fw'){ resolvePending('fw', obj); }
   else if(obj.t === 'wifiscan'){ resolvePending('wifiscan', obj); }
   else if(obj.t === 'upd'){ resolvePending('upd', obj); }
+  else if(obj.t === 'log'){
+    // bỏ qua log
+  }
   else if(obj.t === 'ota_prog'){
     const bar = document.getElementById('onlineProgress');
     const msg = document.getElementById('onlineMsg');
@@ -927,7 +907,7 @@ function bleWaitFor(kind, timeoutMs = 5000){
 }
 
 // ================================================================
-// FETCH SHIM — ÁNH XẠ TOÀN BỘ API WEBSERVER SANG LỆNH BLE
+// FETCH SHIM — map API WebServer sang BLE
 // ================================================================
 const _realFetch = window.fetch.bind(window);
 window.fetch = async function(url, opts){
@@ -953,12 +933,19 @@ window.fetch = async function(url, opts){
       return jsonResponse(obj);
     }
     if(path === '/getvmap'){
-      let obj = bleLastStatus;
-      if(!obj || !obj.vmap){
-        await bleSend('GET_STATUS');
-        obj = await bleWaitFor('status', 3000).catch(() => null);
-      }
-      return jsonResponse({vmap: (obj && Array.isArray(obj.vmap)) ? obj.vmap : []});
+      await bleSend('GET_VMAP');
+      const obj = await bleWaitFor('vmap', 4000).catch(() => null);
+      return jsonResponse({vmap: (obj && Array.isArray(obj.list)) ? obj.list : []});
+    }
+    if(path === '/getwifiinfo'){
+      await bleSend('GET_WIFI_INFO');
+      const obj = await bleWaitFor('wifi', 4000).catch(() => null);
+      return jsonResponse(obj || {});
+    }
+    if(path === '/getfwinfo'){
+      await bleSend('GET_FW_INFO');
+      const obj = await bleWaitFor('fw', 4000).catch(() => null);
+      return jsonResponse(obj || {});
     }
     if(path === '/sim'){
       if(q.has('soc')){ await bleSend('SOC:' + q.get('soc')); await bleWaitFor('ack', 2000).catch(()=>{}); return textResponse('OK'); }
@@ -1035,7 +1022,6 @@ window.fetch = async function(url, opts){
       if(!obj) return jsonResponse({date:'', leadN:0, lfpN:0, lead:[], lfp:[]});
       return jsonResponse({date:obj.date||'', leadN:(obj.lead||[]).length, lfpN:(obj.lfp||[]).length, lead:obj.lead||[], lfp:obj.lfp||[]});
     }
-    // ===== WIFI COMMANDS QUA BLE =====
     if(path === '/savewifi'){
       const ssid = q.get('ssid') || '', pass = q.get('pass') || '', en = q.get('en') || '1';
       await bleSend(`SAVE_WIFI:${en}|${ssid}|${pass}`);
@@ -1084,7 +1070,6 @@ window.fetch = async function(url, opts){
       await bleWaitFor('ack', 3000).catch(() => null);
       return textResponse('OK');
     }
-    // ===== OTA & FW INFO COMMANDS QUA BLE =====
     if(path === '/savefwinfo'){
       const d = q.get('date') || '', n = (q.get('notes') || '').replace(/\n/g, '\\n');
       await bleSend(`SAVE_FW_INFO:${d}|${n}`);
@@ -1129,23 +1114,25 @@ function enrich(o){
   if(!o) o = {};
   o._ts = Date.now();
   const aq = o.aq || {};
-  o.aqRawV = aq.raw || 0; o.aqOcvEst = aq.ocv || 0; o.aqStableV = aq.ocv || 0;
-  o.aqSag = aq.sag || 0; o.aqIsStable = aq.stable || false;
+  o.aqRawV = aq.raw || 0;
+  o.aqOcvEst = aq.ocv || 0;
+  o.aqStableV = aq.ocv || 0;
+  o.aqSag = aq.sag || 0;
+  o.aqIsStable = aq.stable || false;
   o.aqAdcV = aq.adc || 0;
-  o.aqCompFactor = aq.comp !== undefined ? aq.comp : 0.7;
-  o.aqTempC = aq.temp !== undefined ? aq.temp : 25;
-  o.aqOcvComp = aq.ocvComp !== undefined ? aq.ocvComp : (aq.ocv || 0);
+  o.aqGain = aq.gain || 1;
+  o.aqOffset = aq.offset || 0;
+  o.aqSocRaw = (aq.socRaw !== undefined) ? aq.socRaw : (o.soc || 0);
+  o.aqSocStable = (aq.socStable !== undefined) ? aq.socStable : (o.soc || 0);
+  o.aqTempC = (aq.temp !== undefined) ? aq.temp : 25;
   o.aqOvp = aq.ovp || false;
-  o.aqSocRaw = aq.socRaw !== undefined ? aq.socRaw : (o.soc || 0);
-  o.aqSocStable = o.soc || 0;
+  o.aqCharging = aq.charging || false;
   o.acquyMode = (o.mode === 'ACQ');
   o.battType = (o.battType !== undefined) ? o.battType : 0;
   o.battCells = (o.battCells !== undefined) ? o.battCells : 4;
   o.aqPin = (o.aqPin !== undefined) ? o.aqPin : 32;
   o.aqR1 = (o.aqR1 !== undefined) ? o.aqR1 : 100;
   o.aqR2 = (o.aqR2 !== undefined) ? o.aqR2 : 4.7;
-  o.aqGain = (o.aqGain !== undefined) ? o.aqGain : 1;
-  o.aqOffset = (o.aqOffset !== undefined) ? o.aqOffset : 0;
   o.totalV = o.v || 0; o.hasTotalV = (o.v > 0);
   o.current = o.i || 0; o.hasCurrent = (o.hasCur !== undefined) ? o.hasCur : (o.i !== 0);
   o.power = o.p || 0; o.hasPower = (o.hasCur !== undefined) ? o.hasCur : (o.p !== 0);
@@ -1174,11 +1161,20 @@ function enrich(o){
   o.jkVer = o.jkVer || 0;
   o.vmap = Array.isArray(o.vmap) ? o.vmap : [];
   const fw = o.fw || {};
-  o.fwVersion = fw.ver || '3.5';
+  o.fwVersion = fw.ver || '3.4';
   o.fwDate = fw.date || '';
   o.fwNotes = fw.notes || '';
   o.autoUpdate = fw.auto || false;
   o.autoUpdateDone = fw.autoDone || false;
+  o.activePresetName = o.activePreset || '';
+  o.apSSID = o.apSSID || ''; o.apPass = o.apPass || '';
+  o.apTimeout = (o.apTimeout !== undefined) ? o.apTimeout : 60;
+  o.apCfgOpen = o.apCfgOpen || false;
+  o.apClients = o.apClients || 0;
+  o.apRemain = (o.apRemain !== undefined) ? o.apRemain : -2;
+  o.staSSID = o.staSSID || ''; o.staPass = o.staPass || '';
+  o.staEnabled = o.staEnabled || false;
+  o.staConnected = o.staConnected || false;
   return o;
 }
 function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
@@ -1187,7 +1183,7 @@ function textResponse(t){ return new Response(t,{headers:{'Content-Type':'text/p
 function htmlResponse(h){ return new Response(h,{headers:{'Content-Type':'text/html'}}); }
 
 // ================================================================
-// LOGIC GIAO DIỆN (ĐỒNG BỘ VỚI WEBSERVER V3.3)
+// UI LOGIC (giống WebServer)
 // ================================================================
 function toggleAcc(id){
   let el = document.getElementById(id);
@@ -1211,9 +1207,21 @@ function onAccOpen(id){
   }
   else if(id === 'accWifi'){
     updateData();
+    fetch('/getwifiinfo').then(r => r.json()).then(d => {
+      if(d.staSSID !== undefined) document.getElementById('staSSID').value = d.staSSID || '';
+      if(d.staPass !== undefined) document.getElementById('staPass').value = d.staPass || '';
+      if(d.apSSID !== undefined) document.getElementById('apSSIDInput').value = d.apSSID || '';
+      if(d.apPass !== undefined) document.getElementById('apPassInput').value = d.apPass || '';
+      if(d.apTimeout !== undefined) document.getElementById('apTimeoutInput').value = d.apTimeout;
+    }).catch(() => {});
   }
   else if(id === 'accOta'){
     updateData();
+    fetch('/getfwinfo').then(r => r.json()).then(d => {
+      if(d.ver) document.getElementById('fwVerOta').innerText = 'v' + d.ver;
+      if(d.date) document.getElementById('fwDateView').innerText = d.date;
+      if(d.notes) document.getElementById('fwNotesView').innerText = d.notes;
+    }).catch(() => {});
   }
 }
 
@@ -1282,7 +1290,7 @@ function updateData(){
     else{ s.innerText = 'Đang tìm BMS...'; s.style.color = 'red'; }
 
     let sm = document.getElementById('scan-mode');
-    if(d.configMode){
+    if(d.apActive){
       if(d.apClients > 0){ sm.innerText = 'Đang phát: ' + d.apClients + ' client'; sm.style.color = '#28a745'; }
       else if(d.apRemain === -3){ sm.innerText = 'Đang phát (luôn mở)'; sm.style.color = '#17a2b8'; }
       else if(d.apRemain === -2){ sm.innerText = 'Đang phát (chưa có STA)'; sm.style.color = '#17a2b8'; }
@@ -1315,7 +1323,7 @@ function updateData(){
     document.getElementById('chip-name').innerText = d.chipName;
     hasDac = !!d.hasDac;
 
-    const fwVer = d.fwVersion || '3.5';
+    const fwVer = d.fwVersion || '3.4';
     document.getElementById('fwVerHeader').innerText = 'v' + fwVer;
     document.getElementById('fwVerOta').innerText = 'v' + fwVer;
     if(d.fwDate) document.getElementById('fwDateView').innerText = d.fwDate;
@@ -1334,7 +1342,6 @@ function updateData(){
       document.getElementById('slider-val').innerText = d.soc + '%';
     }
 
-    // Cập nhật WiFi UI
     window._staConnected = !!d.staConnected;
     let st = document.getElementById('sta-status');
     if(st){
@@ -1379,7 +1386,6 @@ function updateData(){
       document.getElementById('apCfgPanel').style.display = d.apCfgOpen ? 'block' : 'none';
     }
 
-    // Cập nhật OTA UI
     let auToggle = document.getElementById('autoUpdateToggle');
     if(auToggle && !auToggle.dataset.inited){
       auToggle.dataset.inited = '1';
@@ -1403,7 +1409,6 @@ function updateData(){
     if(otaBox) otaBox.style.display = (d.staConnected && !d.autoUpdate) ? 'block' : 'none';
     if(noWifiHint) noWifiHint.style.display = d.staConnected ? 'none' : 'block';
 
-    // Cập nhật MAC & Tên BMS
     const bmsMac = (d.mac || '').trim();
     document.getElementById('curMacText').innerText = bmsMac || 'Chưa có';
     document.getElementById('curBmsName').innerText = d.bmsName ? ('📛 ' + d.bmsName) : '';
@@ -1455,9 +1460,14 @@ function updateData(){
       document.getElementById('dispOffset').innerText = (d.aqOffset || 0).toFixed(3);
       let stt = document.getElementById('aqStableStatus');
       if(stt){
+        let sag = d.aqSag || 0;
         if(d.aqIsStable){ stt.innerText = '✅ Ổn định'; stt.style.color = '#28a745'; }
-        else { stt.innerText = '⚠️ Đang dao động'; stt.style.color = '#ff9800'; }
+        else if(sag < 1.0){ stt.innerText = '⚠️ Tải nhẹ'; stt.style.color = '#ff9800'; }
+        else if(sag < 2.0){ stt.innerText = '⚠️ Tải vừa'; stt.style.color = '#ff9800'; }
+        else{ stt.innerText = '🔥 TẢI NẶNG'; stt.style.color = '#dc3545'; }
       }
+      let ovp = document.getElementById('ovpAlert');
+      if(ovp) ovp.style.display = d.aqOvp ? 'block' : 'none';
     }
 
     if(!configLoaded){
@@ -1509,7 +1519,7 @@ function sendSim(v){
 }
 function setRealSoc(){ fetch('/sim?real=1'); }
 
-// ============ WIFI FUNCTIONS ============
+// ============ WIFI ============
 function toggleApCfgPanel(en){
   let panel = document.getElementById('apCfgPanel');
   if(panel) panel.style.display = en ? 'block' : 'none';
@@ -1612,7 +1622,7 @@ function togglePassVisibility(){
   else{ inp.type = 'password'; btn.innerText = '👁️'; }
 }
 
-// ============ OTA FUNCTIONS (QUA WIFI CỦA ESP32) ============
+// ============ OTA ============
 function toggleFwEdit(){
   let form = document.getElementById('fwEditForm');
   form.style.display = (form.style.display === 'block') ? 'none' : 'block';
@@ -1687,7 +1697,7 @@ function otaOnline(){
   });
 }
 
-// ============ CHIP INFO & BMS DETAILS ============
+// ============ CHIP / BMS INFO ============
 function fmtKB(b){ return (b / 1024).toFixed(1); }
 function fmtUptime(s){
   let d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60), ss = s%60;
@@ -1760,12 +1770,17 @@ function updateBmsInfo(){
       document.getElementById('ir-raw').innerText = (d.aqRawV || 0).toFixed(2) + ' V';
       document.getElementById('ir-ocv').innerText = (d.aqOcvEst || 0).toFixed(2) + ' V';
       document.getElementById('ir-sag').innerText = (d.aqSag || 0).toFixed(2) + ' V';
-      document.getElementById('ir-comp').innerText = (d.aqCompFactor || 0.7).toFixed(3);
-      document.getElementById('ir-temp').innerText = (d.aqTempC || 25).toFixed(1) + '°C';
-      document.getElementById('ir-ocvcomp').innerText = (d.aqOcvComp || 0).toFixed(2) + ' V';
+      let tempEl = document.getElementById('ir-temp');
+      if(tempEl && d.aqTempC !== undefined) tempEl.innerText = d.aqTempC.toFixed(1) + '°C';
       let sag = d.aqSag || 0;
       document.getElementById('sag-bar').style.width = Math.min(100, sag * 50) + '%';
-      document.getElementById('sag-label').innerText = sag < 0.3 ? ('Không tải ('+sag.toFixed(2)+'V)') : ('Sụt áp '+sag.toFixed(2)+'V');
+      let sagLabel = document.getElementById('sag-label');
+      if(sagLabel){
+        if(sag < 0.3) sagLabel.innerText = 'Không tải (' + sag.toFixed(2) + 'V)';
+        else if(sag < 1.0) sagLabel.innerText = 'Tải nhẹ (' + sag.toFixed(2) + 'V)';
+        else if(sag < 2.0) sagLabel.innerText = 'Tải vừa (' + sag.toFixed(2) + 'V)';
+        else sagLabel.innerText = '🔥 TẢI NẶNG (' + sag.toFixed(2) + 'V)';
+      }
     }
     let statusLine = document.getElementById('aq-status-line');
     if(statusLine){
@@ -1776,26 +1791,32 @@ function updateBmsInfo(){
         document.getElementById('bms-aq-gain').innerText = (d.aqGain || 1).toFixed(4);
         document.getElementById('bms-aq-offset').innerText = (d.aqOffset || 0).toFixed(3);
         let stTxt = document.getElementById('bms-aq-status-text');
-        stTxt.innerText = d.aqIsStable ? '✅ Ổn định' : '⏳ Đang chờ ổn định';
-        stTxt.style.color = d.aqIsStable ? '#28a745' : '#ff9800';
+        if(d.aqIsStable){ stTxt.innerText = '✅ Ổn định'; stTxt.style.color = '#28a745'; }
+        else {
+          let sag = d.aqSag || 0;
+          if(sag < 0.3){ stTxt.innerText = '⏳ Đang chờ ổn định...'; stTxt.style.color = '#6c757d'; }
+          else if(sag < 1.0){ stTxt.innerText = '⚠️ Tải nhẹ (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#ff9800'; }
+          else if(sag < 2.0){ stTxt.innerText = '⚠️ Tải vừa (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#ff9800'; }
+          else { stTxt.innerText = '🔥 TẢI NẶNG (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#dc3545'; }
+        }
+        let ovp = document.getElementById('bms-aq-ovp-badge');
+        if(ovp) ovp.style.display = d.aqOvp ? 'inline-block' : 'none';
       }
     }
     let boxCC = document.getElementById('bms-box-cellcount');
     if(!d.acquyMode && d.hasCells){ boxCC.style.display = 'block'; document.getElementById('bms-cellcount').innerText = vc; }
     else boxCC.style.display = 'none';
-
     let boxCur = document.getElementById('bms-box-current');
     if(!d.acquyMode && d.hasCurrent){
       boxCur.style.display = 'block';
       let curEl = document.getElementById('bms-current');
-      curEl.innerText = (d.current || 0).toFixed(2) + ' A';
-      curEl.style.color = d.current < 0 ? '#28a745' : (d.current > 0 ? '#dc3545' : '#ff9800');
+      let cur = d.current || 0;
+      curEl.innerText = cur.toFixed(2) + ' A';
+      curEl.style.color = cur < 0 ? '#28a745' : (cur > 0 ? '#dc3545' : '#ff9800');
     } else boxCur.style.display = 'none';
-
     let boxPow = document.getElementById('bms-box-power');
     if(!d.acquyMode && d.hasPower){ boxPow.style.display = 'block'; document.getElementById('bms-power').innerText = (d.power || 0).toFixed(1) + ' W'; }
     else boxPow.style.display = 'none';
-
     let stats = document.getElementById('bms-cellstats');
     let wrap = document.getElementById('bms-cells-wrap');
     if(!d.acquyMode && d.hasCells && vc > 0){
@@ -1806,7 +1827,6 @@ function updateBmsInfo(){
       let diffEl = document.getElementById('bms-celldiff');
       diffEl.innerText = (diff * 1000).toFixed(0) + ' mV';
       diffEl.style.color = diff > 0.05 ? '#dc3545' : (diff > 0.03 ? '#ff9800' : '#28a745');
-
       wrap.style.display = 'block';
       let html = '';
       for(let i = 0; i < 16; i++){
@@ -1828,7 +1848,7 @@ function updateBmsInfo(){
   }).catch(e => {});
 }
 
-// ============ ACQUY, OCV, VMAP, SCAN HELPERS ============
+// ============ ACQUY / OCV / VMAP ============
 function onBattTypeChange(){
   let t = parseInt(document.getElementById('battType').value);
   document.getElementById('leadOptions').style.display = (t === 0) ? 'block' : 'none';
@@ -1897,7 +1917,6 @@ function saveAcquyCfg(){
     else alert('Lỗi: ' + res);
   });
 }
-
 function switchOcvTab(t){
   ocvTab = t;
   document.getElementById('ocvTabLead').className = (t === 'lead' ? 'active' : '');
@@ -1980,7 +1999,7 @@ async function refreshAcquyJson(){
   if(!navigator.onLine){ alert('❌ Điện thoại cần có Internet để tải acquy.json'); return; }
   if(!confirm('Tải bảng OCV mới từ server và lưu vào ESP32?')) return;
   try{
-    const r = await fetch(ACQUY_JSON_URL + '?t=' + Date.now());
+    const r = await _realFetch(ACQUY_JSON_URL + '?t=' + Date.now());
     const j = await r.json();
     const lead = j.lead || [], lfp = j.lfp || [];
     if(lead.length >= 2){
@@ -2049,7 +2068,7 @@ async function fetchPresets(){
   if(!navigator.onLine){ if(msg){ msg.style.display='block'; msg.innerText='❌ Không có Internet'; } return; }
   if(box) box.innerHTML = '<div style="text-align:center;padding:15px;color:#6c757d">⏳ Đang tải...</div>';
   try{
-    const r = await fetch(URL_DATA + '?t=' + Date.now());
+    const r = await _realFetch(URL_DATA + '?t=' + Date.now());
     const j = await r.json();
     cachedPresets = j.presets || [];
     box.innerHTML = '';
