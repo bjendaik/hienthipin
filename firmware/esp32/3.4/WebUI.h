@@ -233,7 +233,6 @@ void handleSaveOutput() {
   int newFreq = server.hasArg("freq") ? server.arg("freq").toInt() : pwmFreq;
   int newRes = server.hasArg("res") ? server.arg("res").toInt() : pwmRes;
 
-  // ★ FIX: chỉ báo lỗi nếu chọn DAC mà board không có
   if (newMode == OUT_MODE_DAC && !HAS_DAC) {
     server.send(400, "text/plain", "No DAC");
     return;
@@ -646,7 +645,6 @@ void handleSave() {
     return;
   }
 
-  // ★ BƯỚC 1: Khai báo + validate newMac TRƯỚC
   String newMac = server.arg("mac");
   newMac.toUpperCase();
   newMac.trim();
@@ -673,7 +671,6 @@ void handleSave() {
   newName.trim();
   if (newName.length() > 40) newName = newName.substring(0, 40);
 
-  // ★ BƯỚC 2: Reset dữ liệu BMS cũ (SAU khi đã validate newMac OK)
   lockState();
   bmsTotalVoltage = 0.0f;
   bmsHasTotalV = false;
@@ -687,7 +684,6 @@ void handleSave() {
   bmsSocTimestamp = 0;
   realBmsSoc = 0;
 
-  // ★ BƯỚC 3: Gán targetMac + name
   targetMac = newMac;
   if (newName.length() > 0) bmsDeviceName = newName;
   else if (bmsDeviceName.length() == 0) bmsDeviceName = "BMS " + newMac;
@@ -696,7 +692,6 @@ void handleSave() {
   cachedJsonData = "";
   cachedJsonTime = 0;
 
-  // ★ BƯỚC 4: Lưu NVS
   preferences.begin("bms_config", false);
   preferences.putString("bms_mac", targetMac);
   preferences.putString("bms_name", nameToSave);
@@ -720,7 +715,6 @@ void handleClearMac() {
   lockState();
   targetMac = "";
   bmsDeviceName = "";
-  // ★ Reset dữ liệu BMS cũ để UI không hiển thị số liệu "ma"
   bmsTotalVoltage = 0.0f;
   bmsHasTotalV = false;
   bmsCurrent = 0.0f;
@@ -745,7 +739,6 @@ void handleClearMac() {
   preferences.end();
   jkVersion = 0;
   jkVersionProbed = false;
-  // ★ Ngắt BLE hiện tại để tránh nhận thêm dữ liệu từ BMS cũ
   if (pClient && pClient->isConnected()) {
     pClient->disconnect();
   }
@@ -816,10 +809,17 @@ void handleToggleAcquy() {
       dropBuf[i] = 0.0f;
       dropBufTs[i] = 0;
     }
+    // ★ Reset cờ sạc
+    acquyCharging = false;
+    acquyChargeStart = 0;
+    acquyChargeStopMs = 0;
+    chargeOcvEmaInit = false;
+    chargeFullHoldStart = 0;
+    ocvBaseForChargeDetect = 0.0f;
+    ocvBeforeCharge = 0.0f;
     if (!apActive) ledSetMode(LED_MODE_SOLID);
     LOGM(LOGMOD_ADC, "Chế độ ẮC QUY bật | GPIO%d", acquyAdcPin);
   } else {
-    // ★ RESET dữ liệu Acquy cũ để UI không hiển thị số liệu "ma"
     lockState();
     bmsTotalVoltage = 0.0f;
     bmsHasTotalV = false;
@@ -839,9 +839,17 @@ void handleToggleAcquy() {
     acquyAdcRawV = 0.0f;
     realBmsSoc = 0;
     unlockState();
-    // ★ Xoá cache JSON để UI cập nhật ngay (không đợi 800ms)
     cachedJsonData = "";
     cachedJsonTime = 0;
+
+    // ★ Reset cờ sạc
+    acquyCharging = false;
+    acquyChargeStart = 0;
+    acquyChargeStopMs = 0;
+    chargeOcvEmaInit = false;
+    chargeFullHoldStart = 0;
+    ocvBaseForChargeDetect = 0.0f;
+    ocvBeforeCharge = 0.0f;
 
     bleInit();
     bleAutoScan = true;
@@ -895,6 +903,14 @@ void handleSaveAcquyCfg() {
     dropBuf[i] = 0.0f;
     dropBufTs[i] = 0;
   }
+  // ★ Reset cờ sạc
+  acquyCharging = false;
+  acquyChargeStart = 0;
+  acquyChargeStopMs = 0;
+  chargeOcvEmaInit = false;
+  chargeFullHoldStart = 0;
+  ocvBaseForChargeDetect = 0.0f;
+  ocvBeforeCharge = 0.0f;
   LOGM(LOGMOD_ADC, "Lưu cấu hình: %s %d cell | R1=%.1fk R2=%.1fk | Gain=%.4f Offset=%.3f",
        batteryType == BATT_TYPE_LFP ? "LFP" : "Chì", batteryCells, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset);
   server.send(200, "text/plain", "OK");
@@ -1245,9 +1261,6 @@ void handleCaptivePortal() {
   server.send(302, "text/plain", "");
 }
 
-// =====================================================
-// TRANG CHỦ (chỉ gọi hàm từ IndexHtml.h)
-// =====================================================
 void handleRoot() {
   TOUCH_HTTP();
   sendIndexHtml();
