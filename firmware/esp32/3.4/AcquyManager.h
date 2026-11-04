@@ -4,7 +4,9 @@
 #include "Config.h"
 
 
-// Hàm nội suy OCV -> SOC từ bảng động
+// =====================================================
+// Nội suy OCV -> SOC từ bảng động
+// =====================================================
 static int interpolateOcv(const OcvPoint* table, uint8_t n, float v) {
   if (n < 2) return 0;
   if (v >= table[0].v) return table[0].soc;
@@ -31,7 +33,6 @@ int calcSocFromV(float vBat) {
 
   if (batteryType == BATT_TYPE_LEAD) {
     if (leadOcvN >= 2) return interpolateOcv(leadOcvTable, leadOcvN, vCell);
-    // Fallback: nội suy tuyến tính giữa V_EMPTY và V_FULL
     float vE = LEAD_V_EMPTY, vF = LEAD_V_FULL;
     if (vCell >= vF) return 100;
     if (vCell <= vE) return 0;
@@ -54,6 +55,10 @@ float readAdcVolts(int pin) {
   return (float)sum_mV / 32.0f / 1000.0f;
 }
 
+
+// =====================================================
+// Xử lý đọc Ắc quy
+// =====================================================
 void processAcquyReading() {
   if (!acquyMode) return;
   if (millis() - lastAdcRead < 100) return;  // Chu kỳ lấy mẫu 100ms
@@ -63,12 +68,16 @@ void processAcquyReading() {
   static unsigned long settleWindowStart = 0;
   static unsigned long lastSocDropMs = 0;
   static unsigned long chargeDetectStart = 0;
+  static unsigned long lastBlindDropMs = 0;
+  static unsigned long heavyLoadStartMs = 0;
   static float preSagOcv = 0.0f;
 
   if (acquyR2 <= 0.01f) acquyR2 = 4.7f;
   float ratio = (acquyR1 + acquyR2) / acquyR2;
 
-  // --- KHỞI TẠO LẦN ĐẦU (BẬT KHÓA ĐIỆN / ĐỔI CẤU HÌNH) ---
+  // =====================================================
+  // KHỞI TẠO LẦN ĐẦU (BẬT KHÓA ĐIỆN / ĐỔI CẤU HÌNH)
+  // =====================================================
   if (!acquyEmaInit || !socFilteredInit) {
     float sumInit = 0.0f;
     for (int i = 0; i < ACQY_MEDIAN_SIZE; i++) {
@@ -109,7 +118,18 @@ void processAcquyReading() {
     socFiltered = (uint8_t)initSoc;
     socFilteredInit = true;
     lastSocDropMs = now;
+    lastBlindDropMs = 0;
+    heavyLoadStartMs = 0;
     chargeDetectStart = 0;
+
+    // Reset cờ sạc
+    acquyCharging = false;
+    acquyChargeStart = 0;
+    acquyChargeStopMs = 0;
+    chargeOcvEmaInit = false;
+    chargeFullHoldStart = 0;
+    ocvBaseForChargeDetect = 0.0f;
+    ocvBeforeCharge = 0.0f;
 
     if (!manualSimMode) {
       applyOutput(socFiltered);
@@ -118,7 +138,9 @@ void processAcquyReading() {
     LOGM(LOGMOD_ADC, "🟢 Khởi tạo OCV gốc: %.2fV -> SOC=%d%%", vInit, socFiltered);
   }
 
-  // --- ĐỌC ADC & LỌC MEDIAN + EMA ---
+  // =====================================================
+  // ĐỌC ADC & LỌC MEDIAN + EMA
+  // =====================================================
   float vAdc = readAdcVolts(acquyAdcPin);
   acquyAdcRawV = vAdc;
   float vBatRaw = vAdc * ratio * acquyCalibGain + acquyCalibOffset;
@@ -170,31 +192,150 @@ void processAcquyReading() {
 
   float deltaDown = vWinMax - vBatMedian;
   float deltaUp = vBatMedian - vWinMin;
-  float totalSagFromOcv = acquyLastStableV - vBatMedian;
 
-  // ★ FIX SẠC: khai báo sag sớm
+  // =====================================================
+  // ★ PHÁT HIỆN SẠC / NGẮT SẠC
+  // =====================================================
+  if (!acquyCharging && ocvBaseForChargeDetect == 0.0f) {
+    ocvBaseForChargeDetect = acquyLastStableV;
+  }
+
+  float sagFromCharge = acquyLastStableV - vBatMedian;
+  if (sagFromCharge < 0.0f) sagFromCharge = 0.0f;
+
+  // ----- BẮT ĐẦU SẠC -----
+  if (!acquyCharging && vBatMedian > ocvBaseForChargeDetect + chargeRiseThr) {
+    acquyCharging = true;
+    acquyChargeStart = now;
+    chargeOcvEma = vBatMedian;
+    chargeOcvEmaInit = true;
+    chargeFullHoldStart = 0;
+    acqState = ACQ_IDLE;
+    acquyStable = false;
+    acquyStableStart = 0;
+    // ★ LƯU OCV GỐC trước sạc
+    ocvBeforeCharge = acquyLastStableV;
+    LOGM(LOGMOD_ADC, "🔌 BẮT ĐẦU SẠC: V=%.2f > OCV_nền=%.2f (+%.2fV) | OCV_gốc=%.2fV",
+         vBatMedian, ocvBaseForChargeDetect,
+         vBatMedian - ocvBaseForChargeDetect, ocvBeforeCharge);
+  }
+
+  // ----- ĐANG SẠC: OCV = ÁP SẠC − OFFSET -----
+  if (acquyCharging) {
+    if (!chargeOcvEmaInit) {
+      chargeOcvEma = vBatMedian;
+      chargeOcvEmaInit = true;
+    } else {
+      chargeOcvEma = chargeOcvEma * (1.0f - CHARGE_OCV_EMA_ALPHA)
+                   + vBatMedian * CHARGE_OCV_EMA_ALPHA;
+    }
+    // ★ OCV = áp sạc − 2V (ước lượng áp nghỉ)
+    float ocvCharging = chargeOcvEma - CHARGE_OCV_OFFSET;
+
+    // Clamp: không thấp hơn OCV gốc, không cao hơn vFullLim
+    if (ocvCharging < ocvBeforeCharge) ocvCharging = ocvBeforeCharge;
+    if (ocvCharging > vFullLim) ocvCharging = vFullLim;
+
+    // OCV chỉ tăng khi sạc (không nhảy lùi)
+    if (ocvCharging > acquyLastStableV) acquyLastStableV = ocvCharging;
+
+    // Kiểm tra "đầy thật": áp gần vFullLim giữ ổn định
+    if (vBatMedian >= vFullLim - chargeFullMargin) {
+      if (chargeFullHoldStart == 0) {
+        chargeFullHoldStart = now;
+      } else if (now - chargeFullHoldStart >= CHARGE_FULL_HOLD_MS) {
+        acquyCharging = false;
+        acquyChargeStopMs = now;
+        ocvBaseForChargeDetect = 0.0f;
+        chargeFullHoldStart = 0;
+        ocvBeforeCharge = 0.0f;
+        acquyLastStableV = vFullLim;
+        acqState = ACQ_IDLE;
+        acquyStable = true;
+        acquyStableStart = now;
+        LOGM(LOGMOD_ADC, "✅ SẠC ĐẦY: OCV=%.2fV, SOC=100%%", vFullLim);
+        goto endChargeCheck;
+      }
+    } else {
+      chargeFullHoldStart = 0;
+    }
+
+    // ★ CHỈ THOÁT SẠC KHI CÓ SỰ KIỆN TẢI NẶNG
+    if (sagFromCharge >= dropThr) {
+      acquyCharging = false;
+      acquyChargeStopMs = now;
+      ocvBaseForChargeDetect = 0.0f;
+      chargeFullHoldStart = 0;
+      // ★ KHÔI PHỤC OCV GỐC trước sạc
+      if (ocvBeforeCharge > 0.1f) {
+        acquyLastStableV = ocvBeforeCharge;
+      }
+      ocvBeforeCharge = 0.0f;
+      acqState = ACQ_TRANSIENT;
+      acqEventTime = now;
+      acqIsRise = false;
+      acquyStable = false;
+      acquyStableStart = 0;
+      LOGM(LOGMOD_ADC, "🔥 TẢI NẶNG (sag=%.2fV ≥ %.2fV) → NGẮT SẠC, khôi phục OCV=%.2fV",
+           sagFromCharge, dropThr, acquyLastStableV);
+    }
+
+  endChargeCheck:;
+  }
+
+  // =====================================================
+  // KHI ĐANG SẠC: KHÔNG CHẠY STATE MACHINE XẢ
+  // =====================================================
+  if (acquyCharging) {
+    acquySag = 0.0f;
+    acquyOcvEstimated = acquyLastStableV;
+    acquyStableV = acquyLastStableV;
+
+    int socNow = calcSocFromV(acquyLastStableV);
+    if (socNow < 0) socNow = 0;
+    if (socNow > 100) socNow = 100;
+    acquySocStable = (uint8_t)socNow;
+    acquySoc = acquySocStable;
+    int socRawNow2 = calcSocFromV(vBatMedian);
+    if (socRawNow2 < 0) socRawNow2 = 0;
+    if (socRawNow2 > 100) socRawNow2 = 100;
+    acquySocRaw = (uint8_t)socRawNow2;
+
+    socFiltered = acquySocStable;
+    socFilteredInit = true;
+
+    lockState();
+    realBmsSoc = acquySocStable;
+    bmsTotalVoltage = vBatMedian;   // hiển thị áp sạc thực
+    bmsHasTotalV = true;
+    bmsSocTimestamp = now;
+    unlockState();
+
+    if (!manualSimMode) {
+      if (abs((int)socFiltered - (int)currentSoc) >= ACQY_OUTPUT_HYST) {
+        if (now - acquyLastOutputChange > ACQY_OUTPUT_DELAY_MS) {
+          applyOutput(socFiltered);
+          acquyLastOutputChange = now;
+        }
+      }
+    }
+
+    static unsigned long lastChargeLog = 0;
+    if (now - lastChargeLog > 10000) {
+      lastChargeLog = now;
+      LOGM(LOGMOD_ADC, "🔌 ĐANG SẠC: V=%.2f | OCV=%.2f (=V−%.1fV) | SOC=%d%% | Full=%.2fV",
+           vBatMedian, acquyLastStableV, CHARGE_OCV_OFFSET, acquySocStable, vFullLim);
+    }
+    return;  // thoát sớm, không chạy xả
+  }
+
+  // =====================================================
+  // STATE MACHINE XẢ BÌNH THƯỜNG
+  // =====================================================
+  float totalSagFromOcv = acquyLastStableV - vBatMedian;
   float sag = acquyLastStableV - vBatMedian;
   if (sag < 0.0f) sag = 0.0f;
 
-  // ★ FIX SẠC: phát hiện sạc / ngắt sạc
-  bool isChargingNow = (vBatMedian > acquyLastStableV + chargeRiseThr);
-
-  if (isChargingNow && !acquyCharging) {
-    acquyCharging = true;
-    acquyChargeStart = now;
-    LOGM(LOGMOD_ADC, "🔌 Bắt đầu SẠC: V=%.2f > OCV=%.2f",
-         vBatMedian, acquyLastStableV);
-  } else if (acquyCharging && !isChargingNow && (vBatMedian < acquyLastStableV + chargeRiseThr * 0.5f)) {
-    acquyCharging = false;
-    acquyChargeStopMs = now;
-    acqState = ACQ_TRANSIENT;
-    acqEventTime = now;
-    acqIsRise = false;
-    LOGM(LOGMOD_ADC, "🔋 Ngắt sạc — chờ hồi áp (V=%.2f, OCV=%.2f)",
-         vBatMedian, acquyLastStableV);
-  }
-
-  // ============ STATE MACHINE PHÁT HIỆN TẢI & HỒI ÁP ============
   switch (acqState) {
     case ACQ_IDLE:
       {
@@ -220,18 +361,16 @@ void processAcquyReading() {
             if (acquyStableStart == 0) acquyStableStart = now;
             if (now - acquyStableStart >= ACQY_STABLE_TIME_MS) {
               acquyStable = true;
-              if (vBatMedian >= acquyLastStableV) {
-                acquyLastStableV = acquyLastStableV * 0.70f + vBatMedian * 0.30f;
-              } else {
-                // ★ FIX: khai báo maxDecay đúng scope
-                float maxDecay = 0.0002f;
-                if (sag < SAG_LIGHT) {
-                  if (acquyLastStableV - vBatMedian > maxDecay) acquyLastStableV -= maxDecay;
-                  else acquyLastStableV = vBatMedian;
-                } else {
-                  // Không decay khi đang tải — giữ OCV cuối
-                }
+
+              // ★ OCV bám áp đo theo mức tải
+              if (sag < SAG_LIGHT) {
+                // Tải nhẹ → OCV = áp đo luôn (không trễ)
+                acquyLastStableV = vBatMedian;
+              } else if (sag < dropThr) {
+                // Tải vừa → bám chậm (EMA 8%/chu kỳ)
+                acquyLastStableV = acquyLastStableV * 0.92f + vBatMedian * 0.08f;
               }
+              // Tải nặng (sag >= dropThr): không bám, giữ OCV cũ
               acquyLastStableUpdate = now;
             }
           } else {
@@ -284,29 +423,16 @@ void processAcquyReading() {
         } else if (now - settleWindowStart >= 2000UL) {
           float vFlat = (acqSettleMinV + acqSettleMaxV) * 0.5f;
 
-          // ★ FIX SẠC: đang sạc → KHÔNG chốt OCV theo áp sạc
-          if (acquyCharging) {
-            if (vFlat >= vFullLim - chargeFullMargin) {
-              acquyLastStableV = vFullLim;
-              LOGM(LOGMOD_ADC, "⚡ Sạc đầy — OCV = vFullLim = %.2fV", vFullLim);
-            }
-            // Ngược lại: giữ nguyên OCV cũ
-            acquyStable = true;
-            acquyLastStableUpdate = now;
-            acqState = ACQ_IDLE;
-          }
-          // ★ FIX SẠC: vừa ngắt sạc < 5 phút → chốt OCV nhanh
-          else if (acquyChargeStopMs > 0 && (now - acquyChargeStopMs) < 300000UL) {
+          // ★ Vừa ngắt sạc < 5 phút → chốt OCV nhanh
+          if (acquyChargeStopMs > 0 && (now - acquyChargeStopMs) < 300000UL) {
             float dropAfterCharge = acquyLastStableV - vFlat;
             if (dropAfterCharge < 0.30f) {
-              // Không tải → chốt OCV = áp nghỉ
               acquyLastStableV = vFlat;
               acquyStable = true;
               acquyLastStableUpdate = now;
               acqState = ACQ_IDLE;
               LOGM(LOGMOD_ADC, "✅ Ngắt sạc → chốt OCV = %.2fV", vFlat);
             } else {
-              // Còn tải → chờ tiếp
               acqState = ACQ_TRANSIENT;
               acqEventTime = now;
               acquyStable = false;
@@ -314,17 +440,30 @@ void processAcquyReading() {
           }
           // Logic cũ — hồi áp sau xả
           else if (acqIsRise || vFlat >= acquyLastStableV - (dropThr * 0.6f)) {
-            acquyStable = true;
-            if (preSagOcv > 0.1f && vFlat < preSagOcv && (preSagOcv - vFlat) < 1.0f) {
-              acquyLastStableV = acquyLastStableV * 0.60f + vFlat * 0.40f;
-            } else if (vFlat > acquyLastStableV) {
-              acquyLastStableV = vFlat;
+            // ★ CHẶN VỌT: nhả tải đột ngột → áp vọt cao → không chốt
+            float overshoot = vFlat - acquyLastStableV;
+            float overshootLimit = isLfp ? 0.30f : 0.80f;
+            if (overshoot > overshootLimit) {
+              acquyStable = false;
+              acqState = ACQ_TRANSIENT;
+              acqEventTime = now;
+              acqSettleMinV = vBatMedian;
+              acqSettleMaxV = vBatMedian;
+              LOGM(LOGMOD_ADC, "⚠️ Vọt áp +%.2fV (vượt %.2fV) → bỏ qua, chờ ổn định",
+                   overshoot, overshootLimit);
             } else {
-              acquyLastStableV = acquyLastStableV * 0.75f + vFlat * 0.25f;
+              acquyStable = true;
+              if (preSagOcv > 0.1f && vFlat < preSagOcv && (preSagOcv - vFlat) < 1.0f) {
+                acquyLastStableV = acquyLastStableV * 0.60f + vFlat * 0.40f;
+              } else if (vFlat > acquyLastStableV) {
+                acquyLastStableV = vFlat;
+              } else {
+                acquyLastStableV = acquyLastStableV * 0.75f + vFlat * 0.25f;
+              }
+              acquyLastStableUpdate = now;
+              acqState = ACQ_IDLE;
+              LOGM(LOGMOD_ADC, "✅ Chốt OCV sau hồi áp: %.2fV (áp nghỉ: %.2fV)", acquyLastStableV, vFlat);
             }
-            acquyLastStableUpdate = now;
-            acqState = ACQ_IDLE;
-            LOGM(LOGMOD_ADC, "✅ Chốt OCV sau hồi áp: %.2fV (áp nghỉ: %.2fV)", acquyLastStableV, vFlat);
           } else {
             acquyStable = false;
             float maxLoadDecay = 0.0005f;
@@ -340,8 +479,9 @@ void processAcquyReading() {
       }
   }
 
-  // ============ TÍNH BÙ NỘI TRỞ & OCV ============
-  // ★ FIX: bỏ đoạn gán ocvEst không tồn tại
+  // =====================================================
+  // TÍNH BÙ NỘI TRỞ & OCV
+  // =====================================================
   acquySag = sag;
   acquyOcvEstimated = acquyLastStableV;
   acquyStableV = acquyLastStableV;
@@ -358,44 +498,70 @@ void processAcquyReading() {
 
   acquySocRaw = (uint8_t)socRawNow;
 
-  // ============ BỘ KHÓA 1 CHIỀU & RATE LIMITER ============
+  // =====================================================
+  // BỘ KHÓA 1 CHIỀU & RATE LIMITER — TẢI NẶNG DUY TRÌ GIẢM NHANH
+  // =====================================================
+  bool heavyLoadNow = (sag >= dropThr);
+  bool veryHeavyNow = (sag >= dropThr * 2.0f);
+  if (heavyLoadNow) {
+    if (heavyLoadStartMs == 0) heavyLoadStartMs = now;
+  } else {
+    heavyLoadStartMs = 0;
+  }
+  unsigned long heavyLoadDurMs = (heavyLoadStartMs > 0) ? (now - heavyLoadStartMs) : 0;
+
+  #define HEAVY_LOAD_PERSIST_MS 10000UL
+
   if (socTarget < (int)socFiltered) {
-    // Giảm SOC — KHÔNG làm khi đang sạc
-    if (acquyCharging) {
-      chargeDetectStart = 0;
+    // ★ Tải càng nặng + duy trì càng lâu → giảm càng nhanh
+    unsigned long dropIntervalMs;
+    if (veryHeavyNow && heavyLoadDurMs >= HEAVY_LOAD_PERSIST_MS) {
+      dropIntervalMs = 3000UL;   // rất nặng + ≥10s → 1%/3s
+    } else if (heavyLoadNow && heavyLoadDurMs >= HEAVY_LOAD_PERSIST_MS) {
+      dropIntervalMs = 8000UL;   // nặng + ≥10s → 1%/8s
+    } else if (heavyLoadNow) {
+      dropIntervalMs = 25000UL;  // nặng < 10s → coi như vừa
+    } else if (sag >= SAG_LIGHT) {
+      dropIntervalMs = 25000UL;  // vừa → 1%/25s
     } else {
-      unsigned long dropIntervalMs = (acquyStable && sag < SAG_LIGHT) ? 8000UL : 35000UL;
-      if (now - lastSocDropMs >= dropIntervalMs) {
-        socFiltered--;
-        lastSocDropMs = now;
-      }
-      chargeDetectStart = 0;
+      dropIntervalMs = 60000UL;  // nhẹ → 1%/60s
     }
+    if (!acquyStable && dropIntervalMs < 35000UL) dropIntervalMs = 35000UL;
+    if (now - lastSocDropMs >= dropIntervalMs) {
+      socFiltered--;
+      lastSocDropMs = now;
+      if (heavyLoadDurMs >= HEAVY_LOAD_PERSIST_MS) {
+        LOGM(LOGMOD_ADC, "🔥 Tải nặng duy trì %lus (sag=%.2fV) → SOC giảm nhanh: %d%%",
+             heavyLoadDurMs / 1000, sag, socFiltered);
+      }
+    }
+    chargeDetectStart = 0;
   } else if (socTarget > (int)socFiltered) {
-    // ★ FIX SẠC: đang sạc giữa chừng → KHÔNG tăng
-    if (acquyCharging && vBatMedian < vFullLim - chargeFullMargin) {
-      chargeDetectStart = 0;
-    }
-    // ★ FIX SẠC: đang sạc & chạm đầy → cho tăng nhanh
-    else if (acquyCharging && vBatMedian >= vFullLim - chargeFullMargin) {
-      if (acquyStable && now - lastSocDropMs >= 3000UL) {
-        socFiltered++;
-        lastSocDropMs = now;
-      }
-    }
-    // ★ FIX SẠC: vừa ngắt sạc < 5 phút → tăng nhanh
-    else if (acquyChargeStopMs > 0 && (now - acquyChargeStopMs) < 300000UL && acquyStable) {
+    // ★ Chênh áp đo so với OCV (áp đo > OCV → dấu hiệu sạc/hồi áp/tải nhẹ)
+    float gapUp = vBatMedian - vOcvComp;
+    if (gapUp < 0.0f) gapUp = 0.0f;
+
+    // Vừa ngắt sạc < 5 phút → tăng nhanh (ưu tiên)
+    if (acquyChargeStopMs > 0 && (now - acquyChargeStopMs) < 300000UL && acquyStable) {
       if (now - lastSocDropMs >= 2000UL) {
         socFiltered++;
         lastSocDropMs = now;
       }
     }
-    // Logic cũ
-    else if (acquyStable && sag < 0.2f && (socTarget >= (int)socFiltered + 5 || vBatMedian >= vFullLim)) {
-      if (chargeDetectStart == 0) chargeDetectStart = now;
-      if (now - chargeDetectStart >= 15000UL) {
+    // ★ Chênh lớn → tăng từ từ chắc; chênh nhỏ → tăng nhanh
+    else if (acquyStable && sag < 0.2f) {
+      unsigned long riseIntervalMs;
+      if (gapUp >= chargeRiseThr * 2.0f) {
+        riseIntervalMs = 15000UL;  // chênh rất lớn (chắc sạc) → 1%/15s
+      } else if (gapUp >= chargeRiseThr) {
+        riseIntervalMs = 10000UL;  // chênh lớn → 1%/10s
+      } else if (gapUp >= 0.1f) {
+        riseIntervalMs = 6000UL;   // chênh vừa → 1%/6s
+      } else {
+        riseIntervalMs = 4000UL;   // chênh nhỏ (tải nhẹ) → 1%/4s
+      }
+      if (now - lastSocDropMs >= riseIntervalMs) {
         socFiltered++;
-        chargeDetectStart = now - 12000UL;
         lastSocDropMs = now;
       }
     } else {
@@ -403,6 +569,22 @@ void processAcquyReading() {
     }
   } else {
     chargeDetectStart = 0;
+  }
+
+  // =====================================================
+  // ★ GIẢM MÙ KHI TẢI NHẸ + ÁP PHẲNG
+  // =====================================================
+  if (socTarget == (int)socFiltered && acquyStable && sag > 0.05f && sag < SAG_LIGHT) {
+    if (lastBlindDropMs == 0) lastBlindDropMs = now;
+    if (now - lastBlindDropMs >= 60000UL) {
+      if (socFiltered > 0) {
+        socFiltered--;
+        LOGM(LOGMOD_ADC, "🕐 Tải nhẹ phẳng (sag=%.2fV) → SOC giảm mù: %d%%", sag, socFiltered);
+      }
+      lastBlindDropMs = now;
+    }
+  } else if (sag >= SAG_LIGHT || socTarget != (int)socFiltered) {
+    lastBlindDropMs = 0;
   }
 
   acquySocStable = socFiltered;
@@ -424,7 +606,7 @@ void processAcquyReading() {
     }
   }
 
-    // ★ FIX SẠC: xóa cờ ngắt sạc sau 5 phút
+  // ★ Xóa cờ ngắt sạc sau 5 phút
   if (acquyChargeStopMs > 0 && (now - acquyChargeStopMs) > 300000UL) {
     acquyChargeStopMs = 0;
   }
