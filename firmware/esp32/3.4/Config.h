@@ -285,8 +285,16 @@ float acquySag = 0.0f;
 bool acquyCharging = false;
 unsigned long acquyChargeStart = 0;
 unsigned long acquyChargeStopMs = 0;
-float chargeRiseThr = 0.30f;   // ngưỡng phát hiện sạc (V)
-float chargeFullMargin = 0.05f; // dư địa dưới vFullLim coi là đầy
+float chargeRiseThr = 0.30f;         // ngưỡng phát hiện bắt đầu sạc (V)
+float chargeFullMargin = 0.05f;      // dư địa dưới vFullLim coi là đầy
+float chargeOcvEma = 0.0f;           // OCV bám theo áp sạc (EMA)
+bool chargeOcvEmaInit = false;
+#define CHARGE_OCV_EMA_ALPHA 0.10f
+#define CHARGE_FULL_HOLD_MS  30000UL
+#define CHARGE_OCV_OFFSET    2.0f    // ★ OCV = áp sạc − 2V (ước lượng áp nghỉ)
+unsigned long chargeFullHoldStart = 0;
+float ocvBaseForChargeDetect = 0.0f; // nền OCV phát hiện bắt đầu sạc
+float ocvBeforeCharge = 0.0f;        // ★ OCV gốc trước khi bắt đầu sạc
 
 static unsigned long acquyLastStableUpdate = 0;
 static uint8_t socFiltered = 0;
