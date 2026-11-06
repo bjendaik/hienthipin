@@ -1,1706 +1,2155 @@
-#define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 4
-#define CONFIG_BT_NIMBLE_MAX_BONDS 3
-#define CONFIG_BT_NIMBLE_MAX_CCCDS 8
-
-#include <Preferences.h>
-#include <Update.h>
-#include <NimBLEDevice.h>
-
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32S2) || \
-    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6) || \
-    defined(CONFIG_IDF_TARGET_ESP32H2)
-  #define HAS_DAC 0
-  #define CHIP_NAME "ESP32-S3/S2/C3/C6/H2"
-#else
-  #define HAS_DAC 1
-  #define CHIP_NAME "ESP32 Classic"
-#endif
-
-#define LOGMOD_BOOT 0x0001
-#define LOGMOD_ADC  0x0002
-#define LOGMOD_BLE  0x0004
-#define LOGMOD_OUT  0x0008
-#define LOGMOD_OTA  0x0010
-#define LOGMOD_SUM  0x0020
-#define LOGMOD_ALL  0x003F
-
-uint16_t logModulesEnabled = LOGMOD_ALL;
-
-void bleSendLog(const String& s);
-#define LOGM(mod, fmt, ...) do { \
-    if (logModulesEnabled & mod) { \
-        char _b[220]; snprintf(_b, sizeof(_b), "[%s] " fmt, #mod + 7, ##__VA_ARGS__); \
-        Serial.println(_b); bleSendLog(_b); \
-    } \
-} while(0)
-#define LOGM_ERR(fmt, ...) do { \
-    char _b[220]; snprintf(_b, sizeof(_b), "[ERR] " fmt, ##__VA_ARGS__); \
-    Serial.println(_b); bleSendLog(_b); \
-} while(0)
-
-#define FW_VERSION "3.4"
-
-#define LED_PIN 2
-enum LedMode { LED_MODE_CONFIG_BLINK, LED_MODE_SOLID, LED_MODE_BREATHE };
-LedMode currentLedMode = LED_MODE_SOLID;
-
-#define OUT_MODE_DAC 0
-#define OUT_MODE_PWM 1
-int outMode=OUT_MODE_DAC, dacPin=25, pwmPin=14, pwmFreq=5000, pwmRes=10;
-
-#define LFP_V_EMPTY 2.80f
-#define LFP_V_FULL  3.45f
-#define LFP_V_MAX   3.65f
-#define LEAD_V_EMPTY 11.31f
-#define LEAD_V_FULL  12.73f
-#define LEAD_V_MAX   14.40f
-#define BATT_TYPE_LEAD 0
-#define BATT_TYPE_LFP  1
-
-bool acquyMode=false;
-int acquyAdcPin=32, batteryType=BATT_TYPE_LEAD, batteryCells=4;
-float acquyR1=100.0f, acquyR2=4.7f;
-float acquyCalibGain=1.0f, acquyCalibOffset=0.0f;
-float acquyMeasuredV=0, acquyAdcRawV=0, acquyRawV=0, acquyStableV=0;
-uint8_t acquySoc=0, acquySocRaw=0, acquySocStable=0;
-bool acquyOverVoltage=false;
-unsigned long lastAdcRead=0;
-
-#define ACQY_MEDIAN_SIZE 5
-#define ACQY_EMA_ALPHA 0.25f
-#define ACQY_STABLE_DELTA 0.30f
-#define ACQY_STABLE_TIME_MS 2500UL
-#define ACQY_OUTPUT_DELAY_MS 800UL
-#define ACQY_OUTPUT_HYST 1
-float acquyMedianBuf[ACQY_MEDIAN_SIZE]={0};
-uint8_t acquyMedianIdx=0;
-bool acquyMedianFilled=false;
-float acquyEmaV=0; bool acquyEmaInit=false;
-float acquyLastStableV=0; unsigned long acquyStableStart=0;
-bool acquyStable=false; unsigned long acquyLastOutputChange=0;
-float compFactorLearned=0.70f;
-const float COMP_LEARN_RATE=0.005f;
-const float SAG_THRESHOLD=1.0f;
-const float SAG_LIGHT=0.4f;
-float acquyOcvEstimated=0, acquySag=0;
-static unsigned long acquyLastStableUpdate=0;
-static uint8_t socFiltered=0; static bool socFilteredInit=false;
-static float tempCompLogged=0;
-#define ACQY_ADC_ATTEN ADC_11db
-
-#define MAX_VMAP_ENTRIES 20
-struct VMapEntry { uint8_t s, e; float v; };
-VMapEntry vmap[MAX_VMAP_ENTRIES];
-uint8_t vmapCount=0;
-
-#define MAX_OCV_POINTS 32
-struct OcvPoint { float v; uint8_t soc; };
-OcvPoint leadOcvTable[MAX_OCV_POINTS]; uint8_t leadOcvN=0;
-OcvPoint lfpOcvTable[MAX_OCV_POINTS];  uint8_t lfpOcvN=0;
-String acquyJsonDate="";
-
-float minVoltage=2.07f, maxVoltage=2.35f;
-uint8_t currentSoc=0;
-int currentOut=0;
-bool manualSimMode=false;
-uint8_t realBmsSoc=0, savedSoc=0;
-unsigned long bmsSocTimestamp=0;
-float bmsTotalVoltage=0, bmsCells[16]={0}, bmsCurrent=0, bmsPower=0;
-uint8_t bmsCellCount=0;
-bool bmsHasCurrent=false, bmsHasPower=false, bmsHasCells=false, bmsHasTotalV=false;
-
-volatile unsigned long loopCounter = 0;
-
-Preferences preferences;
-String targetMac="";
-String bmsDeviceName="";
-bool needAutoConnect=false;
-String pendingScanName="";
-
-SemaphoreHandle_t nvsMutex = nullptr;
-
-bool nvsBegin(const char* name, bool readOnly=false){
-    if(!nvsMutex) return false;
-    if(xSemaphoreTake(nvsMutex, pdMS_TO_TICKS(1000)) != pdTRUE){
-        Serial.println("[NVS] ❌ Mutex timeout");
-        return false;
-    }
-    bool ok = preferences.begin(name, readOnly);
-    if(!ok){
-        Serial.printf("[NVS] ❌ begin('%s') failed\n", name);
-        xSemaphoreGive(nvsMutex);
-    }
-    return ok;
+<!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<title>BMS & ACQUY Controller (BLE)</title><style>
+body{font-family:sans-serif;padding:15px;max-width:500px;margin:auto;background:#f0f2f5;padding-bottom:30px}
+.card{background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
+h2,h3{margin-top:0;color:#333;font-size:18px}
+.battery-bg{background:#e0e0e0;border-radius:8px;height:20px;overflow:hidden;margin-top:8px}
+.battery-bar{background:#28a745;height:100%;width:0;transition:width .3s}
+button{padding:10px 15px;width:100%;cursor:pointer;font-size:15px;background:#007bff;color:#fff;border:none;border-radius:5px;margin-top:10px}
+.btn-success{background:#28a745;font-weight:bold}
+.btn-danger{background:#dc3545;color:#fff;font-weight:bold}
+.btn-warn{background:#ff9800;color:#fff;font-weight:bold}
+.stat-box{background:#f8f9fa;border:1px solid #e9ecef;padding:10px;border-radius:8px;text-align:center}
+.stat-box div:first-child{font-size:13px;color:#6c757d;font-weight:bold}
+.stat-val{font-size:20px;font-weight:bold;color:#007bff;margin-top:5px}
+input[type=number],input[type=text],input[type=password],select{width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;box-sizing:border-box}
+textarea{font-family:inherit}
+input[type=range]{width:100%;margin:12px 0}
+.input-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.input-row label{flex:0 0 110px}
+.input-row input,.input-row select{flex:1}
+.input-with-icon{flex:1;position:relative;display:flex;align-items:center;min-width:0}
+.input-with-icon input{width:100%;padding-right:44px !important;margin:0}
+.input-with-icon .icon-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:32px;margin:0;padding:0;background:transparent;color:#6c757d;border:none;border-radius:6px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.input-with-icon .icon-btn:hover{background:#e9ecef}
+#wifiList{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0;margin:0}
+#wifiList.open{max-height:220px;overflow-y:auto}
+ul{list-style:none;padding:0}li{background:#f8f9fa;margin:5px 0;padding:10px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd}
+.mode-tabs{display:flex;gap:8px;margin-bottom:12px}
+.mode-tab{flex:1;padding:12px;text-align:center;border-radius:8px;cursor:pointer;border:2px solid #ccc;background:#f8f9fa;font-weight:bold}
+.mode-tab.active{border-color:#007bff;background:#e7f3ff;color:#007bff}
+.mode-tab.disabled{opacity:.4;cursor:not-allowed}
+.accordion{padding:0;overflow:hidden}
+.acc-head{display:flex;justify-content:space-between;align-items:center;padding:15px;cursor:pointer;user-select:none;margin:0;font-size:18px;font-weight:bold;transition:background .2s}
+.acc-head:hover{background:#f8f9fa}
+.acc-head .arrow{font-size:14px;transition:transform .3s;color:#888;flex-shrink:0;margin-left:6px}
+.accordion.open .acc-head .arrow{transform:rotate(180deg)}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease;padding:0 15px}
+.accordion.open .acc-body{max-height:20000px;padding:0 15px 15px 15px}
+.acc-head.green{color:#28a745;border-bottom:1px solid #e9ecef}
+.acc-head.blue{color:#007bff;border-bottom:1px solid #e9ecef}
+.acc-head.red{color:#dc3545;border-bottom:1px solid #e9ecef}
+.acc-head.dark{color:#444;border-bottom:1px solid #e9ecef}
+.vmap-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.vmap-row input{padding:6px;font-size:13px;text-align:center;min-width:0}
+.vmap-row input.pct{width:52px}
+.vmap-row input.volt{width:72px}
+.vmap-row button{width:auto;padding:6px 10px;margin:0;font-size:14px;background:#dc3545}
+.vmap-head{display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px}
+.vmap-head span{text-align:center}
+.vmap-head .h1{width:52px}.vmap-head .h2{width:14px}.vmap-head .h3{width:52px}
+.vmap-head .h4{width:72px}.vmap-head .h5{width:34px}
+.ocv-tab{display:flex;gap:6px;margin-bottom:10px;background:#f0f2f5;padding:4px;border-radius:8px}
+.ocv-tab div{flex:1;padding:8px 4px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;color:#6c757d;transition:all .2s;user-select:none}
+.ocv-tab div.active{background:#fff;color:#17a2b8;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ocv-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.ocv-row input{padding:6px;font-size:12px;text-align:center;min-width:0;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}
+.ocv-row input.v{flex:1}
+.ocv-row input.s{width:60px}
+.ocv-row button{width:34px;padding:6px 0;margin:0;font-size:13px;background:#dc3545;border-radius:5px}
+.ocv-preview{background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px;font-size:11px;margin-top:8px;font-family:monospace;color:#1b5e20}
+#ocvListLead,#ocvListLfp{max-height:320px;overflow-y:auto;padding-right:2px}
+.preset-btn{width:100%;padding:12px;margin-bottom:8px;background:#fff;color:#333;border:2px solid #6f42c1;border-radius:10px;text-align:left;cursor:pointer;font-size:15px;transition:all .2s;font-family:inherit}
+.preset-btn:hover{background:#f5f0ff}
+.preset-btn.active{background:#6f42c1;color:#fff;border-color:#28a745}
+.preset-btn .p-title{font-size:16px;font-weight:bold;color:#6f42c1;margin-bottom:2px}
+.preset-btn.active .p-title{color:#fff}
+.preset-btn .p-sub{font-size:11px;color:#6c757d;margin-bottom:6px}
+.preset-btn.active .p-sub{color:#e0d4f7}
+.preset-btn .p-ranges{font-size:11px;font-family:monospace;background:#f8f9fa;padding:5px 7px;border-radius:5px;color:#495057;line-height:1.5;word-break:break-word}
+.preset-btn.active .p-ranges{background:rgba(255,255,255,.15);color:#fff}
+.sub-tabs{display:flex;gap:6px;margin-bottom:12px;background:#f0f2f5;padding:4px;border-radius:8px}
+.sub-tab{flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;color:#6c757d;transition:all .2s;user-select:none}
+.sub-tab.active{background:#fff;color:#6f42c1;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.ir-box{background:linear-gradient(135deg,#e8f5e9 0%,#c8e6c9 100%);border:2px solid #4caf50;border-radius:8px;padding:12px;margin:12px 0}
+.ir-box h4{margin:0 0 8px 0;font-size:14px;color:#2e7d32}
+.ir-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
+.ir-val{font-family:monospace;font-weight:bold;font-size:14px;color:#1b5e20}
+.sag-bar-bg{background:#e0e0e0;border-radius:5px;height:10px;margin-top:6px;overflow:hidden}
+.sag-bar{background:linear-gradient(90deg,#4caf50,#ff9800,#f44336);height:100%;width:0;transition:width .3s}
+.acc-head .title-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px}
+.acc-head .mode-switch-mini{display:flex;align-items:center;background:#f0f2f5;border-radius:16px;padding:3px;margin-left:6px;font-size:10px;font-weight:bold;gap:2px;flex-shrink:0}
+.mode-switch-mini .sw-lbl{padding:5px 8px;border-radius:13px;cursor:pointer;transition:all .25s;color:#6c757d;user-select:none;white-space:nowrap;font-size:10px;line-height:1.2}
+.mode-switch-mini .sw-lbl.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.mode-switch-mini .sw-lbl.active.bms{color:#17a2b8}
+.mode-switch-mini .sw-lbl.active.acquy{color:#ff9800}
+.tgl-switch{position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0}
+.tgl-switch input{opacity:0;width:0;height:0}
+.tgl-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;transition:.3s;border-radius:26px}
+.tgl-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;background:white;transition:.3s;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tgl-switch input:checked + .tgl-slider{background:#28a745}
+.tgl-warn input:checked + .tgl-slider{background:#ff9800}
+.tgl-switch input:checked + .tgl-slider:before{transform:translateX(22px)}
+.ble-inline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:0 0 auto}
+.ble-inline .status{font-size:11px;font-weight:bold;color:#6c757d;line-height:1.3;text-align:right;flex:1 1 auto;min-width:0}
+.ble-inline .status b{font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ble-inline .status .esp-mac{display:block;font-family:monospace;font-size:10px;color:#6c757d;margin-top:1px;word-break:break-all;font-weight:normal}
+.ble-inline button{margin:0;padding:7px 11px;font-size:12px;width:auto;flex-shrink:0;border-radius:6px}
+.ble-inline button.forget{padding:7px 9px;background:#6c757d;font-size:11px}
+@media (max-width:420px){
+  .ble-inline .status{font-size:10px}
+  .ble-inline .status b{font-size:11px}
+  .ble-inline button{padding:6px 9px;font-size:11px}
 }
-void nvsEnd(){
-    preferences.end();
-    if(nvsMutex) xSemaphoreGive(nvsMutex);
+@media (max-width:400px){.ble-inline .status .esp-mac{display:none}}
+@media (max-width:380px){
+  .acc-head .title-text{font-size:13px}
+  .mode-switch-mini .sw-lbl{font-size:9px;padding:4px 6px}
+  .acc-head{padding:12px}
+  .ocv-tab div{font-size:11px;padding:6px 2px}
+  #btnFetchPresets{font-size:10px;padding:5px 8px !important}
+}
+</style></head><body>
+
+<!-- ============ MONITOR ============ -->
+<div class='card' style='border-top:4px solid #17a2b8'>
+  <div style='display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px'>
+    <h2 style='margin:0;flex-shrink:0;white-space:nowrap'>MONITOR <span id='fwVerHeader' style='font-size:12px;color:#6c757d;font-weight:normal'>--</span></h2>
+    <div class='ble-inline'>
+      <div class='status' id='bleStatus'>🔵 Chưa kết nối</div>
+      <button id='bleForgetBtn' class='forget' onclick='bleForget()' style='display:none'>Quên</button>
+      <button id='bleConnBtn' onclick='bleToggle()' style='background:#17a2b8'>Kết nối BLE</button>
+    </div>
+  </div>
+  <div style='color:#6c757d;font-size:14px'>Trạng thái: <span id='conn-status' style='font-weight:bold;color:red'>Mất kết nối</span></div>
+  <div style='color:#6c757d;font-size:12px;margin-top:4px'>Phát WiFi: <span id='scan-mode' style='font-weight:bold'>--</span></div>
+  <div style='color:#6c757d;font-size:12px'>LED: <span id='led-mode' style='font-weight:bold'>--</span></div>
+  <div style='margin-top:10px;display:flex;align-items:center;gap:8px'>
+    <strong>SOC:</strong><span id='soc-text' style='font-size:18px;font-weight:bold'>0%</span>
+    <span id='soc-badge' style='font-size:11px;padding:3px 8px;border-radius:10px;background:#999;color:#fff;font-weight:bold'>--</span>
+  </div>
+  <div class='battery-bg'><div id='soc-bar' class='battery-bar'></div></div>
+  <div id='soc-warning' style='display:none;background:#fff3cd;color:#856404;padding:8px 12px;border-radius:5px;font-size:13px;margin-top:10px'></div>
+</div>
+
+<!-- ============ NGUỒN DỮ LIỆU ============ -->
+<div class='card accordion' id='accScan' style='border:2px solid #007bff'>
+  <div class='acc-head blue' onclick='toggleAcc("accScan")'>
+    <span class='title-text'>🔍 Nguồn Dữ Liệu</span>
+    <div class='mode-switch-mini' onclick='event.stopPropagation()'>
+      <span class='sw-lbl active bms' id='swBms' onclick='switchMode("bms")'>🔋 BMS</span>
+      <span class='sw-lbl' id='swAcquy' onclick='switchMode("acquy")'>⚡ ẮC QUY</span>
+    </div>
+    <span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+
+    <div id='bmsScanArea' style='margin-top:12px'>
+      <div style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:10px 12px;border-radius:5px;font-size:12px;color:#004085;margin-bottom:10px;line-height:1.5'>
+        🔋 <b>Chế độ BMS</b> — ESP32 kết nối BMS qua Bluetooth để đọc SOC, dòng, cell.
+      </div>
+
+      <div style='display:flex;justify-content:space-between;align-items:center;gap:8px'>
+        <div style='flex:1;min-width:0'>
+          <div style='font-size:13px'><strong>MAC hiện tại:</strong></div>
+          <div id='curMacText' style='font-family:monospace;font-size:12px;color:#007bff;word-break:break-all;margin-top:2px'>Chưa có</div>
+          <div id='curBmsName' style='font-size:11px;color:#6c757d;margin-top:2px'></div>
+        </div>
+        <button onclick='clearMac()' style='width:auto;margin:0;padding:8px 12px;font-size:12px;background:#dc3545'>🗑️ Xóa MAC</button>
+      </div>
+
+      <div id='autoConnectHint' style='display:none;background:#fff3cd;color:#856404;padding:8px 12px;border-radius:5px;font-size:12px;margin-top:10px'>
+        ⏳ Đang chờ BMS — sẽ tự kết nối khi chỉ tìm thấy 1 thiết bị
+      </div>
+
+      <div class='sub-tabs' style='margin-top:12px'>
+        <div class='sub-tab active' id='subTabScan' onclick='switchMacTab("scan")'>📡 Quét Tự Động</div>
+        <div class='sub-tab' id='subTabManualMac' onclick='switchMacTab("manual")'>⌨️ Nhập Thủ Công</div>
+      </div>
+
+      <div id='macSubScan'>
+        <button onclick='scan()'>🔍 Bắt đầu quét Bluetooth</button>
+        <div id='status' style='color:red;margin-top:10px'></div>
+        <ul id='results'></ul>
+      </div>
+
+      <div id='macSubManual' style='display:none'>
+        <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin-bottom:12px'>
+          <div style='font-size:13px;font-weight:bold;color:#007bff;margin-bottom:8px'>⌨️ Nhập MAC thủ công</div>
+          <input type='text' id='manualMac' placeholder='AA:BB:CC:DD:EE:FF' maxlength='17' style='font-family:monospace;text-transform:uppercase;letter-spacing:1px'>
+          <button class='btn-success' style='margin-top:8px' onclick='saveManualMac()'>💾 Lưu & Kết nối</button>
+          <div id='manualMacMsg' style='font-size:12px;margin-top:6px'></div>
+        </div>
+      </div>
+    </div>
+
+    <div id='acquyConfigBox' style='display:none;margin-top:12px'>
+      <div style='background:#fff3cd;border-left:3px solid #ff9800;padding:10px 12px;border-radius:5px;font-size:12px;color:#856404;margin-bottom:10px;line-height:1.5'>
+        ⚡ <b>Chế độ Ắc quy</b> — ESP32 ngắt kết nối BMS, đọc ADC chân GPIO (cầu phân áp R1/R2).
+      </div>
+
+      <div id='ovpAlert' style='display:none;background:#f8d7da;color:#721c24;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;margin-bottom:8px'>
+        ⚠️ CẢNH BÁO: QUÁ ÁP!
+      </div>
+
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px'>
+        <div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
+          <div style='font-size:11px;color:#6c757d;font-weight:bold'>⚡ TỨC THỜI</div>
+          <div style='font-size:18px;font-weight:bold;color:#ff9800;margin-top:4px' id='aqRawV'>-- V</div>
+          <div style='font-size:11px;color:#ff9800;margin-top:2px' id='aqSocRaw'>--%</div>
+        </div>
+        <div style='background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;text-align:center'>
+          <div style='font-size:11px;color:#6c757d;font-weight:bold'>📊 OCV (dùng cho SOC)</div>
+          <div style='font-size:18px;font-weight:bold;color:#28a745;margin-top:4px' id='aqStableV'>-- V</div>
+          <div style='font-size:11px;color:#28a745;margin-top:2px' id='aqSocStable'>--%</div>
+        </div>
+      </div>
+
+      <div style='font-size:11px;color:#6c757d;margin-bottom:6px;text-align:center'>
+        ADC: <span id='aqAdcV' style='font-family:monospace'>0.00V</span>
+        | <b><span id='aqStableStatus'>--</span></b>
+      </div>
+      <div style='font-size:11px;color:#6c757d;margin-bottom:10px;text-align:center'>
+        Hiệu chuẩn: Gain <b><span id='dispGain'>--</span></b>
+        | Offset <b><span id='dispOffset'>--</span></b> V
+      </div>
+
+      <div class='input-row'><label><strong>Loại bình:</strong></label>
+        <select id='battType' onchange='onBattTypeChange();markDirty()'>
+          <option value='0'>Ắc quy chì</option>
+          <option value='1'>LFP (LiFePO4)</option>
+        </select>
+      </div>
+
+      <div id='leadOptions' style='display:block'>
+        <div class='input-row'><label><strong>Số bình:</strong></label>
+          <select id='battCells' onchange='updateBattInfo();markDirty()'>
+            <option value='1'>1 bình (12V)</option>
+            <option value='2'>2 bình (24V)</option>
+            <option value='3'>3 bình (36V)</option>
+            <option value='4'>4 bình (48V)</option>
+            <option value='5'>5 bình (60V)</option>
+            <option value='6'>6 bình (72V)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id='lfpOptions' style='display:none'>
+        <div class='input-row'><label><strong>Số cell:</strong></label>
+          <input type='number' id='battCellsInput' min='1' max='32' value='16' oninput='updateBattInfo();markDirty()'>
+        </div>
+      </div>
+
+      <div id='battInfoBox' style='background:#e7f3ff;border-left:3px solid #007bff;padding:8px 10px;border-radius:5px;font-size:11px;margin-bottom:10px;color:#004085'>
+        <b>Ngưỡng:</b> <span id='battInfoText'>--</span>
+      </div>
+
+      <div class='input-row'><label><strong>Điện trở R1 (kΩ):</strong></label>
+        <input type='number' id='aqR1' step='0.1' placeholder='Vd: 100' oninput='checkDivider();markDirty()'>
+      </div>
+      <div class='input-row'><label><strong>Điện trở R2 (kΩ):</strong></label>
+        <input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7' oninput='checkDivider();markDirty()'>
+      </div>
+      <div id='dividerWarn' style='display:none;border-radius:5px;padding:10px;font-size:12px;margin-bottom:10px;line-height:1.6'></div>
+
+      <div style='border-top:1px dashed #dee2e6;padding-top:10px;margin-top:10px'>
+        <div style='font-size:12px;font-weight:bold;color:#007bff;margin-bottom:8px'>🎯 Hiệu chuẩn điện áp</div>
+        <div class='input-row'><label><strong>Hệ số nhân:</strong></label>
+          <input type='number' id='aqGain' step='0.0001' min='0.5' max='2' placeholder='1.0000' oninput='markDirty()'>
+        </div>
+        <div class='input-row'><label><strong>Bù lệch (V):</strong></label>
+          <input type='number' id='aqOffset' step='0.01' min='-5' max='5' placeholder='0.00' oninput='markDirty()'>
+        </div>
+
+        <div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:5px;padding:10px;margin-bottom:10px'>
+          <div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⚡ Hiệu chuẩn nhanh</div>
+          <div class='input-row' style='margin:0 0 8px 0'>
+            <label style='font-size:12px'><strong>V thực tế:</strong></label>
+            <input type='number' id='calRefV' step='0.1' placeholder='Đo bằng VOM'>
+          </div>
+          <button class='btn-warn' style='margin:0;font-size:13px;padding:8px' onclick='quickCalibrate()'>🎯 Tính Gain</button>
+          <div id='calMsg' style='font-size:11px;margin-top:6px'></div>
+        </div>
+      </div>
+
+      <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
+        <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px'>
+          <div style='font-size:13px;font-weight:bold;color:#17a2b8'>📋 Bảng OCV → SOC</div>
+          <div style='font-size:10px;color:#6c757d;text-align:right' id='ocvDateInfo'>--</div>
+        </div>
+
+        <div class='ocv-tab'>
+          <div class='active' id='ocvTabLead' onclick='switchOcvTab("lead")'>🔋 Chì (per 12V)</div>
+          <div id='ocvTabLfp' onclick='switchOcvTab("lfp")'>⚡ LFP (per cell)</div>
+        </div>
+
+        <div id='ocvEditorLead'>
+          <div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+            <span style='flex:1;text-align:center'>Điện áp (V)</span>
+            <span style='width:60px;text-align:center'>SOC %</span>
+            <span style='width:34px'></span>
+          </div>
+          <div id='ocvListLead'></div>
+          <button onclick='addOcvRow("lead")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
+        </div>
+
+        <div id='ocvEditorLfp' style='display:none'>
+          <div style='display:flex;gap:6px;font-size:11px;color:#6c757d;font-weight:bold;margin-bottom:6px;padding:0 2px'>
+            <span style='flex:1;text-align:center'>Điện áp (V)</span>
+            <span style='width:60px;text-align:center'>SOC %</span>
+            <span style='width:34px'></span>
+          </div>
+          <div id='ocvListLfp'></div>
+          <button onclick='addOcvRow("lfp")' style='background:#17a2b8;margin-top:6px;font-size:12px;padding:6px'>+ Thêm điểm</button>
+        </div>
+
+        <div class='ocv-preview' id='ocvPreview'>--</div>
+
+        <div style='display:flex;gap:6px;margin-top:8px'>
+          <button onclick='saveOcvManual()' style='flex:1;background:#28a745;margin:0;font-size:12px;padding:8px'>💾 Lưu</button>
+          <button id='btnFetchAcquyJson' onclick='refreshAcquyJson()' style='flex:1;background:#ff9800;margin:0;font-size:12px;padding:8px'>⬇️ Tải từ server</button>
+          <button onclick='resetOcvEditor()' style='width:auto;background:#6c757d;margin:0;font-size:12px;padding:8px'>↺</button>
+        </div>
+      </div>
+
+      <button class='btn-warn' style='margin-top:8px' onclick='saveAcquyCfg()'>💾 Lưu thông số Ắc quy</button>
+
+      <div id='acquyAdcPinBox' style='background:#e7f3ff;border:1px solid #b8daff;border-radius:8px;padding:12px;margin-top:12px'>
+        <div style='font-size:13px;font-weight:bold;color:#004085;margin-bottom:8px'>📌 Chân ADC đo Ắc quy</div>
+        <div class='input-row' style='margin:0'><label><strong>GPIO:</strong></label>
+          <input type='number' id='aqPin' min='0' max='39' value='32' oninput='markDirty()'>
+        </div>
+        <div style='font-size:11px;color:#6c757d;margin-top:6px'>Ưu tiên ADC1: GPIO32/33/34/35</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ CHI TIẾT ĐIỆN ÁP / BMS ============ -->
+<div class='card accordion' id='accBms' style='border:2px solid #17a2b8'>
+  <div class='acc-head' id='accBmsHead' style='color:#17a2b8;border-bottom:1px solid #e9ecef' onclick='toggleAcc("accBms")'>
+    <span id='accBmsTitle'>🔋 Chi Tiết Điện Áp / BMS</span><span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+
+    <div id='bms-name-box' style='background:#e7f3ff;border-left:3px solid #17a2b8;padding:8px 12px;border-radius:5px;font-size:13px;margin:12px 0 8px 0'>
+      📛 <b>Thiết bị:</b> <span id='bms-name-text'>--</span>
+      <span id='bms-type-badge' style='display:none;font-size:10px;font-weight:bold;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle'></span>
+    </div>
+
+    <div class='ir-box' id='irBox' style='display:none'>
+      <h4>🚗 THÔNG SỐ ĐO ĐIỆN ÁP</h4>
+      <div class='ir-grid'>
+        <div>Điện áp đo: <span class='ir-val' id='ir-raw'>--</span></div>
+        <div>OCV ước lượng: <span class='ir-val' id='ir-ocv' style='color:#1565c0'>--</span></div>
+        <div>Sụt áp: <span class='ir-val' id='ir-sag' style='color:#e65100'>--</span></div>
+        <div>Nhiệt độ chip: <span class='ir-val' id='ir-temp'>--</span></div>
+      </div>
+      <div style='font-size:11px;color:#2e7d32;margin-top:6px'>SOC được tính từ OCV, không phải điện áp chịu tải</div>
+      <div class='sag-bar-bg'><div class='sag-bar' id='sag-bar'></div></div>
+      <div style='font-size:10px;color:#6c757d;margin-top:4px;text-align:center'>Mức sụt áp <span id='sag-label'>--</span></div>
+    </div>
+
+    <div id='bms-empty' style='display:none;text-align:center;padding:20px;color:#888;font-size:13px'>📭 Chưa có dữ liệu chi tiết</div>
+
+    <div id='bms-overview' style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0'>
+      <div class='stat-box' id='bms-box-totalv' style='display:none'>
+        <div>Điện áp tổng</div>
+        <div class='stat-val' id='bms-totalv' style='color:#007bff'>-- V</div></div>
+      <div class='stat-box' id='aq-box-raw' style='display:none'>
+        <div>⚡ Điện áp tức thời</div>
+        <div class='stat-val' id='aq-totalv-raw' style='color:#ff9800'>-- V</div></div>
+      <div class='stat-box' id='aq-box-stable' style='display:none'>
+        <div>📊 OCV ước lượng</div>
+        <div class='stat-val' id='aq-totalv-stable' style='color:#28a745'>-- V</div></div>
+      <div class='stat-box' id='bms-box-cellcount' style='display:none'>
+        <div>Số cell</div>
+        <div class='stat-val' id='bms-cellcount' style='color:#17a2b8'>--</div></div>
+      <div class='stat-box' id='bms-box-current' style='display:none'>
+        <div>Dòng điện</div>
+        <div class='stat-val' id='bms-current' style='color:#ff9800'>-- A</div></div>
+      <div class='stat-box' id='bms-box-power' style='display:none'>
+        <div>Công suất</div>
+        <div class='stat-val' id='bms-power' style='color:#6f42c1'>-- W</div></div>
+    </div>
+
+    <div id='aq-status-line' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:8px 12px;font-size:12px;color:#495057;margin-bottom:10px'>
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+        <span>📌 <b>Chân ADC:</b> <span id='bms-aq-pin-label' style='font-family:monospace;color:#007bff'>GPIO--</span></span>
+        <span><b style='font-family:monospace' id='bms-aq-adc-v'>0.000 V</b></span>
+      </div>
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+        <span>Trạng thái: <b><span id='bms-aq-status-text'>--</span></b></span>
+        <span id='bms-aq-ovp-badge' style='display:none;background:#f8d7da;color:#721c24;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold'>⚠️ QUÁ ÁP</span>
+      </div>
+      <div style='display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#6c757d'>
+        <span>Hiệu chuẩn: Gain <b style='color:#007bff'><span id='bms-aq-gain'>--</span></b></span>
+        <span>Offset <b style='color:#007bff'><span id='bms-aq-offset'>--</span></b> V</span>
+      </div>
+    </div>
+
+    <div id='bms-cellstats' style='display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px;justify-content:space-around;font-size:13px'>
+      <div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MAX</div>
+      <div id='bms-cellmax' style='color:#dc3545;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+      <div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CELL MIN</div>
+      <div id='bms-cellmin' style='color:#28a745;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+      <div style='text-align:center'><div style='color:#6c757d;font-size:11px;font-weight:bold'>CHÊNH LỆCH</div>
+      <div id='bms-celldiff' style='color:#ff9800;font-weight:bold;font-size:15px;margin-top:3px'>--</div></div>
+    </div>
+
+    <div id='bms-cells-wrap' style='display:none'>
+      <div style='font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>📊 Điện áp từng cell (V)</div>
+      <div id='bms-cells-grid' style='display:grid;grid-template-columns:repeat(4,1fr);gap:5px'></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ THÔNG TIN CHIP ============ -->
+<div class='card accordion' id='accChip' style='border:2px solid #6c757d'>
+  <div class='acc-head dark' onclick='toggleAcc("accChip")'>
+    <span>💻 Thông tin Chip</span><span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+    <div style='font-size:12px;color:#495057;margin:12px 0 10px 0;text-align:center'>
+      Model: <b id='chipModel'>--</b> | Rev: <b id='chipRev'>--</b> | Core: <b id='chipCores'>--</b> | <b id='chipFreq'>--</b> MHz
+    </div>
+    <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px'>
+      <div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
+        <span>🧠 RAM</span><span><span id='heapPct'>--</span>% dùng</span>
+      </div>
+      <div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='heapBar' class='battery-bar' style='width:0%;background:#007bff;height:100%'></div></div>
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
+        <div>Tổng: <b style='color:#333'><span id='heapTotal'>--</span> KB</b></div>
+        <div>Đã dùng: <b style='color:#dc3545'><span id='heapUsed'>--</span> KB</b></div>
+        <div>Trống: <b style='color:#28a745'><span id='heapFree'>--</span> KB</b></div>
+        <div>Còn (min): <b style='color:#ff9800'><span id='heapMin'>--</span> KB</b></div>
+      </div>
+    </div>
+    <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:10px'>
+      <div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
+        <span>💿 Flash</span><span><span id='flashPct'>--</span>%</span>
+      </div>
+      <div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='flashBar' class='battery-bar' style='width:0%;background:#ff9800;height:100%'></div></div>
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
+        <div>Tổng: <b style='color:#333'><span id='flashTotal'>--</span> KB</b></div>
+        <div>Firmware: <b style='color:#dc3545'><span id='sketchSize'>--</span> KB</b></div>
+        <div>Còn trống: <b style='color:#28a745'><span id='sketchFree'>--</span> KB</b></div>
+        <div>Uptime: <b style='color:#17a2b8'><span id='uptime'>--</span></b></div>
+      </div>
+    </div>
+    <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:10px'>
+      <div style='display:flex;justify-content:space-between;font-size:12px;font-weight:bold;color:#495057;margin-bottom:6px'>
+        <span>⚙️ CPU</span><span><span id='cpuLoad'>--</span>% tải</span>
+      </div>
+      <div class='battery-bg' style='height:14px;margin:0 0 8px 0'><div id='cpuBar' class='battery-bar' style='width:0%;background:#dc3545;height:100%'></div></div>
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#6c757d'>
+        <div>Tần số: <b style='color:#333'><span id='cpuFreq'>--</span> MHz</b></div>
+        <div>Số core: <b style='color:#333'><span id='coreCount'>--</span></b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ OUTPUT ANALOG ============ -->
+<div class='card accordion' id='accOutput' style='border:2px solid #28a745'>
+  <div class='acc-head green' onclick='toggleAcc("accOutput")'>
+    <span>⚡ Output Analog</span><span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+    <div style='text-align:center;font-size:20px;font-weight:bold;color:#28a745;margin-top:12px' id='vol-text'>0.000 V</div>
+    <div style='text-align:center;font-size:12px;color:#6c757d;margin-top:4px'>Chip: <span id='chip-name'>--</span></div>
+    <div style='margin-top:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef'>
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>
+        <label style='margin:0;font-size:13px'><strong>🎚️ Giả lập % pin:</strong></label>
+        <span id='slider-val' style='font-size:16px;font-weight:bold;color:#ff9800'>50%</span>
+      </div>
+      <input type='range' id='simSlider' min='0' max='100' value='50' oninput='sendSim(this.value)'>
+      <button id='realBtn' class='btn-success' style='margin-top:4px' onclick='setRealSoc()'>Đang chạy Pin Thực</button>
+    </div>
+    <div style='display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px 0;gap:8px'>
+      <label style='margin:0;flex:1'><strong>📋 Bảng điện áp theo %</strong></label>
+      <button id='btnFetchPresets' onclick='fetchPresets()' style='width:auto;margin:0;padding:6px 12px;font-size:11px;background:#6f42c1;flex-shrink:0'>🔄 Cập nhật</button>
+    </div>
+    <div id='vmapBox' style='display:block'>
+      <div class='sub-tabs'>
+        <div class='sub-tab active' id='subTabPreset' onclick='switchSubTab("preset")'>⚡ Có sẵn</div>
+        <div class='sub-tab' id='subTabManual' onclick='switchSubTab("manual")'>✏️ Thủ công</div>
+      </div>
+      <div id='subPreset'>
+        <div id='presetUpdatedBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:6px 10px;border-radius:5px;font-size:11px;margin-bottom:8px'>
+          📅 Cập nhật: <b><span id='presetUpdatedText'>--</span></b>
+        </div>
+        <div id='presetList'></div>
+        <div id='presetListMsg' style='font-size:11px;color:#6c757d;text-align:center;margin-top:8px;display:none'></div>
+      </div>
+      <div id='subManual' style='display:none'>
+        <div class='vmap-head'><span class='h1'>Từ %</span><span class='h2'></span><span class='h3'>Đến %</span><span class='h4'>Điện áp (V)</span><span class='h5'></span></div>
+        <div id='vmapList'></div>
+        <button onclick='addVmapRow()' style='background:#17a2b8;margin-top:8px'>+ Thêm dải</button>
+        <button class='btn-success' onclick='saveVmap()'>Lưu bảng</button>
+      </div>
+    </div>
+    <hr>
+
+    <div class='mode-tabs' style='margin-top:5px'>
+      <div class='mode-tab' id='tabDac' onclick='selectMode(0)'>DAC</div>
+      <div class='mode-tab active' id='tabPwm' onclick='selectMode(1)'>PWM</div>
+    </div>
+    <div id='dacCfg' style='display:none'>
+      <div class='input-row'><label><strong>Chân DAC:</strong></label>
+        <select id='dacPinSel' onchange='markOutputTouched()'>
+          <option value='25'>GPIO 25</option>
+          <option value='26'>GPIO 26</option>
+        </select>
+      </div>
+    </div>
+    <div id='pwmCfg'>
+      <div class='input-row'><label><strong>Chân PWM:</strong></label><input type='number' id='pwmPinIn' min='0' max='48' value='14' oninput='markOutputTouched()'></div>
+      <div class='input-row'><label><strong>Tần số:</strong></label><input type='number' id='pwmFreqIn' value='5000' oninput='markOutputTouched()'></div>
+      <div class='input-row'><label><strong>Độ phân giải:</strong></label>
+        <select id='pwmResIn' onchange='markOutputTouched()'>
+          <option value='8'>8-bit</option>
+          <option value='10' selected>10-bit</option>
+          <option value='12'>12-bit</option>
+        </select>
+      </div>
+    </div>
+    <button class='btn-warn' style='margin-top:12px' onclick='saveOutput()'>Lưu Output</button>
+    <div style='font-size:12px;color:#6c757d;margin-top:8px;text-align:center'>Hiện tại: <span id='out-current'>--</span></div>
+  </div>
+</div>
+
+<!-- ============ CÀI ĐẶT WIFI ============ -->
+<div class='card accordion' id='accWifi' style='border:2px solid #6f42c1'>
+  <div class='acc-head' style='color:#6f42c1;border-bottom:1px solid #e9ecef' onclick='toggleAcc("accWifi")'>
+    <span>📶 Cài Đặt WiFi</span><span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+
+    <div style='background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:12px;margin:12px 0'>
+      <div style='display:flex;justify-content:space-between;align-items:center'>
+        <div>
+          <div style='font-size:13px;font-weight:bold;color:#856404'>📡 Cài Đặt Phát WiFi (AP)</div>
+          <div style='font-size:11px;color:#6c757d;margin-top:2px'>Tên, mật khẩu, thời gian tắt AP</div>
+        </div>
+        <label class='tgl-switch tgl-warn' style='margin:0'>
+          <input type='checkbox' id='apCfgToggle' onchange='toggleApCfgPanel(this.checked)'>
+          <span class='tgl-slider'></span>
+        </label>
+      </div>
+
+      <div id='apCfgPanel' style='display:none;border-top:1px dashed #ffeeba;padding-top:10px;margin-top:10px'>
+        <div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>🔐 Tên & Mật khẩu AP</div>
+        <div class='input-row' style='margin-bottom:8px'>
+          <label style='flex:0 0 70px;font-size:12px'><strong>SSID:</strong></label>
+          <input type='text' id='apSSIDInput' maxlength='32' placeholder='BMS_Config' style='font-size:12px;padding:6px'>
+        </div>
+        <div class='input-row' style='margin-bottom:8px'>
+          <label style='flex:0 0 70px;font-size:12px'><strong>Mật khẩu:</strong></label>
+          <div class='input-with-icon'>
+            <input type='password' id='apPassInput' maxlength='63' placeholder='(8-63 ký tự)' style='font-size:12px;padding:6px;padding-right:44px !important'>
+            <button class='icon-btn' id='btnToggleApPass' onclick='toggleApPassVisibility()' style='width:36px;height:28px;font-size:16px'>👁️</button>
+          </div>
+        </div>
+        <div style='display:flex;gap:6px;margin-top:4px'>
+          <button class='btn-warn' style='flex:1;margin:0;font-size:12px;padding:7px' onclick='saveApCfg()'>💾 Lưu AP</button>
+          <button onclick='resetApCfg()' title='Điền lại mặc định' style='width:auto;margin:0;padding:7px 12px;font-size:13px;background:#6c757d'>↺</button>
+        </div>
+        <div id='apCfgMsg' style='font-size:11px;margin-top:6px'></div>
+
+        <div style='border-top:1px dashed #ffeeba;padding-top:10px;margin-top:10px'>
+          <div style='font-size:12px;font-weight:bold;color:#856404;margin-bottom:8px'>⏱️ Thời gian tự tắt AP</div>
+          <div class='input-row' style='margin:0 0 6px 0'>
+            <label style='flex:0 0 90px;font-size:12px'><strong>Giây:</strong></label>
+            <input type='number' id='apTimeoutInput' min='0' max='3600' step='10' value='60' style='font-size:12px;padding:6px'>
+          </div>
+          <div style='font-size:11px;color:#6c757d;margin-bottom:6px'>
+            <b>0 = luôn bật</b> (không tự tắt). Hoặc 10–3600s: tắt sau N giây không có client.
+          </div>
+          <button class='btn-warn' style='margin:0;font-size:12px;padding:7px' onclick='saveApTimeout()'>💾 Lưu thời gian</button>
+          <div id='apTimeoutMsg' style='font-size:11px;margin-top:6px'></div>
+        </div>
+      </div>
+    </div>
+
+    <div style='display:flex;justify-content:space-between;align-items:center;margin:0 0 10px 0;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px'>
+      <div>
+        <div style='font-size:13px;font-weight:bold'>📶 Kết Nối WiFi (STA)</div>
+        <div style='font-size:11px;color:#6c757d;margin-top:2px'>Trạng thái: <b><span id='sta-status'>--</span></b></div>
+      </div>
+      <label class='tgl-switch'>
+        <input type='checkbox' id='staEn' onchange='toggleSta(this.checked)'>
+        <span class='tgl-slider'></span>
+      </label>
+    </div>
+
+    <div id='wifiCredBox' style='display:none'>
+      <div id='staInfoBox' style='display:none;background:#e7f3ff;border-left:3px solid #007bff;padding:8px 10px;border-radius:5px;font-size:12px;margin-bottom:10px'>
+        IP: <b><span id='sta-ip'>--</span></b> | RSSI: <span id='sta-rssi'>--</span> dBm
+      </div>
+
+      <div class='input-row' style='align-items:stretch'><label><strong>SSID:</strong></label>
+        <div class='input-with-icon'>
+          <input type='text' id='staSSID' maxlength='32' placeholder='Tên WiFi'>
+          <button class='icon-btn' onclick='scanWifi()' title='Quét WiFi'>📡</button>
+        </div>
+      </div>
+
+      <div class='input-row' style='align-items:stretch'><label><strong>Mật khẩu:</strong></label>
+        <div class='input-with-icon'>
+          <input type='password' id='staPass' maxlength='64' placeholder='(để trống nếu mở)'>
+          <button class='icon-btn' id='btnTogglePass' onclick='togglePassVisibility()'>👁️</button>
+        </div>
+      </div>
+
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
+        <div id='wifiStatus' style='color:#6c757d;font-size:12px'></div>
+        <button onclick='closeWifiList()' id='btnCloseWifiList' style='width:auto;margin:0;padding:4px 10px;font-size:11px;background:#dc3545;display:none'>✕ Đóng</button>
+      </div>
+      <ul id='wifiList'></ul>
+
+      <button class='btn-success' style='margin-top:8px' onclick='saveWifi()'>💾 Lưu WiFi</button>
+      <div id='wifiMsg' style='font-size:12px;margin-top:6px'></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ OTA ============ -->
+<div class='card accordion' id='accOta' style='border:2px solid #dc3545'>
+  <div class='acc-head red' onclick='toggleAcc("accOta")'>
+    <span>⬆️ Cập nhật Firmware</span><span class='arrow'>▼</span>
+  </div>
+  <div class='acc-body'>
+    <div style='background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px;margin:12px 0'>
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>
+        <div style='font-size:13px;font-weight:bold;color:#495057'>📌 Firmware hiện tại</div>
+        <label style='margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px'>
+          <span id='autoUpdateStatus' style='font-size:10px;color:#6c757d'>Tắt</span>
+          <span style='font-weight:bold;color:#28a745'>🔄 Auto</span>
+          <span style='position:relative;display:inline-block;width:44px;height:24px'>
+            <input type='checkbox' id='autoUpdateToggle' style='opacity:0;width:0;height:0' onchange='toggleAutoUpdate(this.checked)'>
+            <span id='autoUpdateSlider' style='position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;transition:.3s;border-radius:24px'>
+              <span id='autoUpdateKnob' style='position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;transition:.3s;border-radius:50%'></span>
+            </span>
+          </span>
+        </label>
+      </div>
+      <div id='fwVerOta' style='font-size:15px;font-weight:bold;color:#007bff;margin-bottom:4px'>--</div>
+      <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
+        <div style='font-size:11px;color:#6c757d'>📅 Ngày: <b><span id='fwDateView'>Chưa cập nhật</span></b></div>
+        <button onclick='toggleFwEdit()' style='width:auto;margin:0;padding:3px 8px;font-size:10px;background:#6c757d'>✏️ Sửa</button>
+      </div>
+      <div id='fwNotesView' style='font-size:12px;color:#333;background:#fff;padding:8px 10px;border-radius:5px;border:1px solid #e9ecef;line-height:1.5;white-space:pre-wrap'>Không có mô tả</div>
+      <div id='fwEditForm' style='display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #dee2e6'>
+        <div class='input-row' style='margin-bottom:8px'>
+          <label style='flex:0 0 60px;font-size:12px'><strong>Ngày:</strong></label>
+          <input type='text' id='fwDateInput' style='font-size:12px;padding:6px' value=''>
+        </div>
+        <textarea id='fwNotesInput' rows='4' style='width:100%;padding:8px;border:1px solid #ccc;border-radius:5px;font-size:12px;font-family:inherit;box-sizing:border-box;resize:vertical'></textarea>
+        <div style='display:flex;gap:6px;margin-top:8px'>
+          <button style='flex:1;margin:0;background:#6c757d' onclick='toggleFwEdit()'>Hủy</button>
+          <button class='btn-success' style='flex:1;margin:0' onclick='saveFwInfo()'>💾 Lưu</button>
+        </div>
+        <div id='fwInfoMsg' style='font-size:11px;margin-top:6px'></div>
+      </div>
+    </div>
+
+    <div id='otaNoWifiHint' style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:8px;padding:12px;margin:12px 0;font-size:12px;line-height:1.5'>
+      📶 <b>Chưa kết nối WiFi nhà:</b> Hãy mở mục <b>📶 Cài Đặt WiFi</b> ở trên, điền tên & mật khẩu WiFi để ESP32 kết nối Internet và cập nhật Firmware Online.
+    </div>
+
+    <div id='otaOnlineBox' style='display:none;background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:12px;margin:12px 0'>
+      <div style='font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px'>🌐 Cập nhật Online (Qua WiFi của ESP32)</div>
+      <button style='margin:0;background:#ff9800' onclick='checkUpdate()'>🔍 Kiểm tra phiên bản</button>
+      <div id='updateInfoBox' style='display:none;margin-top:10px;background:#fff;border-radius:6px;padding:10px;border:1px solid #ffcc80'>
+        <div style='font-size:13px;color:#e65100;font-weight:bold;margin-bottom:6px'>🆕 <span id='newVersionText'>--</span></div>
+        <div style='font-size:11px;color:#6c757d;margin-bottom:6px'>📅 <span id='newDateText'>--</span></div>
+        <div style='font-size:12px;color:#333;background:#f8f9fa;padding:8px;border-radius:5px;margin-bottom:10px;line-height:1.5' id='notesText'>--</div>
+        <button id='btnOtaOnline' class='btn-danger' style='margin:0;background:#dc3545;font-weight:bold' onclick='otaOnline()'>🚀 Nạp Firmware Online</button>
+      </div>
+      <div id='onlineMsg' style='font-size:12px;margin-top:8px'></div>
+      <div class='battery-bg' style='margin-top:10px'><div id='onlineProgress' class='battery-bar' style='width:0%;background:#ff9800'></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// BLE UART NUS TRANSPORT
+// ================================================================
+const BLE_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_RX_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_TX_CHAR = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+const GITHUB_BASE = 'https://bjendaik.github.io/hienthipin/';
+const URL_DATA    = GITHUB_BASE + 'data.json';
+const ACQUY_JSON_URL = GITHUB_BASE + 'acquy.json';
+
+let bleDevice = null, bleRx = null, bleTx = null;
+let bleConnected = false, bleRxBuf = '', blePendingResolvers = [];
+let bleLastStatus = null;
+
+let savedDeviceId   = localStorage.getItem('bleDeviceId') || '';
+let savedDeviceName = localStorage.getItem('bleDeviceName') || '';
+let autoReconnecting = false;
+
+let currentMode = 1, hasDac = true, activePresetName = '', cachedPresets = null, ocvTab = 'lead';
+let currentAcquyMode = false;
+let configLoaded = false, configDirty = false, outputTouched = false;
+let activePresetIdx = -1, vmapLoaded = false;
+
+function markDirty(){ configDirty = true; }
+function markOutputTouched(){ outputTouched = true; }
+
+function bleUpdateUI(){
+  const st = document.getElementById('bleStatus');
+  const btn = document.getElementById('bleConnBtn');
+  const forgetBtn = document.getElementById('bleForgetBtn');
+  if(!btn) return;
+
+  if(bleConnected){
+    if(st){
+      const espMac = (bleLastStatus && bleLastStatus.espMac) ? bleLastStatus.espMac : '';
+      let html = '🟢 <b>' + (savedDeviceName || 'ESP32') + '</b>';
+      if(espMac) html += '<span class="esp-mac">ESP32: ' + espMac + '</span>';
+      st.innerHTML = html;
+      st.style.color = '#28a745';
+    }
+    btn.innerText = 'Ngắt BLE'; btn.style.background = '#dc3545';
+    if(forgetBtn) forgetBtn.style.display = 'none';
+  } else if(autoReconnecting){
+    if(st){ st.innerHTML = '⏳ Đang kết nối lại...'; st.style.color = '#007bff'; }
+    btn.innerText = 'Hủy'; btn.style.background = '#ff9800';
+    if(forgetBtn) forgetBtn.style.display = 'none';
+  } else if(savedDeviceId){
+    if(st){
+      st.innerHTML = '🔵 <b>' + (savedDeviceName || 'ESP32') + '</b>';
+      st.style.color = '#6c757d';
+    }
+    btn.innerText = 'Kết nối lại';
+    btn.style.background = '#28a745';
+    if(forgetBtn) forgetBtn.style.display = 'inline-block';
+  } else {
+    if(st){ st.innerHTML = '🔵 Chưa kết nối'; st.style.color = '#6c757d'; }
+    btn.innerText = 'Kết nối BLE'; btn.style.background = '#17a2b8';
+    if(forgetBtn) forgetBtn.style.display = 'none';
+  }
 }
 
-#define CMD_BUF_SIZE 128
-struct CmdPacket {
-    char cmd[CMD_BUF_SIZE];
+async function bleToggle(){
+  if(bleConnected){ bleDisconnect(); return; }
+  if(autoReconnecting){ autoReconnecting = false; bleUpdateUI(); return; }
+  await bleConnect();
+}
+
+async function bleConnect(){
+  try{
+    if(!navigator.bluetooth){ alert('Trình duyệt không hỗ trợ Web Bluetooth'); return; }
+    let device = null;
+    if(savedDeviceId && typeof navigator.bluetooth.getDevices === 'function'){
+      try{
+        autoReconnecting = true; bleUpdateUI();
+        const devices = await navigator.bluetooth.getDevices();
+        device = devices.find(d => d.id === savedDeviceId) || null;
+        autoReconnecting = false;
+      }catch(e){ autoReconnecting = false; }
+    }
+    if(!device){
+      bleUpdateUI();
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{services: [BLE_SERVICE]}],
+        optionalServices: [BLE_SERVICE]
+      });
+    }
+    bleDevice = device;
+    if(device.id){
+      savedDeviceId = device.id;
+      savedDeviceName = device.name || 'BMS_Controller';
+      localStorage.setItem('bleDeviceId', savedDeviceId);
+      localStorage.setItem('bleDeviceName', savedDeviceName);
+    }
+    bleDevice.addEventListener('gattserverdisconnected', () => {
+      bleConnected = false; bleRx = null; bleTx = null;
+      configLoaded = false; outputTouched = false; activePresetIdx = -1; configDirty = false; vmapLoaded = false;
+      bleUpdateUI();
+    });
+
+    const server = await bleDevice.gatt.connect();
+    const svc = await server.getPrimaryService(BLE_SERVICE);
+    bleTx = await svc.getCharacteristic(BLE_TX_CHAR);
+    await bleTx.startNotifications();
+    bleTx.addEventListener('characteristicvaluechanged', bleOnNotify);
+    await new Promise(r => setTimeout(r, 300));
+    bleRx = await svc.getCharacteristic(BLE_RX_CHAR);
+
+    bleConnected = true;
+    bleUpdateUI();
+    await bleSend('HELLO');
+    setTimeout(() => updateData(), 250);
+  }catch(e){
+    autoReconnecting = false;
+    bleUpdateUI();
+    if(e.name !== 'NotFoundError') alert('Kết nối BLE thất bại: ' + e.message);
+  }
+}
+
+function bleDisconnect(){
+  try{ if(bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); }catch(e){}
+  bleConnected = false; bleRx = null; bleTx = null;
+  configLoaded = false; outputTouched = false; activePresetIdx = -1; configDirty = false; vmapLoaded = false;
+  bleUpdateUI();
+}
+
+function bleForget(){
+  if(!confirm('Quên thiết bị BLE đã lưu?')) return;
+  localStorage.removeItem('bleDeviceId');
+  localStorage.removeItem('bleDeviceName');
+  savedDeviceId = ''; savedDeviceName = '';
+  bleDevice = null;
+  bleUpdateUI();
+}
+
+async function bleAutoReconnect(){
+  if(!savedDeviceId || !navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') return;
+  try{
+    const devices = await navigator.bluetooth.getDevices();
+    const dev = devices.find(d => d.id === savedDeviceId);
+    if(dev) await bleConnect();
+  }catch(e){}
+}
+
+async function bleSend(cmd){
+  if(!bleRx) return false;
+  const raw = new TextEncoder().encode(cmd + '\n');
+  const CHUNK = 180;
+  for(let off = 0; off < raw.length; off += CHUNK){
+    const slice = raw.slice(off, Math.min(off + CHUNK, raw.length));
+    try{ await bleRx.writeValue(slice); }
+    catch(e){ try{ await bleRx.writeValueWithoutResponse(slice); }catch(e2){ return false; } }
+  }
+  return true;
+}
+
+function bleOnNotify(ev){
+  if(!ev.target.value) return;
+  bleRxBuf += new TextDecoder().decode(ev.target.value);
+  let idx;
+  while((idx = bleRxBuf.indexOf('\n')) >= 0){
+    const line = bleRxBuf.substring(0, idx).trim();
+    bleRxBuf = bleRxBuf.substring(idx + 1);
+    if(line) bleHandleLine(line);
+  }
+}
+
+function bleHandleLine(line){
+  let obj = null;
+  try{ obj = JSON.parse(line); }catch(e){ return; }
+  if(obj.t === 'status'){
+    bleLastStatus = obj;
+    bleLastStatus._ts = Date.now();
+    resolvePending('status', obj);
+  }
+  else if(obj.t === 'ack'){ resolvePending('ack', obj); }
+  else if(obj.t === 'err'){ resolvePending('err', obj); }
+  else if(obj.t === 'scan'){ resolvePending('scan', obj); }
+  else if(obj.t === 'ocv'){ resolvePending('ocv', obj); }
+  else if(obj.t === 'chip'){ resolvePending('chip', obj); }
+  else if(obj.t === 'vmap'){ resolvePending('vmap', obj); }
+  else if(obj.t === 'wifi'){ resolvePending('wifi', obj); }
+  else if(obj.t === 'fw'){ resolvePending('fw', obj); }
+  else if(obj.t === 'wifiscan'){ resolvePending('wifiscan', obj); }
+  else if(obj.t === 'upd'){ resolvePending('upd', obj); }
+  else if(obj.t === 'log'){
+    // bỏ qua log
+  }
+  else if(obj.t === 'ota_prog'){
+    const bar = document.getElementById('onlineProgress');
+    const msg = document.getElementById('onlineMsg');
+    if(bar) bar.style.width = (obj.pct || 0) + '%';
+    if(msg){
+      if(obj.pct >= 100){
+        msg.innerText = '✅ Nạp xong 100%! ESP32 đang khởi động lại...';
+        msg.style.color = '#28a745';
+      } else if(obj.pct < 0){
+        msg.innerText = '❌ Lỗi nạp OTA Online!';
+        msg.style.color = '#dc3545';
+      } else {
+        msg.innerText = '⏳ ESP32 đang tải & nạp qua WiFi... ' + obj.pct + '%';
+        msg.style.color = '#007bff';
+      }
+    }
+  }
+}
+
+function resolvePending(kind, obj){
+  const remain = [];
+  for(const r of blePendingResolvers){
+    if(r.kind === kind) r.resolve(obj);
+    else remain.push(r);
+  }
+  blePendingResolvers = remain;
+}
+
+function bleWaitFor(kind, timeoutMs = 5000){
+  return new Promise((resolve, reject) => {
+    const entry = {kind, resolve: (v) => { clearTimeout(tm); resolve(v); }};
+    const tm = setTimeout(() => {
+      blePendingResolvers = blePendingResolvers.filter(r => r !== entry);
+      reject(new Error('Timeout ' + kind));
+    }, timeoutMs);
+    blePendingResolvers.push(entry);
+  });
+}
+
+// ================================================================
+// FETCH SHIM — map API WebServer sang BLE
+// ================================================================
+const _realFetch = window.fetch.bind(window);
+window.fetch = async function(url, opts){
+  if(typeof url !== 'string' || url.startsWith('http')) return _realFetch(url, opts);
+  const u = new URL(url, 'http://x');
+  const path = u.pathname, q = u.searchParams;
+
+  if(!bleConnected){
+    if(path === '/data') return jsonResponse(dummyStatus());
+    return textResponse('NOT_CONNECTED');
+  }
+
+  try{
+    if(path === '/data'){
+      if(bleLastStatus && Date.now() - bleLastStatus._ts < 500) return jsonResponse(enrich(bleLastStatus));
+      await bleSend('GET_STATUS');
+      const obj = await bleWaitFor('status', 5000);
+      return jsonResponse(enrich(obj));
+    }
+    if(path === '/chipinfo'){
+      await bleSend('GET_CHIP');
+      const obj = await bleWaitFor('chip', 5000);
+      return jsonResponse(obj);
+    }
+    if(path === '/getvmap'){
+      await bleSend('GET_VMAP');
+      const obj = await bleWaitFor('vmap', 4000).catch(() => null);
+      return jsonResponse({vmap: (obj && Array.isArray(obj.list)) ? obj.list : []});
+    }
+    if(path === '/getwifiinfo'){
+      await bleSend('GET_WIFI_INFO');
+      const obj = await bleWaitFor('wifi', 4000).catch(() => null);
+      return jsonResponse(obj || {});
+    }
+    if(path === '/getfwinfo'){
+      await bleSend('GET_FW_INFO');
+      const obj = await bleWaitFor('fw', 4000).catch(() => null);
+      return jsonResponse(obj || {});
+    }
+    if(path === '/sim'){
+      if(q.has('soc')){ await bleSend('SOC:' + q.get('soc')); await bleWaitFor('ack', 2000).catch(()=>{}); return textResponse('OK'); }
+      if(q.has('real')){ await bleSend('REAL'); await bleWaitFor('ack', 2000).catch(()=>{}); return textResponse('OK'); }
+    }
+    if(path === '/scan'){
+      await bleSend('SCAN');
+      const obj = await bleWaitFor('scan', 12000);
+      const list = obj.list || [];
+      if(list.length === 0) return htmlResponse("<li style='color:#888;'>Không tìm thấy BMS.</li>");
+      let html = '';
+      for(const d of list){
+        const sn = (d.name || 'BMS').replace(/'/g, "\\'");
+        html += "<li><div><strong>🔋 " + d.name + "</strong><br><small style='font-family:monospace'>" + d.mac + "</small></div>";
+        html += "<button style='width:auto;' onclick=\"save('" + d.mac + "','" + sn + "')\">Kết Nối</button></li>";
+      }
+      return htmlResponse(html);
+    }
+    if(path === '/save'){
+      const mac = q.get('mac') || '', name = q.get('name') || '';
+      await bleSend('SAVE_MAC:' + mac + '|' + name);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(ack && bleLastStatus){ bleLastStatus.mac = mac; bleLastStatus.bmsName = name || bleLastStatus.bmsName || ''; bleLastStatus._ts = 0; }
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/clearmac'){
+      await bleSend('CLEAR_MAC');
+      await bleWaitFor('ack', 3000).catch(()=>{});
+      return textResponse('OK');
+    }
+    if(path === '/toggleacquy'){
+      await bleSend(q.get('en') === '1' ? 'MODE:ACQ' : 'MODE:BMS');
+      await bleWaitFor('ack', 3000).catch(()=>{});
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse('OK');
+    }
+    if(path === '/saveacquycfg'){
+      const p = q.get('pin')||32, r1 = q.get('r1')||100, r2 = q.get('r2')||4.7;
+      const g = q.get('gain')||1, o = q.get('offset')||0, bt = q.get('btype')||0, c = q.get('cells')||4;
+      await bleSend(`SAVE_ACQ:${p},${r1},${r2},${g},${o},${bt},${c}`);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/saveout'){
+      const m = q.get('mode') || 1;
+      const p = (m == '0') ? (q.get('dacpin') || 25) : (q.get('pwmpin') || 14);
+      const f = q.get('freq') || 5000, r = q.get('res') || 10;
+      await bleSend(`SAVE_OUT:${m},${p},${f},${r}`);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/savevmap'){
+      const cnt = parseInt(q.get('count') || '0');
+      let cmd = 'SET_VMAP:' + cnt;
+      for(let i = 0; i < cnt; i++) cmd += `;${q.get('e'+i+'s')||0},${q.get('e'+i+'e')||0},${q.get('e'+i+'v')||0}`;
+      await bleSend(cmd);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/saveocvmanual'){
+      const type = q.get('type') || 'lead', cnt = parseInt(q.get('count') || '0');
+      let cmd = 'SET_OCV:' + type + ':' + cnt;
+      for(let i = 0; i < cnt; i++) cmd += `;${q.get('e'+i+'v')||0},${q.get('e'+i+'s')||0}`;
+      await bleSend(cmd);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      return textResponse(ack ? ('OK|' + cnt) : 'FAIL');
+    }
+    if(path === '/acquyjsoninfo'){
+      await bleSend('GET_OCV');
+      const obj = await bleWaitFor('ocv', 4000).catch(() => null);
+      if(!obj) return jsonResponse({date:'', leadN:0, lfpN:0, lead:[], lfp:[]});
+      return jsonResponse({date:obj.date||'', leadN:(obj.lead||[]).length, lfpN:(obj.lfp||[]).length, lead:obj.lead||[], lfp:obj.lfp||[]});
+    }
+    if(path === '/savewifi'){
+      const ssid = q.get('ssid') || '', pass = q.get('pass') || '', en = q.get('en') || '1';
+      await bleSend(`SAVE_WIFI:${en}|${ssid}|${pass}`);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/savesta'){
+      const en = q.get('en') || '0';
+      await bleSend('SAVE_STA:' + en);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/wifiscan'){
+      await bleSend('WIFI_SCAN');
+      const obj = await bleWaitFor('wifiscan', 12000);
+      const list = obj.list || [];
+      if(list.length === 0) return htmlResponse("<li style='color:#888;'>Không tìm thấy WiFi</li>");
+      let html = '';
+      for(const w of list){
+        const enc = w.open ? '🔓' : '🔒';
+        const safeSsid = (w.ssid || '').replace(/'/g, "\\'");
+        html += "<li><div><strong>" + enc + " " + w.ssid + "</strong><br><small>" + w.rssi + " dBm</small></div>"
+             + "<button style='width:auto;' onclick=\"pickWifi('" + safeSsid + "')\">Chọn</button></li>";
+      }
+      return htmlResponse(html);
+    }
+    if(path === '/saveapcfg'){
+      const ssid = q.get('ssid') || '', pass = q.get('pass') || '';
+      await bleSend(`SAVE_AP:${ssid}|${pass}`);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/saveaptimeout'){
+      const sec = q.get('sec') || '60';
+      await bleSend('SAVE_AP_TIME:' + sec);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/saveapcfgpanel'){
+      const en = q.get('en') || '0';
+      await bleSend('SAVE_AP_PANEL:' + en);
+      await bleWaitFor('ack', 3000).catch(() => null);
+      return textResponse('OK');
+    }
+    if(path === '/savefwinfo'){
+      const d = q.get('date') || '', n = (q.get('notes') || '').replace(/\n/g, '\\n');
+      await bleSend(`SAVE_FW_INFO:${d}|${n}`);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/saveautoupdate'){
+      const en = q.get('en') || '0';
+      await bleSend('SAVE_AUTO_UPD:' + en);
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      if(bleLastStatus) bleLastStatus._ts = 0;
+      return textResponse(ack ? 'OK' : 'TIMEOUT');
+    }
+    if(path === '/checkupdate'){
+      await bleSend('CHECK_UPDATE');
+      const obj = await bleWaitFor('upd', 15000);
+      window._lastRemoteNotes = obj.notes || '';
+      if(obj.status === 'NO_WIFI') return textResponse('NO_WIFI');
+      if(obj.status === 'FAIL') return textResponse('FETCH_FAIL');
+      if(obj.status === 'LATEST') return textResponse('LATEST:' + (obj.ver || ''));
+      if(obj.status === 'NEW') return textResponse('NEW:' + obj.ver + ':' + (obj.date || '') + ':0:1:' + (obj.url || ''));
+      return textResponse('FETCH_FAIL');
+    }
+    if(path === '/getnotes'){
+      const notes = (window._lastRemoteNotes || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+      return htmlResponse(notes);
+    }
+    if(path === '/otaonline'){
+      await bleSend('OTA_ONLINE');
+      const ack = await bleWaitFor('ack', 5000).catch(() => null);
+      return textResponse(ack ? 'OK' : 'ERR');
+    }
+    return textResponse('OK');
+  }catch(e){
+    if(path === '/data') return jsonResponse(dummyStatus());
+    return textResponse('ERR');
+  }
 };
-QueueHandle_t cmdQueue = nullptr;
-TaskHandle_t connectTaskHandle = nullptr;
 
-SemaphoreHandle_t stateMutex=nullptr;
-inline void lockState(){ if(stateMutex) xSemaphoreTake(stateMutex,portMAX_DELAY); }
-inline void unlockState(){ if(stateMutex) xSemaphoreGive(stateMutex); }
+function enrich(o){
+  if(!o) o = {};
+  o._ts = Date.now();
+  const aq = o.aq || {};
+  o.aqRawV = aq.raw || 0;
+  o.aqOcvEst = aq.ocv || 0;
+  o.aqStableV = aq.ocv || 0;
+  o.aqSag = aq.sag || 0;
+  o.aqIsStable = aq.stable || false;
+  o.aqAdcV = aq.adc || 0;
+  o.aqGain = aq.gain || 1;
+  o.aqOffset = aq.offset || 0;
+  o.aqSocRaw = (aq.socRaw !== undefined) ? aq.socRaw : (o.soc || 0);
+  o.aqSocStable = (aq.socStable !== undefined) ? aq.socStable : (o.soc || 0);
+  o.aqTempC = (aq.temp !== undefined) ? aq.temp : 25;
+  o.aqOvp = aq.ovp || false;
+  o.aqCharging = aq.charging || false;
+  o.acquyMode = (o.mode === 'ACQ');
+  o.battType = (o.battType !== undefined) ? o.battType : 0;
+  o.battCells = (o.battCells !== undefined) ? o.battCells : 4;
+  o.aqPin = (o.aqPin !== undefined) ? o.aqPin : 32;
+  o.aqR1 = (o.aqR1 !== undefined) ? o.aqR1 : 100;
+  o.aqR2 = (o.aqR2 !== undefined) ? o.aqR2 : 4.7;
+  o.totalV = o.v || 0; o.hasTotalV = (o.v > 0);
+  o.current = o.i || 0; o.hasCurrent = (o.hasCur !== undefined) ? o.hasCur : (o.i !== 0);
+  o.power = o.p || 0; o.hasPower = (o.hasCur !== undefined) ? o.hasCur : (o.p !== 0);
+  o.cellCount = o.n || 0; o.hasCells = (o.n > 0);
+  if(!Array.isArray(o.cells) || o.cells.length < 16){
+    o.cells = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+  }
+  o.realSoc = o.soc || 0;
+  o.savedSoc = (o.savedSoc !== undefined) ? o.savedSoc : (o.soc || 0);
+  o.socFresh = (o.socFresh !== undefined) ? o.socFresh : true;
+  o.socAge = o.socAge || 0;
+  o.manualSim = o.sim || false;
+  o.configMode = (o.apActive !== undefined) ? o.apActive : false;
+  o.ledMode = (o.ledMode !== undefined) ? o.ledMode : 1;
+  o.outMode = (o.outMode !== undefined) ? o.outMode : 1;
+  o.dacPin = (o.dacPin !== undefined) ? o.dacPin : 25;
+  o.pwmPin = (o.pwmPin !== undefined) ? o.pwmPin : 14;
+  o.pwmFreq = (o.pwmFreq !== undefined) ? o.pwmFreq : 5000;
+  o.pwmRes = (o.pwmRes !== undefined) ? o.pwmRes : 10;
+  o.hasDac = (o.hasDac !== undefined) ? o.hasDac : 1;
+  o.chipName = o.chipName || 'ESP32';
+  o.mac = o.mac || ''; o.bmsName = o.bmsName || '';
+  o.espMac = o.espMac || '';
+  o.needAutoConnect = o.needAutoConnect || false;
+  o.bmsProto = o.bmsProto !== undefined ? o.bmsProto : 255;
+  o.jkVer = o.jkVer || 0;
+  o.vmap = Array.isArray(o.vmap) ? o.vmap : [];
+  const fw = o.fw || {};
+  o.fwVersion = fw.ver || '3.4';
+  o.fwDate = fw.date || '';
+  o.fwNotes = fw.notes || '';
+  o.autoUpdate = fw.auto || false;
+  o.autoUpdateDone = fw.autoDone || false;
+  o.activePresetName = o.activePreset || '';
+  o.apSSID = o.apSSID || ''; o.apPass = o.apPass || '';
+  o.apTimeout = (o.apTimeout !== undefined) ? o.apTimeout : 60;
+  o.apCfgOpen = o.apCfgOpen || false;
+  o.apClients = o.apClients || 0;
+  o.apRemain = (o.apRemain !== undefined) ? o.apRemain : -2;
+  o.staSSID = o.staSSID || ''; o.staPass = o.staPass || '';
+  o.staEnabled = o.staEnabled || false;
+  o.staConnected = o.staConnected || false;
+  return o;
+}
+function dummyStatus(){ return enrich({t:'status',soc:0,v:0,i:0,p:0,n:0,mode:'BMS',sim:false,connected:false}); }
+function jsonResponse(o){ return new Response(JSON.stringify(o),{headers:{'Content-Type':'application/json'}}); }
+function textResponse(t){ return new Response(t,{headers:{'Content-Type':'text/plain'}}); }
+function htmlResponse(h){ return new Response(h,{headers:{'Content-Type':'text/html'}}); }
 
-NimBLEClient* pClient=nullptr;
-NimBLERemoteCharacteristic* pChar=nullptr, *pWriteChar=nullptr;
-volatile bool connected=false, doConnect=false, doDisconnect=false;
-volatile bool bleClientInit=false, isScanning=false, doScan=false, scanReady=false;
-volatile bool scanBusy=false;
-String scanResultJson="[]";
-NimBLEUUID serviceUUID("0000FFE0-0000-1000-8000-00805F9B34FB");
-NimBLEUUID charUUID("0000FFE1-0000-1000-8000-00805F9B34FB");
-
-uint8_t loginCmd[]={0xA5,0x0B,0x00,0x58,0x58,0x19,0x0A,0x1E,0x0E,0x28,0x0D};
-uint8_t requestSocCmd[]={0xA5,0x40,0x90,0x08,0,0,0,0,0,0,0,0,0x7D};
-uint8_t jkDeviceInfoCmd[]={0xAA,0x55,0x90,0xEB,0x96,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x10};
-uint8_t jkCellInfoNewCmd[]={0xAA,0x55,0x90,0xEB,0x96,0x01,0,0,0,0,0,0,0,0,0,0,0,0,0,0x11};
-uint8_t jkCellInfoOldCmd[]={0xAA,0x55,0x90,0xEB,0x97,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x11};
-
-volatile uint8_t bmsProtocol=255;
-volatile bool probeSent=false;
-unsigned long probeStartMs=0;
-volatile uint8_t jkVersion=0;
-volatile bool jkVersionProbed=false;
-
-volatile bool pendingOutputUpdate = false;
-volatile uint8_t pendingOutputSoc = 0;
-
-// ★ Biến toàn cục cho auto-scan
-unsigned long lastAutoScanAttempt = 0;
-unsigned long lastManualScanAttempt = 0;
-volatile bool forceScanNow = false;
-
-#define JK_FRAME_SIZE 350
-uint8_t jkFrameBuf[JK_FRAME_SIZE];
-size_t jkFrameLen=0;
-unsigned long jkFrameStartMs=0;
-
-#define UART_SERVICE_UUID "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
-#define UART_RX_CHAR_UUID "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
-#define UART_TX_CHAR_UUID "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
-
-#define OTA_SERVICE_UUID "0000ff00-0000-1000-8000-00805f9b34fb"
-#define OTA_RX_CHAR_UUID "0000ff01-0000-1000-8000-00805f9b34fb"
-#define OTA_TX_CHAR_UUID "0000ff02-0000-1000-8000-00805f9b34fb"
-
-NimBLECharacteristic* pUartTx=nullptr;
-NimBLECharacteristic* pOtaTx=nullptr;
-volatile bool uartClientConnected=false;
-
-bool otaActive=false;
-size_t otaTotal=0, otaWritten=0;
-
-void handleBleCommand(const String& line);
-void sendStatus();
-void processAcquyReading();
-void bleClientStart();
-void bleClientStop();
-bool connectBms();
-void connectTask(void* param);
-
-// ============ BLE HELPERS ============
-void bleSendLog(const String& s){
-    if(!pUartTx || !uartClientConnected) return;
-    String j="{\"t\":\"log\",\"msg\":\"";
-    for(size_t i=0;i<s.length();i++){
-        char c=s[i];
-        if(c=='"'||c=='\\') j+='\\';
-        if(c=='\n'){ j+="\\n"; continue; }
-        j+=c;
-    }
-    j+="\"}";
-    size_t total=j.length(), sent=0;
-    const size_t CHUNK=20;
-    while(sent<total){
-        size_t n=(total-sent>CHUNK)?CHUNK:(total-sent);
-        pUartTx->setValue((uint8_t*)j.c_str()+sent, n);
-        if(!pUartTx->notify()) break;
-        sent+=n;
-        delay(5);
-    }
+// ================================================================
+// UI LOGIC (giống WebServer)
+// ================================================================
+function toggleAcc(id){
+  let el = document.getElementById(id);
+  if(!el) return;
+  let wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.accordion.open').forEach(a => a.classList.remove('open'));
+  if(!wasOpen){ el.classList.add('open'); onAccOpen(id); }
 }
 
-void bleSendJson(const String& j){
-    if(!pUartTx || !uartClientConnected) return;
-    String out=j+"\n";
-    size_t total=out.length(), sent=0;
-    const size_t CHUNK=20;
-    while(sent<total){
-        size_t n=(total-sent>CHUNK)?CHUNK:(total-sent);
-        pUartTx->setValue((uint8_t*)out.c_str()+sent, n);
-        if(!pUartTx->notify()) return;
-        sent+=n;
-        delay(5);
-    }
+function onAccOpen(id){
+  if(id === 'accChip') updateChipInfo();
+  else if(id === 'accBms') updateBmsInfo();
+  else if(id === 'accScan'){
+    setTimeout(checkDivider, 100);
+    if(!window.ocvInited){ window.ocvInited = true; loadOcvFromServer(); }
+  }
+  else if(id === 'accOutput'){
+    if(!cachedPresets && navigator.onLine) fetchPresets();
+    if(!configLoaded) updateData();
+    if(!vmapLoaded) setTimeout(loadVmapFromServer, 300);
+  }
+  else if(id === 'accWifi'){
+    updateData();
+    fetch('/getwifiinfo').then(r => r.json()).then(d => {
+      if(d.staSSID !== undefined) document.getElementById('staSSID').value = d.staSSID || '';
+      if(d.staPass !== undefined) document.getElementById('staPass').value = d.staPass || '';
+      if(d.apSSID !== undefined) document.getElementById('apSSIDInput').value = d.apSSID || '';
+      if(d.apPass !== undefined) document.getElementById('apPassInput').value = d.apPass || '';
+      if(d.apTimeout !== undefined) document.getElementById('apTimeoutInput').value = d.apTimeout;
+    }).catch(() => {});
+  }
+  else if(id === 'accOta'){
+    updateData();
+    fetch('/getfwinfo').then(r => r.json()).then(d => {
+      if(d.ver) document.getElementById('fwVerOta').innerText = 'v' + d.ver;
+      if(d.date) document.getElementById('fwDateView').innerText = d.date;
+      if(d.notes) document.getElementById('fwNotesView').innerText = d.notes;
+    }).catch(() => {});
+  }
 }
 
-void sendAck(const String& msg="OK"){ bleSendJson("{\"t\":\"ack\",\"msg\":\""+msg+"\"}"); }
-void sendErr(const String& msg){ bleSendJson("{\"t\":\"err\",\"msg\":\""+msg+"\"}"); }
+function applyModeUI(isAcquy){
+  currentAcquyMode = isAcquy;
+  document.getElementById('swBms').className = 'sw-lbl' + (isAcquy ? '' : ' active bms');
+  document.getElementById('swAcquy').className = 'sw-lbl' + (isAcquy ? ' active acquy' : '');
+  document.getElementById('acquyConfigBox').style.display = isAcquy ? 'block' : 'none';
+  document.getElementById('bmsScanArea').style.display = isAcquy ? 'none' : 'block';
+}
 
-// ============ OCV ============
-static int interpolateOcv(const OcvPoint* t, uint8_t n, float v){
-    if(n<2) return 0;
-    if(v>=t[0].v) return t[0].soc;
-    if(v<=t[n-1].v) return t[n-1].soc;
-    for(uint8_t i=0;i<n-1;i++){
-        if(v<=t[i].v && v>=t[i+1].v){
-            float v1=t[i].v, s1=t[i].soc, v2=t[i+1].v, s2=t[i+1].soc;
-            float k=(v-v2)/(v1-v2);
-            return constrain((int)round(s2+k*(s1-s2)),0,100);
+function switchMode(mode){
+  let wantAcquy = (mode === 'acquy');
+  fetch('/data').then(r => r.json()).then(d => {
+    let cur = d.acquyMode || false;
+    if(wantAcquy === cur){ applyModeUI(wantAcquy); return; }
+    let msg = wantAcquy
+      ? 'Chuyển sang chế độ ẮC QUY?\n\nESP32 sẽ ngắt BMS và đọc ADC chân GPIO.'
+      : 'Chuyển sang chế độ BMS?\n\nADC sẽ tắt và ESP32 kết nối lại BMS.';
+    if(!confirm(msg)) return;
+    fetch('/toggleacquy?en=' + (wantAcquy ? '1' : '0')).then(r => r.text()).then(t => {
+      if(t === 'OK'){
+        applyModeUI(wantAcquy);
+        configLoaded = false;
+        outputTouched = false;
+        updateData();
+      } else alert('Lỗi: ' + t);
+    });
+  });
+}
+
+function selectMode(m){
+  if(m === 0 && !hasDac){ alert('Chip này không có DAC'); return; }
+  currentMode = m;
+  outputTouched = true;
+  document.getElementById('tabDac').className = 'mode-tab' + (m === 0 ? ' active' : '') + (hasDac ? '' : ' disabled');
+  document.getElementById('tabPwm').className = 'mode-tab' + (m === 1 ? ' active' : '');
+  document.getElementById('dacCfg').style.display = (m === 0 && hasDac) ? 'block' : 'none';
+  document.getElementById('pwmCfg').style.display = (m === 1) ? 'block' : 'none';
+}
+
+function saveOutput(){
+  let p = 'mode=' + currentMode;
+  if(currentMode === 0){
+    p += '&dacpin=' + document.getElementById('dacPinSel').value;
+    p += '&pwmpin=14&freq=5000&res=10';
+  } else {
+    p += '&pwmpin=' + document.getElementById('pwmPinIn').value;
+    p += '&freq=' + document.getElementById('pwmFreqIn').value;
+    p += '&res=' + document.getElementById('pwmResIn').value;
+    p += '&dacpin=25';
+  }
+  if(!confirm('Lưu cấu hình Output?')) return;
+  fetch('/saveout?' + p).then(r => r.text()).then(t => {
+    if(t === 'OK'){ alert('Đã lưu Output!'); outputTouched = false; configLoaded = true; updateData(); }
+    else alert('Lỗi: ' + t);
+  });
+}
+
+function updateData(){
+  if(!bleConnected) return;
+  fetch('/data').then(r => r.json()).then(d => {
+    let s = document.getElementById('conn-status');
+    if(d.acquyMode){ s.innerText = 'Đang đo Ắc quy'; s.style.color = '#ff9800'; }
+    else if(d.connected){ s.innerText = 'Đã kết nối BMS'; s.style.color = 'green'; }
+    else{ s.innerText = 'Đang tìm BMS...'; s.style.color = 'red'; }
+
+    let sm = document.getElementById('scan-mode');
+    if(d.apActive){
+      if(d.apClients > 0){ sm.innerText = 'Đang phát: ' + d.apClients + ' client'; sm.style.color = '#28a745'; }
+      else if(d.apRemain === -3){ sm.innerText = 'Đang phát (luôn mở)'; sm.style.color = '#17a2b8'; }
+      else if(d.apRemain === -2){ sm.innerText = 'Đang phát (chưa có STA)'; sm.style.color = '#17a2b8'; }
+      else if(d.apRemain >= 0){ sm.innerText = 'Tự tắt sau: ' + d.apRemain + 's'; sm.style.color = d.apRemain < 15 ? '#dc3545' : '#ff9800'; }
+      else{ sm.innerText = 'Đang phát WiFi'; sm.style.color = '#17a2b8'; }
+    } else if(d.staConnected){
+      sm.innerText = 'AP tắt (STA: ' + (d.staIP || '--') + ')'; sm.style.color = '#6f42c1';
+    } else {
+      sm.innerText = 'Đã tắt'; sm.style.color = '#6c757d';
+    }
+
+    let lm = document.getElementById('led-mode');
+    if(d.ledMode === 0){ lm.innerText = 'Nháy'; lm.style.color = '#dc3545'; }
+    else if(d.ledMode === 1){ lm.innerText = 'Sáng'; lm.style.color = '#28a745'; }
+    else{ lm.innerText = 'Chớp'; lm.style.color = '#17a2b8'; }
+
+    document.getElementById('soc-text').innerText = d.soc + '%';
+    document.getElementById('soc-bar').style.width = d.soc + '%';
+
+    let b = document.getElementById('soc-badge'), w = document.getElementById('soc-warning');
+    if(d.manualSim){ b.innerText = 'GIẢ LẬP'; b.style.background = '#ff9800'; w.style.display = 'none'; }
+    else if(d.acquyMode){ b.innerText = 'ẮC QUY'; b.style.background = '#17a2b8'; w.style.display = 'none'; }
+    else if(!d.connected){
+      b.innerText = 'CŨ(' + d.savedSoc + '%)'; b.style.background = '#6c757d';
+      w.style.display = 'block'; w.innerText = 'Mất kết nối BMS - SOC cũ: ' + d.savedSoc + '%';
+    } else {
+      b.innerText = 'MỚI'; b.style.background = '#28a745'; w.style.display = 'none';
+    }
+
+    document.getElementById('chip-name').innerText = d.chipName;
+    hasDac = !!d.hasDac;
+
+    const fwVer = d.fwVersion || '3.4';
+    document.getElementById('fwVerHeader').innerText = 'v' + fwVer;
+    document.getElementById('fwVerOta').innerText = 'v' + fwVer;
+    if(d.fwDate) document.getElementById('fwDateView').innerText = d.fwDate;
+    if(d.fwNotes) document.getElementById('fwNotesView').innerText = d.fwNotes;
+
+    let outText = (d.outMode === 0) ? ('DAC GPIO' + d.dacPin) : ('PWM GPIO' + d.pwmPin);
+    document.getElementById('out-current').innerText = outText;
+    document.getElementById('vol-text').innerText = 'Output: ' + (d.voltage || 0).toFixed(3) + ' V';
+
+    let rb = document.getElementById('realBtn');
+    if(d.manualSim){ rb.innerText = 'Về Pin Thực'; rb.className = 'btn-danger'; }
+    else{
+      rb.innerText = (d.acquyMode || d.connected) ? 'Đang chạy Tự động' : 'Đang dùng SOC cũ';
+      rb.className = 'btn-success';
+      document.getElementById('simSlider').value = d.soc;
+      document.getElementById('slider-val').innerText = d.soc + '%';
+    }
+
+    window._staConnected = !!d.staConnected;
+    let st = document.getElementById('sta-status');
+    if(st){
+      if(d.staConnected){
+        st.innerText = 'Đã kết nối'; st.style.color = '#28a745';
+        document.getElementById('staInfoBox').style.display = 'block';
+        document.getElementById('sta-ip').innerText = d.staIP || '--';
+        document.getElementById('sta-rssi').innerText = d.staRSSI || '--';
+      } else if(d.staEnabled){
+        st.innerText = 'Đang kết nối...'; st.style.color = '#ff9800';
+        document.getElementById('staInfoBox').style.display = 'none';
+      } else {
+        st.innerText = 'Tắt'; st.style.color = '#6c757d';
+        document.getElementById('staInfoBox').style.display = 'none';
+      }
+    }
+    let credBox = document.getElementById('wifiCredBox');
+    if(credBox) credBox.style.display = d.staEnabled ? 'block' : 'none';
+    let en = document.getElementById('staEn');
+    if(en && !en.dataset.inited){
+      en.dataset.inited = '1';
+      document.getElementById('staSSID').value = d.staSSID || '';
+      document.getElementById('staPass').value = d.staPass || '';
+    }
+    if(en) en.checked = !!d.staEnabled;
+
+    let apSsidEl = document.getElementById('apSSIDInput');
+    if(apSsidEl && !apSsidEl.dataset.inited && d.apSSID){
+      apSsidEl.dataset.inited = '1';
+      apSsidEl.value = d.apSSID;
+      document.getElementById('apPassInput').value = d.apPass || '';
+    }
+    let apTEl = document.getElementById('apTimeoutInput');
+    if(apTEl && !apTEl.dataset.inited && d.apTimeout !== undefined){
+      apTEl.dataset.inited = '1';
+      apTEl.value = d.apTimeout;
+    }
+    let apCfgToggleEl = document.getElementById('apCfgToggle');
+    if(apCfgToggleEl && !apCfgToggleEl.dataset.inited && d.apCfgOpen !== undefined){
+      apCfgToggleEl.dataset.inited = '1';
+      apCfgToggleEl.checked = !!d.apCfgOpen;
+      document.getElementById('apCfgPanel').style.display = d.apCfgOpen ? 'block' : 'none';
+    }
+
+    let auToggle = document.getElementById('autoUpdateToggle');
+    if(auToggle && !auToggle.dataset.inited){
+      auToggle.dataset.inited = '1';
+      auToggle.checked = !!d.autoUpdate;
+      let knob = document.getElementById('autoUpdateKnob');
+      let slider = document.getElementById('autoUpdateSlider');
+      if(d.autoUpdate){ slider.style.background = '#28a745'; knob.style.transform = 'translateX(20px)'; }
+      else{ slider.style.background = '#ccc'; knob.style.transform = 'translateX(0)'; }
+    }
+    let auStatus = document.getElementById('autoUpdateStatus');
+    if(auStatus){
+      if(d.autoUpdate){
+        auStatus.innerText = d.autoUpdateDone ? '✅ Đã kiểm tra' : '⏳ Chờ WiFi';
+        auStatus.style.color = d.autoUpdateDone ? '#28a745' : '#ff9800';
+      } else {
+        auStatus.innerText = 'Tắt'; auStatus.style.color = '#6c757d';
+      }
+    }
+    let otaBox = document.getElementById('otaOnlineBox');
+    let noWifiHint = document.getElementById('otaNoWifiHint');
+    if(otaBox) otaBox.style.display = (d.staConnected && !d.autoUpdate) ? 'block' : 'none';
+    if(noWifiHint) noWifiHint.style.display = d.staConnected ? 'none' : 'block';
+
+    const bmsMac = (d.mac || '').trim();
+    document.getElementById('curMacText').innerText = bmsMac || 'Chưa có';
+    document.getElementById('curBmsName').innerText = d.bmsName ? ('📛 ' + d.bmsName) : '';
+    let autoHint = document.getElementById('autoConnectHint');
+    if(autoHint) autoHint.style.display = d.needAutoConnect ? 'block' : 'none';
+
+    let bmsNameEl = document.getElementById('bms-name-text');
+    if(bmsNameEl){
+      if(d.acquyMode){
+        bmsNameEl.innerText = 'Chế độ Ắc quy (' + (d.battType === 1 ? 'LFP' : 'Chì') + ' ' + d.battCells + (d.battType === 1 ? ' cell' : ' bình') + ')';
+        bmsNameEl.style.color = '#17a2b8';
+      } else if(d.connected && bmsMac){
+        bmsNameEl.innerText = (d.bmsName || 'BMS') + ' (' + bmsMac + ')';
+        bmsNameEl.style.color = '#28a745';
+      } else if(bmsMac){
+        bmsNameEl.innerText = (d.bmsName || bmsMac) + ' — chưa kết nối';
+        bmsNameEl.style.color = '#ff9800';
+      } else {
+        bmsNameEl.innerText = '--';
+        bmsNameEl.style.color = '#6c757d';
+      }
+    }
+
+    let typeBadge = document.getElementById('bms-type-badge');
+    if(typeBadge){
+      if(d.acquyMode || !d.connected || !bmsMac){
+        typeBadge.style.display = 'none';
+      } else {
+        if(d.bmsProto === 1){
+          let vTag = d.jkVer === 2 ? ' 32S' : (d.jkVer === 1 ? ' 24S' : '');
+          typeBadge.innerText = '⚡ JiKong' + vTag;
+          typeBadge.style.background = '#6f42c1'; typeBadge.style.color = '#fff'; typeBadge.style.display = 'inline-block';
+        } else if(d.bmsProto === 0){
+          typeBadge.innerText = '🔋 BMS MOVE';
+          typeBadge.style.background = '#007bff'; typeBadge.style.color = '#fff'; typeBadge.style.display = 'inline-block';
+        } else {
+          typeBadge.style.display = 'none';
         }
+      }
     }
-    return 0;
-}
-int calcSocFromV(float vBat){
-    if(vBat<=0.1f || batteryCells<1) return 0;
-    if(batteryType==BATT_TYPE_LEAD)
-        return interpolateOcv(leadOcvTable, leadOcvN, vBat/(float)batteryCells);
-    return interpolateOcv(lfpOcvTable, lfpOcvN, vBat/(float)batteryCells);
-}
-void getBatteryLimits(float &e, float &f, float &w){
-    if(batteryType==BATT_TYPE_LFP){ e=LFP_V_EMPTY*batteryCells; f=LFP_V_FULL*batteryCells; w=LFP_V_MAX*batteryCells; }
-    else { e=LEAD_V_EMPTY*batteryCells; f=LEAD_V_FULL*batteryCells; w=LEAD_V_MAX*batteryCells; }
-}
-static float applyTempComp(float vBat){
-    float tc=temperatureRead();
-    if(isnan(tc)||tc<-20||tc>80) return vBat;
-    if(batteryCells<1) return vBat;
-    float cpc = (batteryType==BATT_TYPE_LFP) ? (25.0f-tc)*0.0005f : (25.0f-tc)*0.003f;
-    return vBat + cpc*batteryCells;
+
+    if(d.acquyMode){
+      document.getElementById('aqRawV').innerText = (d.aqRawV || 0).toFixed(2) + ' V';
+      document.getElementById('aqSocRaw').innerText = (d.aqSocRaw || 0) + '%';
+      document.getElementById('aqStableV').innerText = (d.aqOcvEst || 0).toFixed(2) + ' V';
+      document.getElementById('aqSocStable').innerText = (d.aqSocStable || 0) + '%';
+      document.getElementById('aqAdcV').innerText = (d.aqAdcV || 0).toFixed(2) + 'V';
+      document.getElementById('dispGain').innerText = (d.aqGain || 1).toFixed(4);
+      document.getElementById('dispOffset').innerText = (d.aqOffset || 0).toFixed(3);
+      let stt = document.getElementById('aqStableStatus');
+      if(stt){
+        let sag = d.aqSag || 0;
+        if(d.aqIsStable){ stt.innerText = '✅ Ổn định'; stt.style.color = '#28a745'; }
+        else if(sag < 1.0){ stt.innerText = '⚠️ Tải nhẹ'; stt.style.color = '#ff9800'; }
+        else if(sag < 2.0){ stt.innerText = '⚠️ Tải vừa'; stt.style.color = '#ff9800'; }
+        else{ stt.innerText = '🔥 TẢI NẶNG'; stt.style.color = '#dc3545'; }
+      }
+      let ovp = document.getElementById('ovpAlert');
+      if(ovp) ovp.style.display = d.aqOvp ? 'block' : 'none';
+    }
+
+    if(!configLoaded){
+      loadConfigFromStatus(d);
+      configLoaded = true;
+    }
+    bleUpdateUI();
+  }).catch(e => {});
 }
 
-// ============ LED ============
-void ledSetup(){ ledcDetach(LED_PIN); pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH); }
-void ledSetMode(LedMode mode){
-    currentLedMode=mode;
-    ledcDetach(LED_PIN);
-    pinMode(LED_PIN, OUTPUT);
-    if(mode==LED_MODE_SOLID) digitalWrite(LED_PIN, HIGH);
-    else if(mode==LED_MODE_CONFIG_BLINK) digitalWrite(LED_PIN, LOW);
-    else { ledcAttach(LED_PIN, 5000, 8); ledcWrite(LED_PIN, 20); }
-}
-void ledUpdate(){
-    static unsigned long lastUp=0, lastTog=0;
-    static bool tg=false;
-    static int bv=20, bd=1;
-    if(millis()-lastUp<50) return;
-    lastUp=millis();
-    switch(currentLedMode){
-        case LED_MODE_CONFIG_BLINK:
-            if(millis()-lastTog>=300){ lastTog=millis(); tg=!tg; digitalWrite(LED_PIN, tg?HIGH:LOW); }
-            break;
-        case LED_MODE_SOLID: digitalWrite(LED_PIN, HIGH); break;
-        case LED_MODE_BREATHE:
-            bv+=bd*15;
-            if(bv>=255){ bv=255; bd=-1; }
-            if(bv<=10){ bv=10; bd=1; }
-            ledcWrite(LED_PIN, bv);
-            break;
-    }
+function loadConfigFromStatus(d){
+  if(!outputTouched){
+    currentMode = d.outMode;
+    selectMode(currentMode);
+    outputTouched = false;
+    if(d.dacPin !== undefined) document.getElementById('dacPinSel').value = d.dacPin;
+    if(d.pwmPin !== undefined) document.getElementById('pwmPinIn').value = d.pwmPin;
+    if(d.pwmFreq !== undefined) document.getElementById('pwmFreqIn').value = d.pwmFreq;
+    if(d.pwmRes !== undefined) document.getElementById('pwmResIn').value = d.pwmRes;
+  }
+  if(!configDirty){
+    document.getElementById('battType').value = d.battType || 0;
+    onBattTypeChange();
+    if((d.battType || 0) === 0) document.getElementById('battCells').value = d.battCells || 4;
+    else document.getElementById('battCellsInput').value = d.battCells || 16;
+    updateBattInfo();
+    document.getElementById('aqPin').value = d.aqPin || 32;
+    document.getElementById('aqR1').value = d.aqR1 || 100;
+    document.getElementById('aqR2').value = d.aqR2 || 4.7;
+    document.getElementById('aqGain').value = d.aqGain || 1;
+    document.getElementById('aqOffset').value = d.aqOffset || 0;
+    checkDivider();
+  }
+  applyModeUI(d.acquyMode || false);
 }
 
-// ============ OUTPUT ============
-float getMappedVoltage(uint8_t soc){
-    if(vmapCount==0) return -1.0f;
-    for(uint8_t i=0;i<vmapCount;i++)
-        if(soc>=vmap[i].s && soc<=vmap[i].e) return vmap[i].v;
-    if(soc<vmap[0].s) return vmap[0].v;
-    return vmap[vmapCount-1].v;
+setInterval(() => {
+  if(!bleConnected || document.hidden) return;
+  updateData();
+  let accChip = document.getElementById('accChip');
+  if(accChip && accChip.classList.contains('open')) updateChipInfo();
+  let accBms = document.getElementById('accBms');
+  if(accBms && accBms.classList.contains('open')) updateBmsInfo();
+}, 2000);
+
+function sendSim(v){
+  document.getElementById('slider-val').innerText = v + '%';
+  fetch('/sim?soc=' + v);
 }
-void applyOutput(uint8_t soc){
-    soc=constrain(soc,0,100);
-    int ov=0;
-    float mv=getMappedVoltage(soc);
-    if(outMode==OUT_MODE_DAC){
-#if HAS_DAC
-        if(mv>=0) ov=constrain((int)round((mv/3.3f)*255.0f),0,255);
+function setRealSoc(){ fetch('/sim?real=1'); }
+
+// ============ WIFI ============
+function toggleApCfgPanel(en){
+  let panel = document.getElementById('apCfgPanel');
+  if(panel) panel.style.display = en ? 'block' : 'none';
+  fetch('/saveapcfgpanel?en=' + (en ? '1' : '0'));
+}
+function toggleApPassVisibility(){
+  let inp = document.getElementById('apPassInput');
+  let btn = document.getElementById('btnToggleApPass');
+  if(inp.type === 'password'){ inp.type = 'text'; btn.innerText = '🙈'; }
+  else{ inp.type = 'password'; btn.innerText = '👁️'; }
+}
+function resetApCfg(){
+  document.getElementById('apSSIDInput').value = 'BMS_Config';
+  document.getElementById('apPassInput').value = '12345678';
+  let msg = document.getElementById('apCfgMsg');
+  msg.innerText = '↺ Đã điền mặc định — bấm 💾 Lưu AP để áp dụng';
+  msg.style.color = '#6c757d';
+}
+function saveApCfg(){
+  let ssid = document.getElementById('apSSIDInput').value.trim();
+  let pass = document.getElementById('apPassInput').value;
+  let msg = document.getElementById('apCfgMsg');
+  if(ssid.length === 0){ msg.innerText = '❌ Nhập SSID!'; msg.style.color = '#dc3545'; return; }
+  if(pass.length < 8 || pass.length > 63){ msg.innerText = '❌ Mật khẩu phải 8-63 ký tự!'; msg.style.color = '#dc3545'; return; }
+  if(!confirm('Lưu AP:\nSSID: ' + ssid + '\nMật khẩu: ' + pass + '\n\nWiFi AP sẽ khởi động lại!')) return;
+  msg.innerText = '⏳ Đang lưu...'; msg.style.color = '#007bff';
+  fetch('/saveapcfg?ssid=' + encodeURIComponent(ssid) + '&pass=' + encodeURIComponent(pass))
+  .then(r => r.text()).then(t => {
+    if(t === 'OK'){ msg.innerText = '✅ Đã lưu và khởi động lại AP!'; msg.style.color = '#28a745'; }
+    else{ msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function saveApTimeout(){
+  let sec = parseInt(document.getElementById('apTimeoutInput').value);
+  let msg = document.getElementById('apTimeoutMsg');
+  if(isNaN(sec) || (sec !== 0 && (sec < 10 || sec > 3600))){
+    msg.innerText = '❌ Phải là 0 (luôn bật) hoặc 10-3600 giây'; msg.style.color = '#dc3545'; return;
+  }
+  msg.innerText = '⏳ Đang lưu...'; msg.style.color = '#007bff';
+  fetch('/saveaptimeout?sec=' + sec).then(r => r.text()).then(t => {
+    if(t === 'OK'){
+      msg.innerText = (sec === 0) ? '✅ AP sẽ LUÔN BẬT' : ('✅ Đã lưu: ' + sec + ' giây');
+      msg.style.color = '#28a745';
+      updateData();
+    } else { msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function toggleSta(en){
+  let msg = document.getElementById('wifiMsg');
+  let credBox = document.getElementById('wifiCredBox');
+  if(credBox) credBox.style.display = en ? 'block' : 'none';
+  if(msg){ msg.innerText = '⏳ Đang lưu...'; msg.style.color = '#007bff'; }
+  fetch('/savesta?en=' + (en ? '1' : '0')).then(r => r.text()).then(t => {
+    if(t === 'OK'){
+      if(msg){ msg.innerText = en ? '✅ Đã bật WiFi STA' : '✅ Đã tắt WiFi STA'; msg.style.color = '#28a745'; }
+      updateData();
+    } else if(msg){ msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function saveWifi(){
+  let ssid = document.getElementById('staSSID').value.trim();
+  let pass = document.getElementById('staPass').value;
+  let msg = document.getElementById('wifiMsg');
+  if(ssid.length === 0){ msg.innerText = '❌ Nhập SSID!'; msg.style.color = '#dc3545'; return; }
+  msg.innerText = '⏳ Đang lưu & kết nối WiFi...'; msg.style.color = '#007bff';
+  fetch('/savewifi?ssid=' + encodeURIComponent(ssid) + '&pass=' + encodeURIComponent(pass) + '&en=1')
+  .then(r => r.text()).then(t => {
+    if(t === 'OK'){ msg.innerText = '✅ Đã lưu! ESP32 đang kết nối WiFi...'; msg.style.color = '#28a745'; setTimeout(updateData, 2000); }
+    else{ msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function scanWifi(){
+  let st = document.getElementById('wifiStatus'), li = document.getElementById('wifiList');
+  let closeBtn = document.getElementById('btnCloseWifiList');
+  if(li.classList.contains('open')){ closeWifiList(); return; }
+  st.innerText = '⏳ ESP32 đang quét WiFi...'; li.innerHTML = '';
+  li.classList.add('open');
+  if(closeBtn) closeBtn.style.display = 'block';
+  fetch('/wifiscan').then(r => r.text()).then(h => {
+    st.innerText = ''; li.innerHTML = h;
+  }).catch(e => { st.innerText = '❌ Lỗi: ' + e.message; });
+}
+function closeWifiList(){
+  let li = document.getElementById('wifiList');
+  let closeBtn = document.getElementById('btnCloseWifiList');
+  let st = document.getElementById('wifiStatus');
+  if(li){ li.classList.remove('open'); li.innerHTML = ''; }
+  if(closeBtn) closeBtn.style.display = 'none';
+  if(st) st.innerText = '';
+}
+function pickWifi(ssid){
+  document.getElementById('staSSID').value = ssid;
+  closeWifiList();
+  document.getElementById('staPass').focus();
+}
+function togglePassVisibility(){
+  let inp = document.getElementById('staPass');
+  let btn = document.getElementById('btnTogglePass');
+  if(inp.type === 'password'){ inp.type = 'text'; btn.innerText = '🙈'; }
+  else{ inp.type = 'password'; btn.innerText = '👁️'; }
+}
+
+// ============ OTA ============
+function toggleFwEdit(){
+  let form = document.getElementById('fwEditForm');
+  form.style.display = (form.style.display === 'block') ? 'none' : 'block';
+}
+function saveFwInfo(){
+  let d = document.getElementById('fwDateInput').value.trim();
+  let n = document.getElementById('fwNotesInput').value.trim();
+  let msg = document.getElementById('fwInfoMsg');
+  if(d.length === 0){ msg.innerText = '❌ Nhập ngày!'; msg.style.color = '#dc3545'; return; }
+  fetch('/savefwinfo?date=' + encodeURIComponent(d) + '&notes=' + encodeURIComponent(n))
+  .then(r => r.text()).then(t => {
+    if(t === 'OK'){
+      document.getElementById('fwDateView').innerText = d;
+      document.getElementById('fwNotesView').innerText = n || 'Không có mô tả';
+      msg.innerText = '✅ Đã lưu'; msg.style.color = '#28a745';
+      setTimeout(toggleFwEdit, 800);
+    } else { msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function toggleAutoUpdate(en){
+  let msg = document.getElementById('onlineMsg');
+  let knob = document.getElementById('autoUpdateKnob');
+  let slider = document.getElementById('autoUpdateSlider');
+  if(en){ slider.style.background = '#28a745'; knob.style.transform = 'translateX(20px)'; }
+  else{ slider.style.background = '#ccc'; knob.style.transform = 'translateX(0)'; }
+  fetch('/saveautoupdate?en=' + (en ? '1' : '0')).then(r => r.text()).then(t => {
+    if(t === 'OK'){
+      if(msg){ msg.innerText = en ? '✅ Đã bật Auto Update' : '✅ Đã tắt'; msg.style.color = '#28a745'; }
+      updateData();
+    }
+  });
+}
+function checkUpdate(){
+  let msg = document.getElementById('onlineMsg');
+  let box = document.getElementById('updateInfoBox');
+  msg.innerText = '🔍 ESP32 đang kiểm tra phiên bản qua WiFi...'; msg.style.color = '#007bff';
+  box.style.display = 'none';
+  fetch('/checkupdate').then(r => r.text()).then(t => {
+    if(t === 'NO_WIFI'){ msg.innerText = '❌ ESP32 chưa kết nối WiFi nhà'; msg.style.color = '#dc3545'; return; }
+    if(t === 'FETCH_FAIL'){ msg.innerText = '❌ Không tải được thông tin phiên bản'; msg.style.color = '#dc3545'; return; }
+    if(t.startsWith('LATEST:')){
+      let ver = t.split(':')[1] || '?';
+      msg.innerText = '✅ Đang dùng bản mới nhất (v' + ver + ')';
+      msg.style.color = '#28a745';
+      return;
+    }
+    if(t.startsWith('NEW:')){
+      let rest = t.substring(4); let c1 = rest.indexOf(':');
+      let ver = rest.substring(0, c1); rest = rest.substring(c1 + 1);
+      let c2 = rest.indexOf(':'); let date = rest.substring(0, c2);
+      msg.innerText = '🆕 Có bản mới v' + ver; msg.style.color = '#e65100';
+      document.getElementById('newVersionText').innerText = 'Phiên bản v' + ver;
+      document.getElementById('newDateText').innerText = date || '--';
+      box.style.display = 'block';
+      fetch('/getnotes').then(r => r.text()).then(n => {
+        document.getElementById('notesText').innerHTML = n || '(không có mô tả)';
+      });
+    }
+  }).catch(e => { msg.innerText = '❌ ' + e.message; msg.style.color = '#dc3545'; });
+}
+function otaOnline(){
+  if(!confirm('⚠️ ESP32 sẽ tải và nạp firmware trực tiếp qua WiFi.\nKHÔNG tắt nguồn trong lúc nạp!')) return;
+  let msg = document.getElementById('onlineMsg');
+  let bar = document.getElementById('onlineProgress');
+  msg.innerText = '⏳ Bắt đầu tải & nạp qua WiFi...'; msg.style.color = '#007bff';
+  bar.style.width = '5%';
+  fetch('/otaonline').then(r => r.text()).then(t => {
+    if(t !== 'OK'){
+      msg.innerText = '❌ Không thể bắt đầu OTA: ' + t;
+      msg.style.color = '#dc3545';
+    }
+  });
+}
+
+// ============ CHIP / BMS INFO ============
+function fmtKB(b){ return (b / 1024).toFixed(1); }
+function fmtUptime(s){
+  let d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  if(d > 0) return d+'d '+h+'h '+m+'m';
+  if(h > 0) return h+'h '+m+'m '+ss+'s';
+  if(m > 0) return m+'m '+ss+'s';
+  return ss+'s';
+}
+function updateChipInfo(){
+  fetch('/chipinfo').then(r => r.json()).then(d => {
+    if(!d || !d.heapTotal) return;
+    document.getElementById('chipModel').innerText = d.chipModel || '--';
+    document.getElementById('chipRev').innerText = 'v' + (d.chipRev || 0);
+    document.getElementById('chipCores').innerText = d.cores || 2;
+    document.getElementById('chipFreq').innerText = d.cpuFreq || 240;
+    document.getElementById('cpuFreq').innerText = d.cpuFreq || 240;
+    document.getElementById('coreCount').innerText = d.cores || 2;
+    let hp = ((d.heapUsed / d.heapTotal) * 100).toFixed(1);
+    document.getElementById('heapPct').innerText = hp;
+    document.getElementById('heapBar').style.width = hp + '%';
+    document.getElementById('heapTotal').innerText = fmtKB(d.heapTotal);
+    document.getElementById('heapUsed').innerText = fmtKB(d.heapUsed);
+    document.getElementById('heapFree').innerText = fmtKB(d.heapFree);
+    document.getElementById('heapMin').innerText = fmtKB(d.heapMin);
+    let appTotal = d.sketchSize + d.sketchFree;
+    let fPct = (d.sketchSize / appTotal * 100).toFixed(1);
+    document.getElementById('flashPct').innerText = fPct;
+    document.getElementById('flashBar').style.width = fPct + '%';
+    document.getElementById('flashTotal').innerText = fmtKB(appTotal) + ' (APP)';
+    document.getElementById('sketchSize').innerText = fmtKB(d.sketchSize);
+    document.getElementById('sketchFree').innerText = fmtKB(d.sketchFree);
+    document.getElementById('uptime').innerText = fmtUptime(d.uptime || 0);
+    let cl = d.cpuLoad || 0;
+    document.getElementById('cpuLoad').innerText = cl.toFixed(1);
+    document.getElementById('cpuBar').style.width = cl + '%';
+  }).catch(e => {});
+}
+
+function updateBmsInfo(){
+  fetch('/data').then(r => r.json()).then(d => {
+    let titleEl = document.getElementById('accBmsTitle');
+    let headEl = document.getElementById('accBmsHead');
+    if(titleEl && headEl){
+      if(d.acquyMode){ titleEl.innerText = '🔋 Chi Tiết Điện Áp / Ắc Quy'; headEl.style.color = '#ff9800'; }
+      else{ titleEl.innerText = '🔋 Chi Tiết Điện Áp / BMS'; headEl.style.color = '#17a2b8'; }
+    }
+    let vc = 0, maxV = -1, minV = 999, mi = 0, ni = 0;
+    for(let i = 0; i < 16; i++){
+      let v = (d.cells && d.cells[i]) || 0;
+      if(v > 0.5){ vc++; if(v > maxV){ maxV = v; mi = i; } if(v < minV){ minV = v; ni = i; } }
+    }
+    let hasAny = d.hasTotalV || d.hasCurrent || d.hasPower || d.hasCells;
+    document.getElementById('bms-empty').style.display = hasAny ? 'none' : 'block';
+    let boxTV = document.getElementById('bms-box-totalv');
+    let boxRaw = document.getElementById('aq-box-raw');
+    let boxStable = document.getElementById('aq-box-stable');
+    if(d.acquyMode){
+      if(boxTV) boxTV.style.display = 'none';
+      if(boxRaw){ boxRaw.style.display = 'block'; document.getElementById('aq-totalv-raw').innerText = (d.aqRawV || 0).toFixed(2) + ' V'; }
+      if(boxStable){ boxStable.style.display = 'block'; document.getElementById('aq-totalv-stable').innerText = (d.aqOcvEst || 0).toFixed(2) + ' V'; }
+    } else {
+      if(boxRaw) boxRaw.style.display = 'none';
+      if(boxStable) boxStable.style.display = 'none';
+      if(d.hasTotalV){ boxTV.style.display = 'block'; document.getElementById('bms-totalv').innerText = d.totalV.toFixed(2) + ' V'; }
+      else boxTV.style.display = 'none';
+    }
+    let irBox = document.getElementById('irBox');
+    if(irBox) irBox.style.display = d.acquyMode ? 'block' : 'none';
+    if(d.acquyMode){
+      document.getElementById('ir-raw').innerText = (d.aqRawV || 0).toFixed(2) + ' V';
+      document.getElementById('ir-ocv').innerText = (d.aqOcvEst || 0).toFixed(2) + ' V';
+      document.getElementById('ir-sag').innerText = (d.aqSag || 0).toFixed(2) + ' V';
+      let tempEl = document.getElementById('ir-temp');
+      if(tempEl && d.aqTempC !== undefined) tempEl.innerText = d.aqTempC.toFixed(1) + '°C';
+      let sag = d.aqSag || 0;
+      document.getElementById('sag-bar').style.width = Math.min(100, sag * 50) + '%';
+      let sagLabel = document.getElementById('sag-label');
+      if(sagLabel){
+        if(sag < 0.3) sagLabel.innerText = 'Không tải (' + sag.toFixed(2) + 'V)';
+        else if(sag < 1.0) sagLabel.innerText = 'Tải nhẹ (' + sag.toFixed(2) + 'V)';
+        else if(sag < 2.0) sagLabel.innerText = 'Tải vừa (' + sag.toFixed(2) + 'V)';
+        else sagLabel.innerText = '🔥 TẢI NẶNG (' + sag.toFixed(2) + 'V)';
+      }
+    }
+    let statusLine = document.getElementById('aq-status-line');
+    if(statusLine){
+      statusLine.style.display = d.acquyMode ? 'block' : 'none';
+      if(d.acquyMode){
+        document.getElementById('bms-aq-pin-label').innerText = 'GPIO' + (d.aqPin || 32);
+        document.getElementById('bms-aq-adc-v').innerText = (d.aqAdcV || 0).toFixed(3) + ' V';
+        document.getElementById('bms-aq-gain').innerText = (d.aqGain || 1).toFixed(4);
+        document.getElementById('bms-aq-offset').innerText = (d.aqOffset || 0).toFixed(3);
+        let stTxt = document.getElementById('bms-aq-status-text');
+        if(d.aqIsStable){ stTxt.innerText = '✅ Ổn định'; stTxt.style.color = '#28a745'; }
         else {
-            int mn=constrain((int)round((minVoltage/3.3f)*255.0f),0,255);
-            int mx=constrain((int)round((maxVoltage/3.3f)*255.0f),0,255);
-            ov=map(soc,0,100,mn,mx);
+          let sag = d.aqSag || 0;
+          if(sag < 0.3){ stTxt.innerText = '⏳ Đang chờ ổn định...'; stTxt.style.color = '#6c757d'; }
+          else if(sag < 1.0){ stTxt.innerText = '⚠️ Tải nhẹ (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#ff9800'; }
+          else if(sag < 2.0){ stTxt.innerText = '⚠️ Tải vừa (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#ff9800'; }
+          else { stTxt.innerText = '🔥 TẢI NẶNG (' + sag.toFixed(2) + 'V)'; stTxt.style.color = '#dc3545'; }
         }
-        dacWrite(dacPin, ov);
-#endif
+        let ovp = document.getElementById('bms-aq-ovp-badge');
+        if(ovp) ovp.style.display = d.aqOvp ? 'inline-block' : 'none';
+      }
+    }
+    let boxCC = document.getElementById('bms-box-cellcount');
+    if(!d.acquyMode && d.hasCells){ boxCC.style.display = 'block'; document.getElementById('bms-cellcount').innerText = vc; }
+    else boxCC.style.display = 'none';
+    let boxCur = document.getElementById('bms-box-current');
+    if(!d.acquyMode && d.hasCurrent){
+      boxCur.style.display = 'block';
+      let curEl = document.getElementById('bms-current');
+      let cur = d.current || 0;
+      curEl.innerText = cur.toFixed(2) + ' A';
+      curEl.style.color = cur < 0 ? '#28a745' : (cur > 0 ? '#dc3545' : '#ff9800');
+    } else boxCur.style.display = 'none';
+    let boxPow = document.getElementById('bms-box-power');
+    if(!d.acquyMode && d.hasPower){ boxPow.style.display = 'block'; document.getElementById('bms-power').innerText = (d.power || 0).toFixed(1) + ' W'; }
+    else boxPow.style.display = 'none';
+    let stats = document.getElementById('bms-cellstats');
+    let wrap = document.getElementById('bms-cells-wrap');
+    if(!d.acquyMode && d.hasCells && vc > 0){
+      stats.style.display = 'flex';
+      document.getElementById('bms-cellmax').innerText = 'C' + (mi + 1) + ' - ' + maxV.toFixed(3) + 'V';
+      document.getElementById('bms-cellmin').innerText = 'C' + (ni + 1) + ' - ' + minV.toFixed(3) + 'V';
+      let diff = maxV - minV;
+      let diffEl = document.getElementById('bms-celldiff');
+      diffEl.innerText = (diff * 1000).toFixed(0) + ' mV';
+      diffEl.style.color = diff > 0.05 ? '#dc3545' : (diff > 0.03 ? '#ff9800' : '#28a745');
+      wrap.style.display = 'block';
+      let html = '';
+      for(let i = 0; i < 16; i++){
+        let v = (d.cells && d.cells[i]) || 0;
+        if(v > 0.5){
+          let color = '#333', bg = '#f8f9fa';
+          if(i === mi){ color = '#fff'; bg = '#dc3545'; }
+          else if(i === ni){ color = '#fff'; bg = '#28a745'; }
+          html += '<div style="background:'+bg+';color:'+color+';padding:6px 4px;border-radius:5px;text-align:center;font-size:11px;border:1px solid #dee2e6">'
+               + '<div style="font-size:10px;font-weight:bold;opacity:.7">C'+(i+1)+'</div>'
+               + '<div style="font-size:13px;font-weight:bold;margin-top:2px">'+v.toFixed(3)+'</div></div>';
+        }
+      }
+      document.getElementById('bms-cells-grid').innerHTML = html;
     } else {
-        int md=(1<<pwmRes)-1;
-        if(mv>=0) ov=constrain((int)round((mv/3.3f)*md),0,md);
-        else {
-            int mn=constrain((int)round((minVoltage/3.3f)*md),0,md);
-            int mx=constrain((int)round((maxVoltage/3.3f)*md),0,md);
-            ov=map(soc,0,100,mn,mx);
-        }
-        ledcWrite(pwmPin, ov);
+      stats.style.display = 'none';
+      wrap.style.display = 'none';
     }
-    lockState(); currentSoc=soc; currentOut=ov; unlockState();
-}
-void setupPWM(){ ledcAttach(pwmPin, pwmFreq, pwmRes); }
-void disablePWM(){ ledcWrite(pwmPin,0); ledcDetach(pwmPin); }
-
-// ============ ADC ============
-float readAdcVolts(int pin){
-    uint32_t s=0;
-    for(int i=0;i<32;i++){ s+=analogReadMilliVolts(pin); delayMicroseconds(50); }
-    return (float)s/32.0f/1000.0f;
+  }).catch(e => {});
 }
 
-void processAcquyReading(){
-    if(!acquyMode) return;
-    if(millis()-lastAdcRead<500) return;
-    lastAdcRead=millis();
-
-    float vAdc=readAdcVolts(acquyAdcPin);
-    acquyAdcRawV=vAdc;
-    if(acquyR2<=0.01f) acquyR2=4.7f;
-    float ratio=(acquyR1+acquyR2)/acquyR2;
-    float vBatRaw=vAdc*ratio*acquyCalibGain+acquyCalibOffset;
-    acquyRawV=vBatRaw;
-
-    acquyMedianBuf[acquyMedianIdx]=vBatRaw;
-    acquyMedianIdx=(acquyMedianIdx+1)%ACQY_MEDIAN_SIZE;
-    if(acquyMedianIdx==0) acquyMedianFilled=true;
-    float srt[ACQY_MEDIAN_SIZE];
-    uint8_t nm=acquyMedianFilled?ACQY_MEDIAN_SIZE:(acquyMedianIdx==0?ACQY_MEDIAN_SIZE:acquyMedianIdx);
-    if(nm<1) nm=1;
-    for(uint8_t i=0;i<nm;i++) srt[i]=acquyMedianBuf[i];
-    for(uint8_t i=0;i<nm-1;i++)
-        for(uint8_t j=i+1;j<nm;j++)
-            if(srt[j]<srt[i]){ float t=srt[i]; srt[i]=srt[j]; srt[j]=t; }
-    float vMed=srt[nm/2];
-
-    if(!acquyEmaInit){ acquyEmaV=vMed; acquyEmaInit=true; }
-    else acquyEmaV=acquyEmaV*(1-ACQY_EMA_ALPHA)+vMed*ACQY_EMA_ALPHA;
-    acquyMeasuredV=acquyEmaV;
-
-    float ocvRef;
-    if(acquyLastStableV>0.1f && acquyLastStableUpdate>0 && (millis()-acquyLastStableUpdate)<30000UL)
-        ocvRef=acquyLastStableV; else ocvRef=vMed;
-    float sag=ocvRef-vMed; if(sag<0) sag=0;
-    acquySag=sag;
-
-    if(sag>SAG_THRESHOLD) compFactorLearned=constrain(compFactorLearned+COMP_LEARN_RATE,0.30f,0.95f);
-    else if(sag>0.05f&&sag<SAG_LIGHT) compFactorLearned=constrain(compFactorLearned-COMP_LEARN_RATE,0.30f,0.95f);
-
-    float bc=(batteryType==BATT_TYPE_LFP)?0.35f:0.65f;
-    float fc=(compFactorLearned+bc)*0.5f;
-    float vOcv=vMed+sag*fc;
-    if(vOcv>ocvRef+1.0f) vOcv=ocvRef+1.0f;
-    if(vOcv<vMed) vOcv=vMed;
-    acquyOcvEstimated=vOcv;
-
-    if(sag<SAG_LIGHT){
-        if(fabsf(vMed-acquyLastStableV)<ACQY_STABLE_DELTA){
-            if(acquyStableStart==0) acquyStableStart=millis();
-            if(millis()-acquyStableStart>=ACQY_STABLE_TIME_MS){
-                acquyStable=true;
-                acquyLastStableV=vMed;
-                acquyLastStableUpdate=millis();
-            }
-        } else { acquyStable=false; acquyStableStart=0; }
-    } else { acquyStable=false; acquyStableStart=0; }
-
-    acquyStableV=vOcv;
-    float vOcvComp=applyTempComp(vOcv);
-    tempCompLogged=vOcvComp;
-
-    int socNew=calcSocFromV(vOcvComp);
-    if(!socFilteredInit){ socFiltered=constrain(socNew,0,100); socFilteredInit=true; }
-    int diff=socNew-(int)socFiltered;
-    int db=(batteryType==BATT_TYPE_LFP)?((socFiltered>=20&&socFiltered<=90)?3:2):1;
-    if(abs(diff)>=db) socFiltered=constrain(socNew,0,100);
-
-    acquySocRaw=(uint8_t)constrain(socNew,0,100);
-    acquySocStable=socFiltered;
-    acquySoc=socFiltered;
-
-    bool needApply;
-    lockState();
-    realBmsSoc=acquySocStable;
-    bmsTotalVoltage=vOcvComp;
-    bmsHasTotalV=true;
-    bmsSocTimestamp=millis();
-    needApply = !manualSimMode && (abs((int)socFiltered-(int)currentSoc)>=ACQY_OUTPUT_HYST);
-    unlockState();
-
-    if(needApply){
-        if(millis()-acquyLastOutputChange>ACQY_OUTPUT_DELAY_MS){
-            applyOutput(socFiltered);
-            acquyLastOutputChange=millis();
-        }
+// ============ ACQUY / OCV / VMAP ============
+function onBattTypeChange(){
+  let t = parseInt(document.getElementById('battType').value);
+  document.getElementById('leadOptions').style.display = (t === 0) ? 'block' : 'none';
+  document.getElementById('lfpOptions').style.display = (t === 1) ? 'block' : 'none';
+  updateBattInfo();
+}
+function updateBattInfo(){
+  let t = parseInt(document.getElementById('battType').value);
+  let c = (t === 0) ? parseInt(document.getElementById('battCells').value) : (parseInt(document.getElementById('battCellsInput').value) || 1);
+  let vE = (t === 0 ? 11.31 : 2.80) * c;
+  let vF = (t === 0 ? 12.73 : 3.45) * c;
+  let vW = (t === 0 ? 14.40 : 3.65) * c;
+  let info = document.getElementById('battInfoText');
+  if(info) info.innerHTML = 'OCV cạn: <b>'+vE.toFixed(1)+'V</b> | OCV đầy: <b>'+vF.toFixed(1)+'V</b> | OVP: <b>'+vW.toFixed(1)+'V</b>';
+  checkDivider();
+}
+function checkDivider(){
+  let r1 = parseFloat(document.getElementById('aqR1').value);
+  let r2 = parseFloat(document.getElementById('aqR2').value);
+  let warnBox = document.getElementById('dividerWarn');
+  if(!warnBox || !r1 || !r2 || r1 <= 0 || r2 <= 0){ if(warnBox) warnBox.style.display = 'none'; return; }
+  let t = parseInt(document.getElementById('battType').value);
+  let c = (t === 0) ? (parseInt(document.getElementById('battCells').value)||1) : (parseInt(document.getElementById('battCellsInput').value)||1);
+  let vMax = (t === 0 ? 14.4 : 3.65) * c;
+  let vadc = vMax * r2 / (r1 + r2);
+  let ratio = (r1 + r2) / r2;
+  warnBox.style.display = 'block';
+  if(vadc > 3.30){
+    warnBox.style.background = '#f8d7da'; warnBox.style.border = '1px solid #f5c2c7'; warnBox.style.color = '#721c24';
+    warnBox.innerHTML = '❌ <b>NGUY HIỂM</b> — V_ADC max = <b>'+vadc.toFixed(3)+'V</b> vượt 3.3V!';
+  } else if(vadc > 3.10){
+    warnBox.style.background = '#fff3cd'; warnBox.style.border = '1px solid #ffeeba'; warnBox.style.color = '#856404';
+    warnBox.innerHTML = '⚠️ V_ADC max = '+vadc.toFixed(3)+'V (sát ngưỡng)';
+  } else {
+    warnBox.style.background = '#d4edda'; warnBox.style.border = '1px solid #c3e6cb'; warnBox.style.color = '#155724';
+    warnBox.innerHTML = '✅ V_ADC max = '+vadc.toFixed(3)+'V — chia '+ratio.toFixed(2)+'×';
+  }
+}
+function quickCalibrate(){
+  let vRef = parseFloat(document.getElementById('calRefV').value);
+  let msg = document.getElementById('calMsg');
+  if(!vRef || vRef < 1){ msg.innerText = '❌ Nhập V thực > 1V'; msg.style.color = '#dc3545'; return; }
+  fetch('/data').then(r => r.json()).then(d => {
+    let vMeas = d.aqRawV || 0;
+    if(vMeas < 1){ msg.innerText = '❌ Chưa đọc được ADC'; msg.style.color = '#dc3545'; return; }
+    let g = parseFloat(document.getElementById('aqGain').value) || 1;
+    let off = parseFloat(document.getElementById('aqOffset').value) || 0;
+    let gNew = (vRef - off) / ((vMeas - off) / g);
+    if(gNew < 0.5 || gNew > 2){ msg.innerText = '❌ Hệ số ngoài phạm vi'; msg.style.color = '#dc3545'; return; }
+    document.getElementById('aqGain').value = gNew.toFixed(4);
+    markDirty();
+    msg.innerText = '✅ Gain mới: ' + gNew.toFixed(4); msg.style.color = '#28a745';
+  });
+}
+function saveAcquyCfg(){
+  let t = parseInt(document.getElementById('battType').value);
+  let c = (t === 0) ? document.getElementById('battCells').value : document.getElementById('battCellsInput').value;
+  let p = 'pin=' + document.getElementById('aqPin').value
+        + '&r1=' + document.getElementById('aqR1').value
+        + '&r2=' + document.getElementById('aqR2').value
+        + '&gain=' + document.getElementById('aqGain').value
+        + '&offset=' + document.getElementById('aqOffset').value
+        + '&btype=' + t + '&cells=' + c;
+  fetch('/saveacquycfg?' + p).then(r => r.text()).then(res => {
+    if(res === 'OK'){ alert('Đã lưu cấu hình Ắc quy!'); configDirty = false; configLoaded = true; updateData(); }
+    else alert('Lỗi: ' + res);
+  });
+}
+function switchOcvTab(t){
+  ocvTab = t;
+  document.getElementById('ocvTabLead').className = (t === 'lead' ? 'active' : '');
+  document.getElementById('ocvTabLfp').className = (t === 'lfp' ? 'active' : '');
+  document.getElementById('ocvEditorLead').style.display = (t === 'lead') ? 'block' : 'none';
+  document.getElementById('ocvEditorLfp').style.display = (t === 'lfp') ? 'block' : 'none';
+  updateOcvPreview();
+}
+function addOcvRow(type, v, s){
+  let box = document.getElementById(type === 'lead' ? 'ocvListLead' : 'ocvListLfp');
+  if(box.children.length >= 32){ alert('Tối đa 32 điểm'); return; }
+  let row = document.createElement('div'); row.className = 'ocv-row';
+  row.innerHTML = "<input class='v' type='number' step='0.001' value='" + (v !== undefined ? v : '') + "'>"
+                + "<input class='s' type='number' min='0' max='100' value='" + (s !== undefined ? s : '') + "'>"
+                + "<button onclick='this.parentNode.remove();updateOcvPreview()'>✕</button>";
+  row.querySelectorAll('input').forEach(i => i.addEventListener('input', updateOcvPreview));
+  box.appendChild(row);
+  updateOcvPreview();
+}
+function getOcvRows(type){
+  let box = document.getElementById(type === 'lead' ? 'ocvListLead' : 'ocvListLfp');
+  let rows = [];
+  box.querySelectorAll('.ocv-row').forEach(r => {
+    let v = parseFloat(r.querySelector('.v').value);
+    let s = parseInt(r.querySelector('.s').value);
+    if(!isNaN(v) && !isNaN(s)) rows.push({v:v, soc:s});
+  });
+  return rows;
+}
+function interpSoc(table, v){
+  if(table.length < 2) return 0;
+  if(v >= table[0].v) return table[0].soc;
+  if(v <= table[table.length - 1].v) return table[table.length - 1].soc;
+  for(let i = 0; i < table.length - 1; i++){
+    if(v <= table[i].v && v >= table[i+1].v){
+      let t = (v - table[i+1].v) / (table[i].v - table[i+1].v);
+      return Math.round(table[i+1].soc + t * (table[i].soc - table[i+1].soc));
     }
+  }
+  return 0;
+}
+function updateOcvPreview(){
+  let rows = getOcvRows(ocvTab);
+  let el = document.getElementById('ocvPreview');
+  if(!el) return;
+  if(rows.length < 2){ el.innerText = 'Cần ít nhất 2 điểm'; return; }
+  rows.sort((a,b) => b.v - a.v);
+  let testV = ocvTab === 'lead' ? 12.2 : 3.25;
+  let soc = interpSoc(rows, testV);
+  el.innerHTML = '📊 Preview: ' + rows.length + ' điểm | V [' + rows[rows.length-1].v.toFixed(3) + ' → ' + rows[0].v.toFixed(3) + '] | Test ' + testV.toFixed(2) + 'V → <b>' + soc + '%</b>';
+}
+function loadOcvFromServer(){
+  fetch('/acquyjsoninfo').then(r => r.json()).then(d => {
+    ['lead','lfp'].forEach(t => {
+      let box = document.getElementById(t === 'lead' ? 'ocvListLead' : 'ocvListLfp');
+      box.innerHTML = '';
+      let arr = d[t] || [];
+      if(arr.length === 0){
+        if(t === 'lead'){ addOcvRow('lead', 12.73, 100); addOcvRow('lead', 11.31, 0); }
+        else{ addOcvRow('lfp', 3.45, 100); addOcvRow('lfp', 2.80, 0); }
+      } else arr.forEach(pt => addOcvRow(t, pt.v, pt.soc));
+    });
+    document.getElementById('ocvDateInfo').innerText = 'Lead ' + (d.lead||[]).length + ' | LFP ' + (d.lfp||[]).length;
+    updateOcvPreview();
+  });
+}
+function resetOcvEditor(){ loadOcvFromServer(); }
+function saveOcvManual(){
+  let rows = getOcvRows(ocvTab);
+  if(rows.length < 2){ alert('Cần >= 2 điểm'); return; }
+  rows.sort((a,b) => b.v - a.v);
+  let p = 'type=' + ocvTab + '&count=' + rows.length;
+  for(let i = 0; i < rows.length; i++) p += '&e'+i+'v='+rows[i].v+'&e'+i+'s='+rows[i].soc;
+  fetch('/saveocvmanual?' + p).then(r => r.text()).then(t => {
+    if(t.startsWith('OK|')) alert('✅ Đã lưu bảng OCV!');
+    else alert('❌ ' + t);
+  });
+}
+async function refreshAcquyJson(){
+  if(!navigator.onLine){ alert('❌ Điện thoại cần có Internet để tải acquy.json'); return; }
+  if(!confirm('Tải bảng OCV mới từ server và lưu vào ESP32?')) return;
+  try{
+    const r = await _realFetch(ACQUY_JSON_URL + '?t=' + Date.now());
+    const j = await r.json();
+    const lead = j.lead || [], lfp = j.lfp || [];
+    if(lead.length >= 2){
+      let cmd = 'SET_OCV:lead:' + lead.length;
+      lead.forEach(e => { cmd += ';' + e.v.toFixed(3) + ',' + e.soc; });
+      await bleSend(cmd); await bleWaitFor('ack', 5000).catch(()=>{});
+    }
+    if(lfp.length >= 2){
+      let cmd = 'SET_OCV:lfp:' + lfp.length;
+      lfp.forEach(e => { cmd += ';' + e.v.toFixed(3) + ',' + e.soc; });
+      await bleSend(cmd); await bleWaitFor('ack', 5000).catch(()=>{});
+    }
+    alert('✅ Đã cập nhật bảng OCV xuống ESP32!');
+    loadOcvFromServer();
+  }catch(e){ alert('❌ Lỗi: ' + e.message); }
 }
 
-// ============ JK PARSER ============
-uint8_t detectJkVersion(const char* m, size_t len){
-    if(len<3) return 1;
-    char n[32]={0};
-    size_t k=(len<31)?len:31;
-    for(size_t i=0;i<k;i++){ char c=m[i]; if(c=='_') c='-'; n[i]=c; }
-    if(strncmp(n,"JK-PB2",6)==0) return 2;
-    if(strncmp(n,"JK-BD",5)==0) return 2;
-    if(strncmp(n,"JK-HY",5)==0) return 2;
-    if(strncmp(n,"JK-B2",5)==0) return 1;
-    return 1;
+function switchSubTab(which){
+  document.getElementById('subTabPreset').classList.toggle('active', which === 'preset');
+  document.getElementById('subTabManual').classList.toggle('active', which !== 'preset');
+  document.getElementById('subPreset').style.display = (which === 'preset') ? 'block' : 'none';
+  document.getElementById('subManual').style.display = (which !== 'preset') ? 'block' : 'none';
+}
+function switchMacTab(which){
+  document.getElementById('subTabScan').classList.toggle('active', which === 'scan');
+  document.getElementById('subTabManualMac').classList.toggle('active', which !== 'scan');
+  document.getElementById('macSubScan').style.display = (which === 'scan') ? 'block' : 'none';
+  document.getElementById('macSubManual').style.display = (which !== 'scan') ? 'block' : 'none';
+}
+function addVmapRow(s, e, v){
+  let list = document.getElementById('vmapList');
+  let row = document.createElement('div'); row.className = 'vmap-row';
+  row.innerHTML = "<input class='pct' type='number' min='0' max='100' value='" + (s !== undefined ? s : 0) + "'>"
+                + "<span style='width:14px;text-align:center;color:#888'>→</span>"
+                + "<input class='pct' type='number' min='0' max='100' value='" + (e !== undefined ? e : 100) + "'>"
+                + "<input class='volt' type='number' min='0' max='3.3' step='0.01' value='" + (v !== undefined ? v.toFixed(2) : '0.00') + "'>"
+                + "<button onclick='this.parentNode.remove()'>✕</button>";
+  list.appendChild(row);
+}
+function loadVmapFromServer(){
+  fetch('/getvmap').then(r => r.json()).then(d => {
+    const list = document.getElementById('vmapList');
+    if(!list) return;
+    list.innerHTML = '';
+    const arr = d.vmap || [];
+    if(arr.length === 0){ addVmapRow(0, 50, 1.65); addVmapRow(51, 100, 3.30); }
+    else arr.forEach(e => addVmapRow(e.s, e.e, e.v));
+    vmapLoaded = true;
+  });
+}
+function saveVmap(){
+  let rows = document.querySelectorAll('#vmapList .vmap-row');
+  let p = 'enabled=1&count=' + rows.length;
+  for(let i = 0; i < rows.length; i++){
+    let inp = rows[i].querySelectorAll('input');
+    p += '&e'+i+'s='+(parseInt(inp[0].value)||0)+'&e'+i+'e='+(parseInt(inp[1].value)||0)+'&e'+i+'v='+(parseFloat(inp[2].value)||0);
+  }
+  fetch('/savevmap?' + p).then(r => r.text()).then(t => {
+    if(t === 'OK'){ alert('Đã lưu bảng điện áp!'); activePresetIdx = -1; updateData(); }
+    else alert('Lỗi: ' + t);
+  });
+}
+async function fetchPresets(){
+  const msg = document.getElementById('presetListMsg');
+  const box = document.getElementById('presetList');
+  if(!navigator.onLine){ if(msg){ msg.style.display='block'; msg.innerText='❌ Không có Internet'; } return; }
+  if(box) box.innerHTML = '<div style="text-align:center;padding:15px;color:#6c757d">⏳ Đang tải...</div>';
+  try{
+    const r = await _realFetch(URL_DATA + '?t=' + Date.now());
+    const j = await r.json();
+    cachedPresets = j.presets || [];
+    box.innerHTML = '';
+    cachedPresets.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn';
+      btn.innerHTML = '<div class="p-title">'+(p.name||('Preset '+(i+1)))+'</div>'
+                    + (p.subtitle ? '<div class="p-sub">'+p.subtitle+'</div>' : '')
+                    + (p.ranges ? '<div class="p-ranges">'+p.ranges+'</div>' : '');
+      btn.onclick = () => applyPreset(i);
+      box.appendChild(btn);
+    });
+    if(j.date){
+      document.getElementById('presetUpdatedBox').style.display = 'block';
+      document.getElementById('presetUpdatedText').innerText = j.date;
+    }
+  }catch(e){ if(box) box.innerHTML = '<div style="color:#dc3545;text-align:center">❌ Lỗi tải preset</div>'; }
+}
+async function applyPreset(id){
+  if(!cachedPresets || !cachedPresets[id]) return;
+  const p = cachedPresets[id];
+  if(!confirm('Áp dụng bảng điện áp: ' + p.name + ' ?')) return;
+  let cmd = 'SET_VMAP:' + p.entries.length;
+  p.entries.forEach(e => { cmd += ';' + e.s + ',' + e.e + ',' + e.v.toFixed(3); });
+  await bleSend(cmd);
+  const ack = await bleWaitFor('ack', 5000).catch(() => null);
+  if(ack){
+    activePresetIdx = id;
+    document.querySelectorAll('.preset-btn').forEach((b, i) => b.classList.toggle('active', i === id));
+    const list = document.getElementById('vmapList');
+    if(list){ list.innerHTML = ''; p.entries.forEach(e => addVmapRow(e.s, e.e, e.v)); }
+    alert('✅ Đã áp dụng: ' + p.name);
+    updateData();
+  } else alert('❌ Timeout');
 }
 
-bool parseJkFrame(uint8_t* data, size_t len){
-    if(len>=4 && data[0]==0x55 && data[1]==0xAA && data[2]==0xEB && data[3]==0x90){
-        jkFrameLen=0; jkFrameStartMs=millis();
+function scan(){
+  let s = document.getElementById('status'), r = document.getElementById('results');
+  if(!bleConnected){ s.innerText = '❌ Chưa kết nối BLE tới ESP32'; return; }
+  s.innerText = '⏳ ESP32 đang quét BMS...'; r.innerHTML = '';
+  fetch('/scan').then(x => x.text()).then(h => {
+    s.innerText = '';
+    r.innerHTML = h.length < 10 ? '<li>Không có kết quả</li>' : h;
+  });
+}
+function save(mac, name){
+  if(!mac || mac.length !== 17) return;
+  mac = mac.trim().toUpperCase();
+  if(!confirm('Kết nối BMS:\n' + mac + ' ?')) return;
+  fetch('/save?mac=' + encodeURIComponent(mac) + '&name=' + encodeURIComponent(name || ''))
+  .then(r => r.text()).then(t => {
+    if(t === 'OK'){ alert('Đã lưu ' + mac); updateData(); }
+    else alert('Lỗi: ' + t);
+  });
+}
+function saveManualMac(){
+  let el = document.getElementById('manualMac');
+  let msg = document.getElementById('manualMacMsg');
+  let mac = el.value.trim().toUpperCase();
+  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)){ msg.innerText = '❌ MAC không hợp lệ'; msg.style.color = '#dc3545'; return; }
+  msg.innerText = '⏳ Đang lưu...'; msg.style.color = '#007bff';
+  fetch('/save?mac=' + mac).then(r => r.text()).then(t => {
+    if(t === 'OK'){ msg.innerText = '✅ Đã lưu ' + mac; msg.style.color = '#28a745'; updateData(); }
+    else{ msg.innerText = '❌ ' + t; msg.style.color = '#dc3545'; }
+  });
+}
+function clearMac(){
+  if(!confirm('🗑️ Xóa MAC hiện tại?')) return;
+  fetch('/clearmac').then(r => r.text()).then(t => {
+    if(t === 'OK'){
+      document.getElementById('curMacText').innerText = 'Chưa có';
+      document.getElementById('curBmsName').innerText = '';
+      updateData();
     }
-    if(jkFrameLen==0 && !(len>=4 && data[0]==0x55 && data[1]==0xAA)) return false;
-    if(jkFrameLen>0 && millis()-jkFrameStartMs>1500){ jkFrameLen=0; return false; }
-    size_t cp=len;
-    if(jkFrameLen+cp>JK_FRAME_SIZE) cp=JK_FRAME_SIZE-jkFrameLen;
-    memcpy(jkFrameBuf+jkFrameLen, data, cp);
-    jkFrameLen+=cp;
-    if(jkFrameLen<260) return false;
-    uint8_t* f=jkFrameBuf;
-    uint8_t ft=f[4];
-    if(ft==0x03){
-        if(!jkVersionProbed){
-            char m[32]={0};
-            memcpy(m, f+6, 16); m[16]=0;
-            jkVersion=detectJkVersion(m,16);
-            jkVersionProbed=true;
-            if(nvsBegin("bms_config", false)){
-                preferences.putUChar("jk_ver", jkVersion);
-                nvsEnd();
-            }
-        }
-        if(jkFrameLen<300){ jkFrameLen=0; return false; }
-    }
-    if(ft==0x02||ft==0x01){
-        size_t tvOff=(jkVersion==2)?150:118;
-        size_t cOff=(jkVersion==2)?158:126;
-        size_t sOff=(jkVersion==2)?173:141;
-        if(jkFrameLen<sOff+1){ jkFrameLen=0; return false; }
-        uint8_t soc=f[sOff];
-        float cells[16]={0}; uint8_t cc=0; float csum=0;
-        for(int i=0;i<16;i++){
-            uint16_t rv=(uint16_t)(f[6+i*2]|(f[7+i*2]<<8));
-            float v=rv*0.001f;
-            if(v>1.5f&&v<4.2f){ cells[i]=v; cc++; csum+=v; }
-        }
-        uint32_t rtv=(uint32_t)f[tvOff]|((uint32_t)f[tvOff+1]<<8)|((uint32_t)f[tvOff+2]<<16)|((uint32_t)f[tvOff+3]<<24);
-        float tv=rtv*0.001f;
-        int32_t rc=(int32_t)f[cOff]|((int32_t)f[cOff+1]<<8)|((int32_t)f[cOff+2]<<16)|((int32_t)f[cOff+3]<<24);
-        float cur=rc*0.001f;
-        if(soc>100 || tv<1.0f || tv>(4.5f*32.0f) || fabsf(cur)>500.0f){ jkFrameLen=0; return false; }
-        if(cc>=4 && fabsf(csum-tv)>tv*0.15f){ jkFrameLen=0; return false; }
-
-        lockState();
-        realBmsSoc=soc;
-        bmsTotalVoltage=tv; bmsHasTotalV=true;
-        bmsHasCurrent=true; bmsCurrent=cur;
-        bmsHasPower=true; bmsPower=tv*cur;
-        bmsCellCount=cc; bmsHasCells=(cc>0);
-        for(int i=0;i<16;i++) bmsCells[i]=cells[i];
-        bool ms=manualSimMode;
-        unlockState();
-
-        bmsSocTimestamp=millis();
-        if(soc!=savedSoc){
-            savedSoc=soc;
-            if(nvsBegin("bms_config", false)){
-                preferences.putUInt("last_soc", savedSoc);
-                nvsEnd();
-            }
-        }
-        if(!ms){
-            pendingOutputSoc = soc;
-            pendingOutputUpdate = true;
-        }
-        jkFrameLen=0;
-        return true;
-    }
-    if(jkFrameLen>=JK_FRAME_SIZE) jkFrameLen=0;
-    return false;
+  });
 }
 
-// ============ BMS CLIENT ============
-class MyClientCB : public NimBLEClientCallbacks {
-    void onConnect(NimBLEClient* c) override {
-        connected=true; bmsProtocol=255; probeSent=false; probeStartMs=0;
-        jkFrameLen=0;
-        Serial.println("[BMS] ✅ Connected");
-        if(!acquyMode) ledSetMode(LED_MODE_BREATHE);
-    }
-    void onDisconnect(NimBLEClient* c, int reason) override {
-        connected=false; pChar=nullptr; pWriteChar=nullptr;
-        bmsSocTimestamp=0; probeSent=false; probeStartMs=0; jkFrameLen=0;
-        Serial.printf("[BMS] ⚠️ Disconnect (reason=%d)\n", reason);
-        if(!acquyMode) ledSetMode(LED_MODE_SOLID);
-    }
-};
-
-class MyScanCB : public NimBLEScanCallbacks {
-    void onResult(const NimBLEAdvertisedDevice* adv) override {
-        if(!bleClientInit || acquyMode) return;
-        String fm=String(adv->getAddress().toString().c_str());
-        fm.toUpperCase();
-        String tgt;
-        lockState(); tgt=targetMac; unlockState();
-        if(tgt!="" && fm==tgt){
-            Serial.printf("[SCAN] Found target: %s\n", fm.c_str());
-            if(adv->haveName()){ lockState(); pendingScanName=String(adv->getName().c_str()); unlockState(); }
-            doConnect=true;
-        }
-    }
-};
-static MyScanCB scanCB;
-
-void bleClientStart(){
-    if(bleClientInit) return;
-    NimBLEScan* ps=NimBLEDevice::getScan();
-    ps->setScanCallbacks(&scanCB, false);
-    ps->setActiveScan(true);
-    ps->setInterval(100);
-    ps->setWindow(20);
-    ps->setMaxResults(20);
-    bleClientInit=true;
-    Serial.println("[BLE] Client ready");
-}
-
-void bleClientStop(){
-    if(!bleClientInit) return;
-    doScan=false; doConnect=false; doDisconnect=false;
-    unsigned long t0=millis();
-    while(isScanning && millis()-t0<3000) delay(50);
-    if(pClient && pClient->isConnected()){ pClient->disconnect(); delay(200); }
-    connected=false; pChar=nullptr; pWriteChar=nullptr; pClient=nullptr;
-    bleClientInit=false;
-}
-
-void notifyCb(NimBLERemoteCharacteristic* c, uint8_t* data, size_t len, bool isNotify){
-    if(acquyMode) return;
-    if(bmsProtocol==255 && len>=4){
-        if(data[0]==0x55 && data[1]==0xAA && data[2]==0xEB && data[3]==0x90){
-            bmsProtocol=1; probeSent=true;
-            Serial.println("[BMS] Protocol: JiKong");
-            if(nvsBegin("bms_config", false)){
-                preferences.putUChar("bms_proto", 1);
-                nvsEnd();
-            }
-        } else if(data[0]==0xA5 && data[1]==0x7B){
-            bmsProtocol=0; probeSent=true;
-            Serial.println("[BMS] Protocol: MOVE");
-            if(nvsBegin("bms_config", false)){
-                preferences.putUChar("bms_proto", 0);
-                nvsEnd();
-            }
-        }
-    }
-    NimBLERemoteCharacteristic* tw = pWriteChar?pWriteChar:pChar;
-    if(bmsProtocol==255 && !probeSent && probeStartMs>0 && millis()-probeStartMs>2000){
-        if(tw){ tw->writeValue(jkDeviceInfoCmd, sizeof(jkDeviceInfoCmd), false); probeSent=true; probeStartMs=millis(); }
-    }
-    if(bmsProtocol==255 && probeSent && probeStartMs>0 && millis()-probeStartMs>4000){
-        bmsProtocol=254;
-    }
-    if(bmsProtocol==1){ parseJkFrame(data, len); return; }
-    if(len>=123 && data[0]==0xA5 && data[1]==0x7B){
-        uint8_t soc=data[11];
-        float tv=((data[20]<<8)|data[19])/100.0f;
-        bool hc=(len>=25);
-        float cur=0;
-        if(hc){ int16_t r=(int16_t)((data[22]<<8)|data[21]); cur=r/100.0f; }
-        float pw=tv*cur;
-        float cells[16]={0}; uint8_t cc=0;
-        if(len>=82){ for(int i=0;i<16;i++){ cells[i]=((data[51+i*2]<<8)|data[50+i*2])/1000.0f; if(cells[i]>0.5f) cc++; } }
-        if(soc>100 || tv<1.0f || tv>144.0f) return;
-        lockState();
-        realBmsSoc=soc; bmsTotalVoltage=tv; bmsHasTotalV=(tv>1.0f);
-        bmsHasCurrent=hc; bmsCurrent=cur;
-        bmsHasPower=hc; bmsPower=pw;
-        bmsCellCount=cc; bmsHasCells=(cc>0);
-        if(len>=82) for(int i=0;i<16;i++) bmsCells[i]=cells[i];
-        bool ms=manualSimMode;
-        unlockState();
-        bmsSocTimestamp=millis();
-        if(soc!=savedSoc){
-            savedSoc=soc;
-            if(nvsBegin("bms_config", false)){
-                preferences.putUInt("last_soc", savedSoc);
-                nvsEnd();
-            }
-        }
-        if(!ms){
-            pendingOutputSoc = soc;
-            pendingOutputUpdate = true;
-        }
-    }
-}
-
-bool connectBms(){
-    if(!bleClientInit || acquyMode){ 
-        Serial.println("[BMS] Not ready"); 
-        return false; 
-    }
-    String tgt;
-    lockState(); tgt=targetMac; unlockState();
-    if(tgt==""){ Serial.println("[BMS] No target MAC"); return false; }
-    
-    bmsProtocol=255; probeSent=false; probeStartMs=0; jkFrameLen=0;
-    
-    if(pClient==nullptr){
-        pClient=NimBLEDevice::createClient();
-        pClient->setClientCallbacks(new MyClientCB(), false);
-        pClient->setConnectTimeout(5000);
-        Serial.println("[BMS] Client created");
-    }
-    if(pClient->isConnected()){ pClient->disconnect(); delay(200); }
-    
-    Serial.printf("[BMS] Connecting to %s (heap=%d)...\n", tgt.c_str(), ESP.getFreeHeap());
-    
-    NimBLEAddress a1(std::string(tgt.c_str()), BLE_ADDR_RANDOM);
-    bool ok=pClient->connect(a1, false);
-    if(!ok){
-        Serial.println("[BMS] Retry with PUBLIC addr...");
-        NimBLEAddress a2(std::string(tgt.c_str()), BLE_ADDR_PUBLIC);
-        ok=pClient->connect(a2, false);
-    }
-    if(!ok || !pClient->isConnected()){
-        Serial.printf("[BMS] ❌ Connect failed (ok=%d, conn=%d)\n", ok, pClient->isConnected());
-        return false;
-    }
-    
-    Serial.println("[BMS] ✅ GATT connected, getting service...");
-    NimBLERemoteService* svc=pClient->getService(serviceUUID);
-    if(!svc) svc=pClient->getService("FFE0");
-    if(!svc){ Serial.println("[BMS] ❌ No FFE0 service"); pClient->disconnect(); return false; }
-    Serial.println("[BMS] ✅ Service found");
-    
-    pChar=svc->getCharacteristic(charUUID);
-    if(!pChar) pChar=svc->getCharacteristic("FFE1");
-    if(!pChar){ Serial.println("[BMS] ❌ No FFE1 char"); pClient->disconnect(); return false; }
-    Serial.println("[BMS] ✅ Char found");
-    
-    pWriteChar=svc->getCharacteristic("FFE2");
-    if(!pWriteChar || !pWriteChar->canWrite()) pWriteChar=pChar;
-    
-    if(pChar->canNotify()){
-        pChar->subscribe(true, notifyCb);
-        Serial.println("[BMS] ✅ Subscribed to notify");
-    }
-    delay(200);
-    
-    NimBLERemoteCharacteristic* tw=pWriteChar?pWriteChar:pChar;
-    tw->writeValue(loginCmd, sizeof(loginCmd), false);
-    delay(80);
-    tw->writeValue(requestSocCmd, sizeof(requestSocCmd), false);
-    delay(80);
-    tw->writeValue(jkDeviceInfoCmd, sizeof(jkDeviceInfoCmd), false);
-    probeStartMs=millis();
-    
-    lockState();
-    if(pendingScanName.length()>0){ bmsDeviceName=pendingScanName; pendingScanName=""; }
-    else if(bmsDeviceName.length()==0) bmsDeviceName="BMS "+tgt;
-    String nameToSave=bmsDeviceName;
-    unlockState();
-    
-    if(nvsBegin("bms_config", false)){
-        preferences.putString("bms_name", nameToSave);
-        nvsEnd();
-    }
-    
-    Serial.println("[BMS] ✅ Connected and ready");
-    return true;
-}
-
-void connectTask(void* param){
-    Serial.println("[CONN] ⏳ Connect task started");
-    delay(100);
-    bool ok = connectBms();
-    Serial.printf("[CONN] connectBms returned %d\n", ok);
-    lockState();
-    connectTaskHandle = nullptr;
-    unlockState();
-    vTaskDelete(nullptr);
-}
-
-// ============ BLE TASK ============
-void bleTask(void* param){
-    unsigned long lastQueryTime=0;
-    CmdPacket pkt;
-    
-    Serial.println("[TASK] BLE task started");
-    
-    for(;;){
-        if(pendingOutputUpdate){
-            pendingOutputUpdate=false;
-            applyOutput(pendingOutputSoc);
-        }
-        
-        if(doDisconnect){
-            doDisconnect=false;
-            Serial.println("[TASK] >>> DISCONNECT");
-            if(isScanning){ NimBLEScan* ps=NimBLEDevice::getScan(); ps->stop(); isScanning=false; delay(50); }
-            if(pClient && pClient->isConnected()){ pClient->disconnect(); delay(200); }
-            connected=false; pChar=nullptr; pWriteChar=nullptr; bmsSocTimestamp=0;
-            Serial.println("[TASK] <<< DISCONNECT done");
-        }
-        
-        if(doConnect){
-            doConnect=false;
-            Serial.println("[TASK] >>> CONNECT");
-            if(isScanning){ NimBLEScan* ps=NimBLEDevice::getScan(); ps->stop(); isScanning=false; delay(50); }
-            NimBLEScan* ps=NimBLEDevice::getScan();
-            ps->clearResults();
-            
-            lockState();
-            bool canCreate = (connectTaskHandle == nullptr);
-            unlockState();
-            
-            if(canCreate){
-                BaseType_t ret = xTaskCreatePinnedToCore(
-                    connectTask, "BMS_Conn", 8192, nullptr, 1, &connectTaskHandle, 1);
-                if(ret != pdPASS){
-                    Serial.println("[TASK] ❌ Failed to create connect task");
-                    lockState(); connectTaskHandle = nullptr; unlockState();
-                } else {
-                    Serial.println("[TASK] ✅ Connect task created");
-                }
-            } else {
-                Serial.println("[TASK] Connect task already running");
-            }
-            Serial.println("[TASK] <<< CONNECT queued");
-        }
-        
-        if(cmdQueue && xQueueReceive(cmdQueue, &pkt, 0) == pdTRUE){
-            Serial.printf("[QUEUE] Processing: %s\n", pkt.cmd);
-            handleBleCommand(String(pkt.cmd));
-            Serial.println("[QUEUE] Done");
-        }
-        
-        if(acquyMode){
-            if(isScanning){ NimBLEScan* s=NimBLEDevice::getScan(); if(s) s->stop(); isScanning=false; }
-            if(pClient && pClient->isConnected()) pClient->disconnect();
-            connected=false; pChar=nullptr; pWriteChar=nullptr;
-            vTaskDelay(pdMS_TO_TICKS(500));
-            continue;
-        }
-        if(!bleClientInit){ vTaskDelay(pdMS_TO_TICKS(200)); continue; }
-
-        // ===== Manual scan (từ web) =====
-        if(doScan && !scanBusy){
-            doScan=false;
-            scanBusy=true;
-            Serial.println("[TASK] Manual scan start");
-            NimBLEScan* ps=NimBLEDevice::getScan();
-            if(isScanning){ ps->stop(); isScanning=false; delay(100); }
-            ps->clearResults();
-            ps->setActiveScan(true);
-            isScanning=true;
-            NimBLEScanResults res=ps->getResults(4000, false);
-            isScanning=false;
-            String json="[";
-            int cnt=0;
-            for(int i=0;i<res.getCount();i++){
-                const NimBLEAdvertisedDevice* d=res.getDevice(i);
-                if(!d) continue;
-                bool bms=false;
-                if(d->isAdvertisingService(serviceUUID)) bms=true;
-                if(d->haveName()){
-                    String nm=String(d->getName().c_str());
-                    nm.toUpperCase();
-                    if(nm.startsWith("JK_")||nm.startsWith("JK-")||nm.startsWith("JK02")||nm.indexOf("BMS")>=0) bms=true;
-                }
-                if(!bms) continue;
-                String mac=String(d->getAddress().toString().c_str());
-                mac.toUpperCase();
-                String name=d->haveName()?String(d->getName().c_str()):"BMS";
-                name.replace("\"","\\\"");
-                if(cnt>0) json+=",";
-                json+="{\"mac\":\""+mac+"\",\"name\":\""+name+"\"}";
-                cnt++;
-            }
-            json+="]";
-            ps->clearResults();
-            String out="{\"t\":\"scan\",\"list\":"+json+"}";
-            lockState();
-            scanResultJson=json;
-            scanReady=true;
-            unlockState();
-            Serial.printf("[TASK] Manual scan done: %d BMS\n", cnt);
-            bleSendJson(out);
-            scanBusy=false;
-            continue;
-        }
-
-        // ===== AUTO SCAN — quan trọng =====
-        lockState();
-        bool taskRunning = (connectTaskHandle != nullptr);
-        String tgt = targetMac;
-        unlockState();
-        
-        if(!scanBusy && !acquyMode && !connected && !doConnect && !doDisconnect && !doScan && !isScanning && !taskRunning){
-            unsigned long now = millis();
-            if(forceScanNow || (now - lastAutoScanAttempt > 3000)){
-                lastAutoScanAttempt = now;
-                forceScanNow = false;
-                
-                Serial.printf("[AUTO] Scanning... (target=%s)\n", tgt.length()>0 ? tgt.c_str() : "ANY");
-                
-                NimBLEScan* ps=NimBLEDevice::getScan();
-                if(isScanning){ ps->stop(); isScanning=false; delay(50); }
-                ps->clearResults();
-                ps->setActiveScan(true);
-                isScanning=true;
-                NimBLEScanResults res=ps->getResults(4000, false);
-                isScanning=false;
-                
-                // Thu thập BMS tìm thấy
-                String foundMac="";
-                String foundName="";
-                int bmsCount=0;
-                String firstMac="";
-                String firstName="";
-                
-                for(int i=0;i<res.getCount();i++){
-                    const NimBLEAdvertisedDevice* d=res.getDevice(i);
-                    if(!d) continue;
-                    bool bms=false;
-                    if(d->isAdvertisingService(serviceUUID)) bms=true;
-                    if(d->haveName()){
-                        String nm=String(d->getName().c_str());
-                        nm.toUpperCase();
-                        if(nm.startsWith("JK_")||nm.startsWith("JK-")||nm.startsWith("JK02")||nm.indexOf("BMS")>=0) bms=true;
-                    }
-                    if(!bms) continue;
-                    
-                    String mac=String(d->getAddress().toString().c_str());
-                    mac.toUpperCase();
-                    String name=d->haveName()?String(d->getName().c_str()):"BMS";
-                    
-                    Serial.printf("[AUTO] Found BMS: %s (%s)\n", mac.c_str(), name.c_str());
-                    
-                    if(bmsCount == 0){
-                        firstMac = mac;
-                        firstName = name;
-                    }
-                    bmsCount++;
-                    
-                    if(tgt.length() > 0 && mac == tgt){
-                        foundMac = mac;
-                        foundName = name;
-                        break;
-                    }
-                }
-                
-                ps->clearResults();
-                
-                if(tgt.length() > 0){
-                    // Có MAC target
-                    if(foundMac.length() > 0){
-                        Serial.printf("[AUTO] ✅ Found target %s, connecting...\n", foundMac.c_str());
-                        lockState();
-                        pendingScanName = foundName;
-                        unlockState();
-                        doConnect = true;
-                    } else {
-                        Serial.printf("[AUTO] Target %s not found (%d BMS seen)\n", tgt.c_str(), bmsCount);
-                    }
-                } else {
-                    // Chưa có MAC — nếu chỉ có 1 BMS thì kết nối + lưu MAC
-                    if(bmsCount == 1){
-                        Serial.printf("[AUTO] ✅ Only 1 BMS: %s (%s), connecting + saving...\n", firstMac.c_str(), firstName.c_str());
-                        
-                        lockState();
-                        targetMac = firstMac;
-                        bmsDeviceName = firstName;
-                        String nameToSave = firstName;
-                        unlockState();
-                        
-                        if(nvsBegin("bms_config", false)){
-                            preferences.putString("bms_mac", firstMac);
-                            preferences.putString("bms_name", nameToSave);
-                            preferences.putBool("need_auto", false);
-                            preferences.putUChar("bms_proto", 255);
-                            preferences.putUChar("jk_ver", 0);
-                            nvsEnd();
-                            Serial.printf("[AUTO] ✅ Saved MAC: %s\n", firstMac.c_str());
-                        }
-                        
-                        lockState();
-                        pendingScanName = firstName;
-                        unlockState();
-                        doConnect = true;
-                    } else if(bmsCount > 1){
-                        Serial.printf("[AUTO] %d BMS found, need user to select. Waiting...\n", bmsCount);
-                    } else {
-                        Serial.println("[AUTO] No BMS found, will retry");
-                    }
-                }
-            }
-        }
-
-        // Query BMS định kỳ
-        if(connected && pChar!=nullptr){
-            if(millis()-lastQueryTime>2500){
-                lastQueryTime=millis();
-                NimBLERemoteCharacteristic* tw=pWriteChar?pWriteChar:pChar;
-                if(bmsProtocol==1){
-                    static uint8_t jkToggle=0;
-                    jkToggle++;
-                    if(!jkVersionProbed) tw->writeValue(jkDeviceInfoCmd, sizeof(jkDeviceInfoCmd), false);
-                    else {
-                        if(jkToggle%2==0) tw->writeValue(jkCellInfoNewCmd, sizeof(jkCellInfoNewCmd), false);
-                        else tw->writeValue(jkCellInfoOldCmd, sizeof(jkCellInfoOldCmd), false);
-                    }
-                } else if(bmsProtocol==0) tw->writeValue(requestSocCmd, sizeof(requestSocCmd), false);
-                else if(bmsProtocol==255) tw->writeValue(requestSocCmd, sizeof(requestSocCmd), false);
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-}
-
-// ============ STATUS ============
-// ============ STATUS ============
-void sendStatus(){
-    if(!uartClientConnected) return;
-    lockState();
-    
-    // ★ Lấy MAC ESP32 (dùng ESP API gốc, không phụ thuộc NimBLE)
-    uint64_t mac = ESP.getEfuseMac();
-    char espMacStr[18];
-    snprintf(espMacStr, sizeof(espMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-        (uint8_t)(mac >> 40), (uint8_t)(mac >> 32), (uint8_t)(mac >> 24),
-        (uint8_t)(mac >> 16), (uint8_t)(mac >> 8), (uint8_t)mac);
-    
-    String j="{";
-    j+="\"t\":\"status\",";
-    j+="\"espMac\":\""+String(espMacStr)+"\",";   // ★ MAC ESP32
-    j+="\"soc\":"+String(currentSoc)+",";
-    j+="\"v\":"+String(bmsHasTotalV?bmsTotalVoltage:0.0f,2)+",";
-    j+="\"i\":"+String(bmsHasCurrent?bmsCurrent:0.0f,2)+",";
-    j+="\"p\":"+String(bmsHasPower?bmsPower:0.0f,1)+",";
-    j+="\"n\":"+String(bmsCellCount)+",";
-    j+="\"mode\":\""+String(acquyMode?"ACQ":"BMS")+"\",";
-    j+="\"sim\":"+String(manualSimMode?"true":"false")+",";
-    j+="\"connected\":"+String(connected?"true":"false")+",";
-    j+="\"mac\":\""+targetMac+"\",";              // MAC BMS
-    j+="\"bmsName\":\""+bmsDeviceName+"\",";
-    j+="\"bmsProto\":"+String((int)bmsProtocol)+",";
-    j+="\"jkVer\":"+String((int)jkVersion)+",";
-    j+="\"acquyMode\":"+String(acquyMode?"true":"false")+",";
-    j+="\"outMode\":"+String(outMode)+",";
-    j+="\"dacPin\":"+String(dacPin)+",";
-    j+="\"pwmPin\":"+String(pwmPin)+",";
-    j+="\"pwmFreq\":"+String(pwmFreq)+",";
-    j+="\"pwmRes\":"+String(pwmRes)+",";
-    j+="\"hasDac\":"+String(HAS_DAC?1:0)+",";
-    j+="\"chipName\":\""+String(CHIP_NAME)+"\",";
-    j+="\"battType\":"+String(batteryType)+",";
-    j+="\"battCells\":"+String(batteryCells)+",";
-    j+="\"aqPin\":"+String(acquyAdcPin)+",";
-    j+="\"aqR1\":"+String(acquyR1,2)+",";
-    j+="\"aqR2\":"+String(acquyR2,2)+",";
-    j+="\"aqGain\":"+String(acquyCalibGain,4)+",";
-    j+="\"aqOffset\":"+String(acquyCalibOffset,3)+",";
-    j+="\"cells\":[";
-    for(int i=0;i<16;i++){ j+=String(bmsCells[i],3); if(i<15) j+=","; }
-    j+="],";
-    // ★ Gửi vmap hiện tại
-    j+="\"vmap\":[";
-    for(uint8_t i=0;i<vmapCount;i++){
-        j+="{\"s\":"+String(vmap[i].s)+",\"e\":"+String(vmap[i].e)+",\"v\":"+String(vmap[i].v,3)+"}";
-        if(i<vmapCount-1) j+=",";
-    }
-    j+="],";
-    // ★ Gửi voltage thực tế đang xuất
-    {
-        float outV = 0;
-        if(outMode==OUT_MODE_DAC){
-            outV = currentOut * 3.3f / 255.0f;
-        } else {
-            int maxVal = (1<<pwmRes)-1;
-            outV = (float)currentOut * 3.3f / (float)maxVal;
-        }
-        j+="\"voltage\":"+String(outV,2)+",";
-    }
-    j+="\"fw\":{\"ver\":\""+String(FW_VERSION)+"\"},";
-    j+="\"aq\":{";
-    j+="\"raw\":"+String(acquyRawV,2)+",";
-    j+="\"ocv\":"+String(acquyOcvEstimated,2)+",";
-    j+="\"sag\":"+String(acquySag,2)+",";
-    j+="\"stable\":"+String(acquyStable?"true":"false")+",";
-    j+="\"adc\":"+String(acquyAdcRawV,3)+",";
-    j+="\"gain\":"+String(acquyCalibGain,4)+",";
-    j+="\"offset\":"+String(acquyCalibOffset,3);
-    j+="}";
-    unlockState();
-    j+="}";
-    bleSendJson(j);
-}
-
-// ============ COMMAND HANDLER ============
-void handleBleCommand(const String& line){
-    String cmd=line;
-    cmd.trim();
-    if(cmd.length()==0) return;
-
-    Serial.printf("[CMD] %s\n", cmd.c_str());
-
-    if(cmd=="HELLO"){ sendAck("OK"); sendStatus(); return; }
-    if(cmd=="GET_STATUS"){ sendStatus(); return; }
-
-    if(cmd.startsWith("SOC:")){
-        uint8_t v=constrain(cmd.substring(4).toInt(),0,100);
-        lockState(); manualSimMode=true; unlockState();
-        applyOutput(v);
-        sendAck("OK");
-        return;
-    }
-    if(cmd=="REAL"){
-        uint8_t soc; bool conn;
-        lockState(); manualSimMode=false; soc=realBmsSoc; conn=connected||acquyMode; unlockState();
-        if(conn && soc>0) applyOutput(soc);
-        sendAck("OK");
-        return;
-    }
-
-    if(cmd=="MODE:BMS"){
-        if(acquyMode){
-            acquyMode=false;
-            if(nvsBegin("bms_config", false)){
-                preferences.putBool("aq_en", false);
-                nvsEnd();
-            }
-            bleClientStart();
-            if(connected) ledSetMode(LED_MODE_BREATHE);
-            else ledSetMode(LED_MODE_SOLID);
-        }
-        sendAck("OK");
-        return;
-    }
-    if(cmd=="MODE:ACQ"){
-        if(!acquyMode){
-            acquyMode=true;
-            if(nvsBegin("bms_config", false)){
-                preferences.putBool("aq_en", true);
-                nvsEnd();
-            }
-            bleClientStop();
-            acquyMedianFilled=false; acquyMedianIdx=0;
-            acquyEmaInit=false; acquyStable=false; acquyStableStart=0;
-            compFactorLearned=(batteryType==BATT_TYPE_LFP)?0.40f:0.70f;
-            socFilteredInit=false;
-            acquyLastStableUpdate=0;
-            acquyLastStableV=0.0f;
-            ledSetMode(LED_MODE_SOLID);
-        }
-        sendAck("OK");
-        return;
-    }
-
-    if(cmd=="SCAN"){ doScan=true; sendAck("OK"); return; }
-
-    if(cmd.startsWith("SAVE_MAC:")){
-        String rest=cmd.substring(9);
-        int c=rest.indexOf('|');
-        String mac=(c>0)?rest.substring(0,c):rest;
-        String name=(c>0)?rest.substring(c+1):"";
-        mac.toUpperCase(); mac.trim();
-        if(mac.length()!=17){ sendErr("MAC invalid"); return; }
-
-        Serial.printf("[CMD] SAVE_MAC %s\n", mac.c_str());
-        sendAck("OK");
-        
-        lockState();
-        targetMac=mac;
-        if(name.length()>0) bmsDeviceName=name;
-        else if(bmsDeviceName.length()==0) bmsDeviceName="BMS "+mac;
-        String nameToSave=bmsDeviceName;
-        unlockState();
-
-        Serial.println("[NVS] Writing MAC...");
-        if(nvsBegin("bms_config", false)){
-            preferences.putString("bms_mac", targetMac);
-            preferences.putString("bms_name", nameToSave);
-            preferences.putBool("need_auto", false);
-            preferences.putUChar("bms_proto", 255);
-            preferences.putUChar("jk_ver", 0);
-            nvsEnd();
-            Serial.println("[NVS] ✅ MAC saved");
-        } else {
-            Serial.println("[NVS] ❌ Failed to write MAC");
-        }
-        
-        delay(50);
-        if(nvsBegin("bms_config", true)){
-            String verify = preferences.getString("bms_mac", "");
-            nvsEnd();
-            if(verify == targetMac){
-                Serial.printf("[NVS] ✅ Verify OK: %s\n", verify.c_str());
-            } else {
-                Serial.printf("[NVS] ❌ Verify FAIL: saved='%s' expected='%s'\n", 
-                    verify.c_str(), targetMac.c_str());
-            }
-        }
-        
-        jkVersion=0; jkVersionProbed=false; needAutoConnect=false;
-        forceScanNow = true;  // ★ Ép scan ngay lập tức
-        doDisconnect=true; doConnect=true;
-        Serial.println("[CMD] SAVE_MAC done, force scan");
-        return;
-    }
-
-    if(cmd=="CLEAR_MAC"){
-        sendAck("OK");
-        lockState(); targetMac=""; bmsDeviceName=""; unlockState();
-        if(nvsBegin("bms_config", false)){
-            preferences.putString("bms_mac", "");
-            preferences.putString("bms_name", "");
-            preferences.putBool("need_auto", true);
-            preferences.putUChar("bms_proto", 255);
-            preferences.putUChar("jk_ver", 0);
-            nvsEnd();
-        }
-        jkVersion=0; jkVersionProbed=false;
-        forceScanNow = true;  // ★ Ép scan tìm BMS mới
-        return;
-    }
-
-    if(cmd.startsWith("SAVE_OUT:")){
-        String b=cmd.substring(9);
-        int p1=b.indexOf(','); int p2=b.indexOf(',',p1+1); int p3=b.indexOf(',',p2+1);
-        if(p1<0||p2<0||p3<0){ sendErr("bad out"); return; }
-        int m=b.substring(0,p1).toInt();
-        int pin=b.substring(p1+1,p2).toInt();
-        int frq=b.substring(p2+1,p3).toInt();
-        int res=b.substring(p3+1).toInt();
-#if !HAS_DAC
-        if(m==OUT_MODE_DAC){ sendErr("no DAC"); return; }
-#endif
-        Serial.printf("[SAVE_OUT] mode=%d, pin=%d, freq=%d, res=%d\n", m, pin, frq, res);
-        sendAck("OK");
-        
-        if(outMode==OUT_MODE_DAC){
-#if HAS_DAC
-            dacWrite(dacPin,0); pinMode(dacPin, INPUT);
-#endif
-        } else disablePWM();
-        outMode=m;
-        if(outMode==OUT_MODE_DAC){ dacPin=pin; }
-        else { pwmPin=pin; pwmFreq=frq; pwmRes=res; }
-        if(outMode==OUT_MODE_DAC){
-#if HAS_DAC
-            pinMode(dacPin, OUTPUT); dacWrite(dacPin,0);
-#endif
-        } else { pinMode(pwmPin, OUTPUT); setupPWM(); }
-        
-        Serial.println("[NVS] Writing OUT...");
-        if(nvsBegin("bms_config", false)){
-            preferences.putInt("out_mode", outMode);
-            preferences.putInt("dac_pin", dacPin);
-            preferences.putInt("pwm_pin", pwmPin);
-            preferences.putInt("pwm_freq", pwmFreq);
-            preferences.putInt("pwm_res", pwmRes);
-            nvsEnd();
-            Serial.println("[NVS] ✅ OUT saved");
-        } else {
-            Serial.println("[NVS] ❌ Failed to write OUT");
-        }
-        
-        delay(50);
-        if(nvsBegin("bms_config", true)){
-            int sm=preferences.getInt("out_mode", -1);
-            int sdp=preferences.getInt("dac_pin", -1);
-            int spp=preferences.getInt("pwm_pin", -1);
-            nvsEnd();
-            Serial.printf("[NVS] Verify OUT: mode=%d/%d, dacPin=%d/%d, pwmPin=%d/%d\n",
-                sm, outMode, sdp, dacPin, spp, pwmPin);
-        }
-        
-        applyOutput(currentSoc);
-        return;
-    }
-
-    if(cmd.startsWith("SET_VMAP:")){
-        String body=cmd.substring(9);
-        int sc=body.indexOf(';');
-        if(sc<0){ sendErr("bad vmap"); return; }
-        int count=body.substring(0,sc).toInt();
-        if(count<1||count>MAX_VMAP_ENTRIES){ sendErr("count"); return; }
-        VMapEntry tmp[MAX_VMAP_ENTRIES];
-        int idx=0, pos=sc+1;
-        while(idx<count && pos<(int)body.length()){
-            int end=body.indexOf(';',pos);
-            String item=(end<0)?body.substring(pos):body.substring(pos,end);
-            int c1=item.indexOf(',');
-            int c2=item.indexOf(',',c1+1);
-            if(c1<0||c2<0) break;
-            tmp[idx].s=constrain(item.substring(0,c1).toInt(),0,100);
-            tmp[idx].e=constrain(item.substring(c1+1,c2).toInt(),0,100);
-            tmp[idx].v=constrain(item.substring(c2+1).toFloat(),0.0f,3.3f);
-            if(tmp[idx].s>tmp[idx].e){ uint8_t t=tmp[idx].s; tmp[idx].s=tmp[idx].e; tmp[idx].e=t; }
-            idx++;
-            if(end<0) break;
-            pos=end+1;
-        }
-        if(idx<1){ sendErr("empty"); return; }
-        for(int i=0;i<idx-1;i++)
-            for(int j=i+1;j<idx;j++)
-                if(tmp[j].s<tmp[i].s){ VMapEntry t=tmp[i]; tmp[i]=tmp[j]; tmp[j]=t; }
-        lockState();
-        vmapCount=idx;
-        for(int i=0;i<idx;i++) vmap[i]=tmp[i];
-        uint8_t soc=currentSoc;
-        unlockState();
-        if(nvsBegin("bms_config", false)){
-            preferences.putUChar("vmap_cnt", vmapCount);
-            for(int i=0;i<MAX_VMAP_ENTRIES;i++){
-                String base="vm"+String(i)+"_";
-                if(i<vmapCount){
-                    preferences.putUChar((base+"s").c_str(), vmap[i].s);
-                    preferences.putUChar((base+"e").c_str(), vmap[i].e);
-                    preferences.putFloat((base+"v").c_str(), vmap[i].v);
-                } else {
-                    preferences.remove((base+"s").c_str());
-                    preferences.remove((base+"e").c_str());
-                    preferences.remove((base+"v").c_str());
-                }
-            }
-            nvsEnd();
-        }
-        applyOutput(soc);
-        sendAck("OK");
-        return;
-    }
-
-    if(cmd.startsWith("SET_OCV:")){
-        String body=cmd.substring(8);
-        int c1=body.indexOf(':');
-        if(c1<0){ sendErr("bad ocv"); return; }
-        String type=body.substring(0,c1);
-        String rest=body.substring(c1+1);
-        int sc=rest.indexOf(';');
-        if(sc<0){ sendErr("no entries"); return; }
-        int count=rest.substring(0,sc).toInt();
-        if(count<2||count>MAX_OCV_POINTS){ sendErr("count"); return; }
-        OcvPoint tmp[MAX_OCV_POINTS];
-        int idx=0, pos=sc+1;
-        while(idx<count && pos<(int)rest.length()){
-            int end=rest.indexOf(';',pos);
-            String item=(end<0)?rest.substring(pos):rest.substring(pos,end);
-            int comma=item.indexOf(',');
-            if(comma<0) break;
-            tmp[idx].v=item.substring(0,comma).toFloat();
-            int s=item.substring(comma+1).toInt();
-            if(tmp[idx].v<=0||s<0||s>100) break;
-            tmp[idx].soc=(uint8_t)s;
-            idx++;
-            if(end<0) break;
-            pos=end+1;
-        }
-        if(idx<2){ sendErr("need 2+"); return; }
-        for(int i=0;i<idx-1;i++)
-            for(int j=i+1;j<idx;j++)
-                if(tmp[j].v>tmp[i].v){ OcvPoint t=tmp[i]; tmp[i]=tmp[j]; tmp[j]=t; }
-        lockState();
-        if(type=="lead"){ leadOcvN=idx; for(int i=0;i<idx;i++) leadOcvTable[i]=tmp[i]; }
-        else { lfpOcvN=idx; for(int i=0;i<idx;i++) lfpOcvTable[i]=tmp[i]; }
-        unlockState();
-        if(nvsBegin("bms_ocv", false)){
-            if(type=="lead"){
-                preferences.putUChar("lead_n", idx);
-                for(int i=0;i<idx;i++){ String b="l"+String(i)+"_";
-                    preferences.putFloat((b+"v").c_str(), tmp[i].v);
-                    preferences.putUChar((b+"s").c_str(), tmp[i].soc); }
-            } else {
-                preferences.putUChar("lfp_n", idx);
-                for(int i=0;i<idx;i++){ String b="f"+String(i)+"_";
-                    preferences.putFloat((b+"v").c_str(), tmp[i].v);
-                    preferences.putUChar((b+"s").c_str(), tmp[i].soc); }
-            }
-            acquyJsonDate="BLE";
-            preferences.putString("date", acquyJsonDate);
-            nvsEnd();
-        }
-        sendAck("OK");
-        return;
-    }
-
-    if(cmd=="GET_OCV"){
-        String j="{\"t\":\"ocv\",\"date\":\""+acquyJsonDate+"\",";
-        j+="\"lead\":[";
-        for(uint8_t i=0;i<leadOcvN;i++){
-            j+="{\"v\":"+String(leadOcvTable[i].v,3)+",\"soc\":"+String(leadOcvTable[i].soc)+"}";
-            if(i<leadOcvN-1) j+=",";
-        }
-        j+="],\"lfp\":[";
-        for(uint8_t i=0;i<lfpOcvN;i++){
-            j+="{\"v\":"+String(lfpOcvTable[i].v,3)+",\"soc\":"+String(lfpOcvTable[i].soc)+"}";
-            if(i<lfpOcvN-1) j+=",";
-        }
-        j+="]}";
-        bleSendJson(j);
-        return;
-    }
-
-    if(cmd.startsWith("SAVE_ACQ:")){
-        String b=cmd.substring(9);
-        float vals[7]={0}; int cnt=0, pos=0;
-        while(cnt<7 && pos<(int)b.length()){
-            int c=b.indexOf(',',pos);
-            String v=(c<0)?b.substring(pos):b.substring(pos,c);
-            vals[cnt++]=v.toFloat();
-            if(c<0) break;
-            pos=c+1;
-        }
-        if(cnt<7){ sendErr("bad acq"); return; }
-        acquyAdcPin=(int)vals[0];
-        acquyR1=vals[1]; acquyR2=vals[2];
-        acquyCalibGain=vals[3]; acquyCalibOffset=vals[4];
-        batteryType=(int)vals[5]; batteryCells=(int)vals[6];
-        if(batteryType!=BATT_TYPE_LEAD && batteryType!=BATT_TYPE_LFP) batteryType=BATT_TYPE_LEAD;
-        if(batteryCells<1) batteryCells=1;
-        if(batteryCells>32) batteryCells=32;
-        if(acquyAdcPin<0||acquyAdcPin>39) acquyAdcPin=32;
-        if(acquyR1<0.1f) acquyR1=100.0f;
-        if(acquyR2<0.1f) acquyR2=4.7f;
-        
-        Serial.printf("[SAVE_ACQ] pin=%d, r1=%.1f, r2=%.1f, gain=%.4f, offset=%.3f, btype=%d, cells=%d\n",
-            acquyAdcPin, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset, batteryType, batteryCells);
-        sendAck("OK");
-        
-        Serial.println("[NVS] Writing ACQ...");
-        if(nvsBegin("bms_config", false)){
-            preferences.putInt("aq_pin", acquyAdcPin);
-            preferences.putFloat("aq_r1", acquyR1);
-            preferences.putFloat("aq_r2", acquyR2);
-            preferences.putInt("batt_type", batteryType);
-            preferences.putInt("batt_cells", batteryCells);
-            preferences.putFloat("aq_gain", acquyCalibGain);
-            preferences.putFloat("aq_off", acquyCalibOffset);
-            nvsEnd();
-            Serial.println("[NVS] ✅ ACQ saved");
-        } else {
-            Serial.println("[NVS] ❌ Failed to write ACQ");
-        }
-        
-        delay(50);
-        if(nvsBegin("bms_config", true)){
-            int sp=preferences.getInt("aq_pin", -1);
-            int sbt=preferences.getInt("batt_type", -1);
-            int sc=preferences.getInt("batt_cells", -1);
-            float sg=preferences.getFloat("aq_gain", -1);
-            nvsEnd();
-            Serial.printf("[NVS] Verify ACQ: pin=%d/%d, btype=%d/%d, cells=%d/%d, gain=%.4f/%.4f\n",
-                sp, acquyAdcPin, sbt, batteryType, sc, batteryCells, sg, acquyCalibGain);
-        }
-        
-        pinMode(acquyAdcPin, INPUT);
-        analogSetPinAttenuation(acquyAdcPin, ACQY_ADC_ATTEN);
-        acquyMedianFilled=false; acquyMedianIdx=0;
-        acquyEmaInit=false; acquyStable=false; acquyStableStart=0;
-        compFactorLearned=(batteryType==BATT_TYPE_LFP)?0.40f:0.70f;
-        socFilteredInit=false;
-        acquyLastStableUpdate=0;
-        acquyLastStableV=0.0f;
-        return;
-    }
-
-    if(cmd.startsWith("SET_LOG:")){
-        logModulesEnabled=(uint16_t)cmd.substring(8).toInt();
-        if(nvsBegin("bms_config", false)){
-            preferences.putUShort("log_mask", logModulesEnabled);
-            nvsEnd();
-        }
-        sendAck("OK");
-        return;
-    }
-
-    sendErr("Unknown: "+cmd);
-}
-
-// ============ BLE CALLBACKS ============
-class UartRxCB : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic* c, NimBLEConnInfo& connInfo) override {
-        std::string s=c->getValue();
-        if(s.empty()) return;
-        
-        static char rxBuffer[512];
-        static size_t rxLen = 0;
-        static unsigned long lastDataTime = 0;
-        
-        if(rxLen > 0 && millis() - lastDataTime > 3000){
-            Serial.println("[BLE] RX timeout, reset buffer");
-            rxLen = 0;
-        }
-        lastDataTime = millis();
-        
-        size_t copyLen = s.length();
-        if(rxLen + copyLen >= sizeof(rxBuffer)){
-            Serial.println("[BLE] RX buffer overflow, reset");
-            rxLen = 0;
-        }
-        memcpy(rxBuffer + rxLen, s.data(), copyLen);
-        rxLen += copyLen;
-        
-        size_t start = 0;
-        for(size_t i = 0; i < rxLen; i++){
-            if(rxBuffer[i] == '\n'){
-                size_t cmdLen = i - start;
-                if(cmdLen > 0 && cmdQueue){
-                    CmdPacket pkt;
-                    size_t cLen = (cmdLen < CMD_BUF_SIZE-1) ? cmdLen : (CMD_BUF_SIZE-1);
-                    memcpy(pkt.cmd, rxBuffer + start, cLen);
-                    pkt.cmd[cLen] = '\0';
-                    if(xQueueSend(cmdQueue, &pkt, 0) != pdTRUE){
-                        Serial.println("[QUEUE] Full, dropped");
-                    }
-                }
-                start = i + 1;
-            }
-        }
-        
-        if(start > 0){
-            size_t remain = rxLen - start;
-            if(remain > 0){
-                memmove(rxBuffer, rxBuffer + start, remain);
-            }
-            rxLen = remain;
-        }
-    }
-};
-
-class OtaRxCB : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic* c, NimBLEConnInfo& connInfo) override {
-        std::string s=c->getValue();
-        const uint8_t* d=(const uint8_t*)s.data();
-        size_t n=s.length();
-        if(n==0) return;
-        if(n>4 && memcmp(d,"OTA_",4)==0){
-            String cmd((const char*)d, n);
-            if(cmd.endsWith("\n")) cmd.remove(cmd.length()-1);
-            if(cmd.startsWith("OTA_START:")){
-                otaTotal=cmd.substring(10).toInt();
-                if(otaTotal>0 && Update.begin(otaTotal)){
-                    otaActive=true; otaWritten=0;
-                    pOtaTx->setValue("ACK"); pOtaTx->notify();
-                } else {
-                    pOtaTx->setValue("ERR"); pOtaTx->notify();
-                }
-                return;
-            }
-            if(cmd=="OTA_END"){
-                if(otaActive && Update.end(true)){
-                    pOtaTx->setValue("ACK"); pOtaTx->notify();
-                    delay(500);
-                    ESP.restart();
-                } else {
-                    pOtaTx->setValue("ERR"); pOtaTx->notify();
-                }
-                otaActive=false;
-                return;
-            }
-        }
-        if(otaActive){
-            if(Update.write((uint8_t*)d, n)==n){
-                otaWritten+=n;
-                pOtaTx->setValue("ACK"); pOtaTx->notify();
-            } else {
-                pOtaTx->setValue("ERR"); pOtaTx->notify();
-                otaActive=false;
-            }
-        }
-    }
-};
-
-class ServerCB : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer* s, NimBLEConnInfo& info) override {
-        uartClientConnected=true;
-        uint16_t mtu = s->getPeerMTU(info.getConnHandle());
-        Serial.printf("[BLE] Web connected, MTU=%u (payload=%u)\n", mtu, mtu-3);
-        if(!NimBLEDevice::getAdvertising()->isAdvertising()){
-            NimBLEDevice::startAdvertising();
-        }
-    }
-    void onDisconnect(NimBLEServer* s, NimBLEConnInfo& info, int reason) override {
-        uartClientConnected=false;
-        Serial.printf("[BLE] Web disconnected (reason=%d)\n", reason);
-        NimBLEDevice::startAdvertising();
-    }
-};
-
-void initBleServer(){
-    NimBLEDevice::init("BMS_Controller");
-    NimBLEDevice::setMTU(517);
-    NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-
-    auto* srv=NimBLEDevice::createServer();
-    srv->setCallbacks(new ServerCB());
-
-    auto* svc=srv->createService(UART_SERVICE_UUID);
-    auto* rx=svc->createCharacteristic(UART_RX_CHAR_UUID,
-        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
-    rx->setCallbacks(new UartRxCB());
-    pUartTx=svc->createCharacteristic(UART_TX_CHAR_UUID, NIMBLE_PROPERTY::NOTIFY);
-    svc->start();
-
-    auto* osvc=srv->createService(OTA_SERVICE_UUID);
-    auto* orx=osvc->createCharacteristic(OTA_RX_CHAR_UUID,
-        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
-    orx->setCallbacks(new OtaRxCB());
-    pOtaTx=osvc->createCharacteristic(OTA_TX_CHAR_UUID, NIMBLE_PROPERTY::NOTIFY);
-    osvc->start();
-
-    auto* adv=NimBLEDevice::getAdvertising();
-    adv->addServiceUUID(UART_SERVICE_UUID);
-    adv->addServiceUUID(OTA_SERVICE_UUID);
-    adv->setName("BMS_Controller");
-    adv->enableScanResponse(true);
-    adv->start();
-}
-
-void loadOcvFromNVS(){
-    if(!nvsBegin("bms_ocv", true)) return;
-    uint8_t nl=preferences.getUChar("lead_n", 0);
-    uint8_t nf=preferences.getUChar("lfp_n", 0);
-    if(nl>=2 && nl<=MAX_OCV_POINTS){
-        leadOcvN=nl;
-        for(uint8_t i=0;i<nl;i++){ String b="l"+String(i)+"_";
-            leadOcvTable[i].v=preferences.getFloat((b+"v").c_str(), 0);
-            leadOcvTable[i].soc=preferences.getUChar((b+"s").c_str(), 0); }
-    }
-    if(nf>=2 && nf<=MAX_OCV_POINTS){
-        lfpOcvN=nf;
-        for(uint8_t i=0;i<nf;i++){ String b="f"+String(i)+"_";
-            lfpOcvTable[i].v=preferences.getFloat((b+"v").c_str(), 0);
-            lfpOcvTable[i].soc=preferences.getUChar((b+"s").c_str(), 0); }
-    }
-    acquyJsonDate=preferences.getString("date", "");
-    nvsEnd();
-}
-
-void setup(){
-    pinMode(LED_PIN, OUTPUT);
-    Serial.begin(115200);
-    delay(200);
-    ledSetup();
-    Serial.println();
-    Serial.println(">>> BMS Controller v" FW_VERSION " <<<");
-
-    nvsMutex = xSemaphoreCreateMutex();
-    if(!nvsMutex) Serial.println("[BOOT] ❌ NVS mutex failed");
-    else Serial.println("[BOOT] ✅ NVS mutex created");
-
-    if(nvsBegin("test", false)){
-        preferences.putString("key", "hello");
-        String v = preferences.getString("key", "");
-        nvsEnd();
-        Serial.printf("[NVS] Test: '%s' (%s)\n", v.c_str(), v=="hello"?"✅":"❌");
-    } else {
-        Serial.println("[NVS] ❌ Test begin failed");
-    }
-
-    cmdQueue = xQueueCreate(20, sizeof(CmdPacket));
-    if(!cmdQueue){
-        Serial.println("[BOOT] ❌ Queue failed");
-    } else {
-        Serial.println("[BOOT] ✅ Command queue created");
-    }
-
-    stateMutex=xSemaphoreCreateMutex();
-
-    if(nvsBegin("bms_config", true)){
-        minVoltage=preferences.getFloat("min_v", minVoltage);
-        maxVoltage=preferences.getFloat("max_v", maxVoltage);
-        targetMac=preferences.getString("bms_mac", "");
-        savedSoc=preferences.getUInt("last_soc", 0);
-        outMode=preferences.getInt("out_mode", OUT_MODE_DAC);
-        dacPin=preferences.getInt("dac_pin", 25);
-        pwmPin=preferences.getInt("pwm_pin", 14);
-        pwmFreq=preferences.getInt("pwm_freq", 5000);
-        pwmRes=preferences.getInt("pwm_res", 10);
-        acquyMode=preferences.getBool("aq_en", false);
-        acquyAdcPin=preferences.getInt("aq_pin", 32);
-        acquyR1=preferences.getFloat("aq_r1", 100.0f);
-        acquyR2=preferences.getFloat("aq_r2", 4.7f);
-        acquyCalibGain=preferences.getFloat("aq_gain", 1.0f);
-        acquyCalibOffset=preferences.getFloat("aq_off", 0.0f);
-        batteryType=preferences.getInt("batt_type", BATT_TYPE_LEAD);
-        batteryCells=preferences.getInt("batt_cells", 4);
-        uint8_t savedProto=preferences.getUChar("bms_proto", 255);
-        if(savedProto<=1) bmsProtocol=savedProto;
-        jkVersion=preferences.getUChar("jk_ver", 0);
-        if(jkVersion>0 && jkVersion<=2) jkVersionProbed=true;
-        else { jkVersion=0; jkVersionProbed=false; }
-        vmapCount=preferences.getUChar("vmap_cnt", 0);
-        if(vmapCount>MAX_VMAP_ENTRIES) vmapCount=MAX_VMAP_ENTRIES;
-        for(int i=0;i<vmapCount;i++){ String base="vm"+String(i)+"_";
-            vmap[i].s=preferences.getUChar((base+"s").c_str(), 0);
-            vmap[i].e=preferences.getUChar((base+"e").c_str(), 0);
-            vmap[i].v=preferences.getFloat((base+"v").c_str(), 0.0f); }
-        logModulesEnabled=preferences.getUShort("log_mask", LOGMOD_ALL);
-        bmsDeviceName=preferences.getString("bms_name", "");
-        bool needAuto=preferences.getBool("need_auto", false);
-        if(needAuto && targetMac.length()==0) needAutoConnect=true;
-        nvsEnd();
-    }
-
-    if(acquyCalibGain<0.5f||acquyCalibGain>2.0f) acquyCalibGain=1.0f;
-    if(acquyCalibOffset<-5.0f||acquyCalibOffset>5.0f) acquyCalibOffset=0.0f;
-    if(batteryType!=BATT_TYPE_LEAD && batteryType!=BATT_TYPE_LFP) batteryType=BATT_TYPE_LEAD;
-    if(batteryCells<1||batteryCells>32) batteryCells=4;
-
-    loadOcvFromNVS();
-
-    pinMode(acquyAdcPin, INPUT);
-    analogReadResolution(12);
-    analogSetAttenuation(ACQY_ADC_ATTEN);
-    analogSetPinAttenuation(acquyAdcPin, ACQY_ADC_ATTEN);
-
-    if(outMode!=OUT_MODE_DAC && outMode!=OUT_MODE_PWM) outMode=OUT_MODE_DAC;
-#if !HAS_DAC
-    if(outMode==OUT_MODE_DAC) outMode=OUT_MODE_PWM;
-#endif
-    if(dacPin!=25 && dacPin!=26) dacPin=25;
-    if(pwmRes<1||pwmRes>14) pwmRes=10;
-
-    if(outMode==OUT_MODE_DAC){
-#if HAS_DAC
-        pinMode(dacPin, OUTPUT); dacWrite(dacPin, 0);
-#endif
-    } else { pinMode(pwmPin, OUTPUT); setupPWM(); }
-
-    if(savedSoc>0 && savedSoc<=100) applyOutput(savedSoc);
-
-    initBleServer();
-    if(!acquyMode) bleClientStart();
-
-    xTaskCreatePinnedToCore(bleTask, "BLE_Task", 16384, nullptr, 0, nullptr, 0);
-    ledSetMode(LED_MODE_CONFIG_BLINK);
-    Serial.printf("[BOOT] MAC='%s', outMode=%d, dacPin=%d, pwmPin=%d\n",
-        targetMac.c_str(), outMode, dacPin, pwmPin);
-    Serial.printf("[BOOT] ACQ: pin=%d, r1=%.1f, r2=%.1f, gain=%.4f, offset=%.3f, btype=%d, cells=%d\n",
-        acquyAdcPin, acquyR1, acquyR2, acquyCalibGain, acquyCalibOffset, batteryType, batteryCells);
-}
-
-void loop(){
-    loopCounter++;
-    processAcquyReading();
-    ledUpdate();
-
-    static unsigned long lastStatus=0;
-    if(millis()-lastStatus>5000){
-        lastStatus=millis();
-        sendStatus();
-    }
-
-    static unsigned long lastMem=0;
-    if(millis()-lastMem>15000){
-        lastMem=millis();
-        Serial.printf("[MEM] Heap=%d\n", ESP.getFreeHeap());
-    }
-
-    delay(5);
-}
+// Khởi chạy
+bleUpdateUI();
+setTimeout(() => {
+  if(savedDeviceId && !bleConnected) bleAutoReconnect();
+}, 800);
+</script>
+</body></html>
