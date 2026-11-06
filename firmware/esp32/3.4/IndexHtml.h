@@ -255,7 +255,7 @@ static inline void sendIndexHtml() {
                                                                    "<div class='input-row'><label><strong>Điện trở R1 (kΩ):</strong></label>"
                                                                    "<input type='number' id='aqR1' step='0.1' placeholder='Vd: 100' oninput='checkDivider()'></div>"
                                                                    "<div class='input-row'><label><strong>Điện trở R2 (kΩ):</strong></label>"
-                                                                   "<input type='number' id='aqR2' step='0.1' placeholder='Vd: 4.7' oninput='checkDivider()'></div>"
+                                                                   "<input type='number' id='aqR2' step='0.1' placeholder='Vd: 2.05' oninput='checkDivider()'></div>"
                                                                    "<div id='dividerWarn' style='display:none;border-radius:5px;padding:10px;font-size:12px;margin-bottom:10px;line-height:1.6'></div>"
 
                                                                    "<div style='border-top:1px dashed #dee2e6;padding-top:10px;margin-top:10px'>"
