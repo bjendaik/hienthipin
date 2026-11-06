@@ -118,7 +118,7 @@ cd hienthipin
 # 3. Chọn board: ESP32 Dev Module
 # 4. Chọn Partition Scheme: "Default 4MB with spiffs"
 # 5. Nạp firmware
-
+bash```
 hienthipin3.4.ino    ← setup() / loop() chính
 ├── Config.h         ← Định nghĩa toàn bộ biến, struct, hằng số
 ├── SystemUtils.h    ← LED, CPU load, WiFi AP/STA, output DAC/PWM
