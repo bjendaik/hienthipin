@@ -46,7 +46,7 @@ void setup() {
   acquyMode = preferences.getBool("aq_en", false);
   acquyAdcPin = preferences.getInt("aq_pin", 32);
   acquyR1 = preferences.getFloat("aq_r1", 100.0f);
-  acquyR2 = preferences.getFloat("aq_r2", 4.7f);
+  acquyR2 = preferences.getFloat("aq_r2", 2.05f);
   acquyCalibGain = preferences.getFloat("aq_gain", 1.0f);
   acquyCalibOffset = preferences.getFloat("aq_off", 0.0f);
 
