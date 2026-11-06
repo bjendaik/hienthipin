@@ -75,11 +75,14 @@ Firmware ESP32 đọc SOC pin qua BMS Bluetooth (JiKong / BMS MOVE) **hoặc** �
 | **LED** | GPIO2 | PWM 5kHz, 8-bit |
 
 ### Cầu phân áp đo ắc quy
+
+```
 V_battery ──[ R1 ]──┬── GPIO32 (ADC)
                     │
                   [ R2 ]
                     │
                    GND
+```
 
 - **Điện áp ADC** = `V_battery × R2 / (R1 + R2)`
 - **Điện áp đo được** = `V_ADC × (R1 + R2) / R2 × Gain + Offset`
@@ -132,73 +135,79 @@ hienthipin3.4.ino    ← setup() / loop() chính
 ├── IndexHtml.h      ← Toàn bộ HTML/CSS/JS của Web UI
 └── WebUI.h          ← HTTP handlers, đăng ký routes
 ```
-📖 Hướng dẫn sử dụng
-Lần đầu khởi động
-ESP32 phát WiFi BMS_Config / mật khẩu 12345678
 
-Kết nối → captive portal tự mở (hoặc vào http://192.168.4.1)
+---
 
-Chọn nguồn dữ liệu:
+## 📖 Hướng dẫn sử dụng
 
-🔋 BMS: bấm Quét Bluetooth → chọn BMS
+### Lần đầu khởi động
 
-⚡ Ắc quy: nhập thông số bình, R1/R2, hiệu chuẩn
+1. ESP32 phát WiFi **`BMS_Config`** / mật khẩu **`12345678`**
+2. Kết nối → captive portal tự mở (hoặc vào `http://192.168.4.1`)
+3. Chọn nguồn dữ liệu:
+   - **🔋 BMS**: bấm *Quét Bluetooth* → chọn BMS
+   - **⚡ Ắc quy**: nhập thông số bình, R1/R2, hiệu chuẩn
 
-Hiệu chuẩn ắc quy
-Đo điện áp thực tế bằng VOM
+### Hiệu chuẩn ắc quy
 
-Nhập vào ô "V thực tế" → bấm 🎯 Tính Gain
+1. Đo điện áp thực tế bằng VOM
+2. Nhập vào ô **"V thực tế"** → bấm **🎯 Tính Gain**
+3. Kiểm tra điện áp hiển thị khớp với VOM (±0.1V)
 
-Kiểm tra điện áp hiển thị khớp với VOM (±0.1V)
+### Cấu hình bảng điện áp Output
 
-Cấu hình bảng điện áp Output
-Có sẵn: chọn preset → Áp dụng
+- **Có sẵn**: chọn preset → *Áp dụng*
+- **Thủ công**: thêm dải `% đầu → % cuối → V output`
+- Output = `V_map` (theo SOC) hoặc nội suy tuyến tính `minV → maxV`
 
-Thủ công: thêm dải % đầu → % cuối → V output
+### OTA
 
-Output = V_map (theo SOC) hoặc nội suy tuyến tính minV → maxV
+- **Online**: bật STA → *Kiểm tra phiên bản* → *Nạp Firmware Online*
+- **Local**: chọn file `.bin` → *Nạp Firmware*
+- **Auto**: bật toggle 🔄 Auto (chỉ khi có WiFi)
 
-OTA
-Online: bật STA → Kiểm tra phiên bản → Nạp Firmware Online
+---
 
-Local: chọn file .bin → Nạp Firmware
+## 🔧 API Endpoints
 
-Auto: bật toggle 🔄 Auto (chỉ khi có WiFi)
+<details>
+<summary>Xem danh sách đầy đủ</summary>
 
-🔧 API Endpoints
-<details> <summary>Xem danh sách đầy đủ</summary>
-Endpoint	Method	Mô tả
-/
-GET	Web UI
-/data
-GET	JSON trạng thái đầy đủ
-/chipinfo
-GET	RAM/Flash/CPU
-/serial	GET	Log Serial mới
-/sim?soc=N / /sim?real=1	GET	Giả lập / về SOC thực
-/saveout	GET	Lưu cấu hình DAC/PWM
-/savevmap	GET	Lưu bảng điện áp
-/presets	GET	Danh sách preset
-/applypreset?id=N	GET	Áp dụng preset
-/fetchpresets	GET	Tải preset từ server
-/scan	GET	Quét BMS
-/save?mac=...	GET	Lưu MAC BMS
-/clearmac	GET	Xóa MAC
-/toggleacquy?en=0/1	GET	Đổi chế độ BMS ↔ Ắc quy
-/saveacquycfg	GET	Lưu cấu hình ắc quy
-/saveacqparams	GET	Lưu ngưỡng tụt/tăng áp
-/acquyjsoninfo	GET	Bảng OCV hiện tại
-/fetchacquyjson	GET	Tải OCV từ server
-/saveocvmanual	GET	Lưu OCV thủ công
-/savewifi / /savesta	GET	Cấu hình WiFi
-/saveapcfg / /saveaptimeout	GET	Cấu hình AP
-/setlogmodules?mask=N	GET	Lọc log
-/checkupdate	GET	Kiểm tra bản mới
-/otaonline	GET	OTA online
-/update	POST	OTA từ file
+| Endpoint | Method | Mô tả |
+|----------|--------|-------|
+| `/` | GET | Web UI |
+| `/data` | GET | JSON trạng thái đầy đủ |
+| `/chipinfo` | GET | RAM/Flash/CPU |
+| `/serial` | GET | Log Serial mới |
+| `/sim?soc=N` / `/sim?real=1` | GET | Giả lập / về SOC thực |
+| `/saveout` | GET | Lưu cấu hình DAC/PWM |
+| `/savevmap` | GET | Lưu bảng điện áp |
+| `/presets` | GET | Danh sách preset |
+| `/applypreset?id=N` | GET | Áp dụng preset |
+| `/fetchpresets` | GET | Tải preset từ server |
+| `/scan` | GET | Quét BMS |
+| `/save?mac=...` | GET | Lưu MAC BMS |
+| `/clearmac` | GET | Xóa MAC |
+| `/toggleacquy?en=0/1` | GET | Đổi chế độ BMS ↔ Ắc quy |
+| `/saveacquycfg` | GET | Lưu cấu hình ắc quy |
+| `/saveacqparams` | GET | Lưu ngưỡng tụt/tăng áp |
+| `/acquyjsoninfo` | GET | Bảng OCV hiện tại |
+| `/fetchacquyjson` | GET | Tải OCV từ server |
+| `/saveocvmanual` | GET | Lưu OCV thủ công |
+| `/savewifi` / `/savesta` | GET | Cấu hình WiFi |
+| `/saveapcfg` / `/saveaptimeout` | GET | Cấu hình AP |
+| `/setlogmodules?mask=N` | GET | Lọc log |
+| `/checkupdate` | GET | Kiểm tra bản mới |
+| `/otaonline` | GET | OTA online |
+| `/update` | POST | OTA từ file |
+
 </details>
-📊 Luồng xử lý ắc quy
-text
+
+---
+
+## 📊 Luồng xử lý ắc quy
+
+```
 ┌─────────────┐
 │  Đọc ADC    │ (32 mẫu, 50µs/mẫu)
 └──────┬──────┘
@@ -231,98 +240,114 @@ text
                       ┌──────────────────┐
                       │ applyOutput(SOC) │
                       └──────────────────┘
-⚙️ Tham số cấu hình chính
-Tham số	Mặc định	Mô tả
-CHARGE_OCV_OFFSET	2.0V	OCV = áp sạc − 2V
-CHARGE_FULL_HOLD_MS	30s	Giữ áp đầy để xác nhận 100%
-chargeRiseThr	0.30V	Ngưỡng phát hiện bắt đầu sạc
-dropThresholdLead
-1.00V	Tụt áp coi là tải nặng (chì)
-dropThresholdLfp	0.50V	Tụt áp coi là tải nặng (LFP)
-settleLeadMs	60s	Thời gian chờ ổn định sau biến động
-stableBandV	0.50V	Biên độ coi là phẳng
-ACQY_MEDIAN_SIZE	5	Cửa sổ lọc median
-ACQY_EMA_ALPHA	0.25	Hệ số EMA
-SAG_LIGHT	0.4V	Ngưỡng tải nhẹ
-🐛 Troubleshooting
-<details> <summary><b>ADC đọc sai / lệch nhiều</b></summary>
-Kiểm tra R1/R2 đúng giá trị thực tế (sai số 1% trở lên)
+```
 
-Dùng hiệu chuẩn nhanh: đo VOM → nhập V thực → Tính Gain
+---
 
-Tránh chân ADC2 (GPIO 0/2/4/12-15/25-27) khi WiFi bật
+## ⚙️ Tham số cấu hình chính
 
-Thêm tụ 100nF từ chân ADC xuống GND để giảm nhiễu
+| Tham số | Mặc định | Mô tả |
+|---------|----------|-------|
+| `CHARGE_OCV_OFFSET` | 2.0V | OCV = áp sạc − 2V |
+| `CHARGE_FULL_HOLD_MS` | 30s | Giữ áp đầy để xác nhận 100% |
+| `chargeRiseThr` | 0.30V | Ngưỡng phát hiện bắt đầu sạc |
+| `dropThresholdLead` | 1.00V | Tụt áp coi là tải nặng (chì) |
+| `dropThresholdLfp` | 0.50V | Tụt áp coi là tải nặng (LFP) |
+| `settleLeadMs` | 60s | Thời gian chờ ổn định sau biến động |
+| `stableBandV` | 0.50V | Biên độ coi là phẳng |
+| `ACQY_MEDIAN_SIZE` | 5 | Cửa sổ lọc median |
+| `ACQY_EMA_ALPHA` | 0.25 | Hệ số EMA |
+| `SAG_LIGHT` | 0.4V | Ngưỡng tải nhẹ |
 
-</details><details> <summary><b>BMS không kết nối được</b></summary>
-Đảm bảo BMS đang bật và trong tầm (≤ 10m)
+---
 
-Xóa MAC cũ → quét lại
+## 🐛 Troubleshooting
 
-Một số BMS MOVE yêu cầu login trước — firmware đã gửi sẵn loginCmd
+<details>
+<summary><b>ADC đọc sai / lệch nhiều</b></summary>
 
-Kiểm tra Terminal log module BLE
-
-</details><details> <summary><b>SOC nhảy loạn</b></summary>
-Tăng sett
-leLeadMs
- / 
-settleLfpMs
- (chờ lâu hơn)
-
-Giảm stableBandV (yêu cầu phẳng hơn)
-
-Kiểm tra bảng OCV → SOC có đúng thứ tự giảm dần không
-
-Với LFP: vùng 3.2–3.3V phẳng → SOC khó chính xác, nên dùng BMS
-
-</details><details> <summary><b>Web UI không load</b></summary>
-Kết nối đúng SSID AP (mặc định BMS_Config)
-
-Thử http://192.168.4.1 trực tiếp
-
-Xóa cache trình duyệt
-
-Kiểm tra log BOOT/WiFi qua Serial
-
-</details><details> <summary><b>OTA thất bại</b></summary>
-Đảm bảo file .bin đúng định dạng (không phải .bin.gz)
-
-Partition scheme phải có 2 app slots (OTA)
-
-WiFi phải ổn định — không OTA qua AP
-
-Nếu online: kiểm tra update.json trên server có URL đúng
+- Kiểm tra R1/R2 đúng giá trị thực tế (sai số 1% trở lên)
+- Dùng **hiệu chuẩn nhanh**: đo VOM → nhập V thực → *Tính Gain*
+- Tránh chân ADC2 (GPIO 0/2/4/12-15/25-27) khi WiFi bật
+- Thêm tụ 100nF từ chân ADC xuống GND để giảm nhiễu
 
 </details>
-📝 Changelog
-v3.4
-✨ Thêm phát hiện sạc/ngắt sạc tự động (OCV = áp sạc − 2V)
 
-✨ Khôi phục OCV gốc khi ngắt sạc do tải nặng
+<details>
+<summary><b>BMS không kết nối được</b></summary>
 
-⚡ Rate limiter thích ứng theo mức tải (rất nặng/nặng/vừa/nhẹ)
+- Đảm bảo BMS đang bật và trong tầm (≤ 10m)
+- Xóa MAC cũ → quét lại
+- Một số BMS MOVE yêu cầu login trước — firmware đã gửi sẵn `loginCmd`
+- Kiểm tra Terminal log module **BLE**
 
-⚡ Giảm mù khi tải nhẹ + áp phẳng
+</details>
 
-🐛 Fix parse HTTP date không có timezone
+<details>
+<summary><b>SOC nhảy loạn</b></summary>
 
-🐛 Fix ADC pin attenuation cho ESP32-S3/C3
+- Tăng `settleLeadMs` / `settleLfpMs` (chờ lâu hơn)
+- Giảm `stableBandV` (yêu cầu phẳng hơn)
+- Kiểm tra bảng OCV → SOC có đúng thứ tự giảm dần không
+- Với LFP: vùng 3.2–3.3V phẳng → SOC khó chính xác, nên dùng BMS
 
-v3.0
-Thêm chế độ Ắc quy (ADC) song song với BMS
+</details>
 
-Bảng OCV → SOC động (tải từ server / nhập tay)
+<details>
+<summary><b>Web UI không load</b></summary>
 
-Web UI đầy đủ: Terminal, Chip Info, Preset, OCV Editor
+- Kết nối đúng SSID AP (mặc định `BMS_Config`)
+- Thử `http://192.168.4.1` trực tiếp
+- Xóa cache trình duyệt
+- Kiểm tra log BOOT/WiFi qua Serial
 
-📄 License
-MIT License — xem file LICENSE.
+</details>
 
-🤝 Đóng góp
+<details>
+<summary><b>OTA thất bại</b></summary>
+
+- Đảm bảo file `.bin` đúng định dạng (không phải `.bin.gz`)
+- Partition scheme phải có 2 app slots (OTA)
+- WiFi phải ổn định — không OTA qua AP
+- Nếu online: kiểm tra `update.json` trên server có URL đúng
+
+</details>
+
+---
+
+## 📝 Changelog
+
+### v3.4
+
+- ✨ Thêm phát hiện sạc/ngắt sạc tự động (OCV = áp sạc − 2V)
+- ✨ Khôi phục OCV gốc khi ngắt sạc do tải nặng
+- ⚡ Rate limiter thích ứng theo mức tải (rất nặng/nặng/vừa/nhẹ)
+- ⚡ Giảm mù khi tải nhẹ + áp phẳng
+- 🐛 Fix parse HTTP date không có timezone
+- 🐛 Fix ADC pin attenuation cho ESP32-S3/C3
+
+### v3.0
+
+- Thêm chế độ Ắc quy (ADC) song song với BMS
+- Bảng OCV → SOC động (tải từ server / nhập tay)
+- Web UI đầy đủ: Terminal, Chip Info, Preset, OCV Editor
+
+---
+
+## 📄 License
+
+MIT License — xem file [LICENSE](LICENSE).
+
+## 🤝 Đóng góp
+
 Pull request & issue luôn được chào đón!
 
-👤 Tác giả
-bjendaik — GitHub
+## 👤 Tác giả
 
-<p align="center"> <i>Made with ❤️ for Vietnamese DIY battery community</i> </p> ```
+**bjendaik** — [GitHub](https://github.com/bjendaik)
+
+---
+
+<p align="center">
+  <i>Made with ❤️ for Vietnamese DIY battery community</i>
+</p>
