@@ -118,7 +118,11 @@ cd hienthipin
 # 3. Chọn board: ESP32 Dev Module
 # 4. Chọn Partition Scheme: "Default 4MB with spiffs"
 # 5. Nạp firmware
-bash```
+```
+
+### Cấu trúc file
+
+```
 hienthipin3.4.ino    ← setup() / loop() chính
 ├── Config.h         ← Định nghĩa toàn bộ biến, struct, hằng số
 ├── SystemUtils.h    ← LED, CPU load, WiFi AP/STA, output DAC/PWM
@@ -127,7 +131,7 @@ hienthipin3.4.ino    ← setup() / loop() chính
 ├── CloudOta.h       ← Tải preset/OCV/update từ server, OTA online
 ├── IndexHtml.h      ← Toàn bộ HTML/CSS/JS của Web UI
 └── WebUI.h          ← HTTP handlers, đăng ký routes
-
+```
 📖 Hướng dẫn sử dụng
 Lần đầu khởi động
 ESP32 phát WiFi BMS_Config / mật khẩu 12345678
