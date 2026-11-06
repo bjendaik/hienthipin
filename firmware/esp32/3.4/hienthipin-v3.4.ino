@@ -39,7 +39,7 @@ void setup() {
   savedSoc = preferences.getUInt("last_soc", 0);
   outMode = preferences.getInt("out_mode", OUT_MODE_DAC);
   dacPin = preferences.getInt("dac_pin", 25);
-  pwmPin = preferences.getInt("pwm_pin", 14);
+  pwmPin = preferences.getInt("pwm_pin", 25);
   pwmFreq = preferences.getInt("pwm_freq", 5000);
   pwmRes = preferences.getInt("pwm_res", 10);
 
