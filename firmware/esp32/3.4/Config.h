@@ -62,7 +62,7 @@ LedMode currentLedMode = LED_MODE_SOLID;
 #define OUT_MODE_PWM 1
 int outMode = OUT_MODE_DAC;
 int dacPin = 25;
-int pwmPin = 14;
+int pwmPin = 25;
 int pwmFreq = 5000;
 int pwmRes = 10;
 
