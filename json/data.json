@@ -17,7 +17,7 @@
     {
       "name": "Màn Xe XLD5",
       "subtitle": "dùng cho pin 26V màn xld5",
-      "ranges": "0-10% → 1.4V hết pin | 11-25% → 1.48V pin sắp hết | 26-40% → 1.52V 1 vạch pin | 41-55% → 1.56V 2 vạch pin | 56-70% → 1.6V 3 vạch pin | 71-85% → 1.65V 4 vạch pin | 86-100% → 1.7V 5 vạch pin",
+      "ranges": "0-10% → 1.4V hết pin | 11-25% → 1.5V pin sắp hết | 26-40% → 1.54V 1 vạch pin | 41-55% → 1.58V 2 vạch pin | 56-70% → 1.62V 3 vạch pin | 71-85% → 1.66V 4 vạch pin | 86-100% → 1.75V 5 vạch pin",
       "entries": [
         {"s": 0,  "e": 10,  "v": 1.40},
         {"s": 11, "e": 25,  "v": 1.50},
